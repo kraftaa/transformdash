@@ -1,7 +1,10 @@
 version: 2
 
 exposures:
-  - name: executive_dashboard
+  - id: 1
+    uuid: "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
+    name: Executive Dashboard
+    slug: executive-dashboard
     type: dashboard
     maturity: high
     owner:
@@ -13,9 +16,11 @@ exposures:
     depends_on:
       - ref('fct_orders')
       - ref('stg_customers')
-    url: https://dashboards.company.com/executive
 
-  - name: customer_analytics
+  - id: 2
+    uuid: "f6e5d4c3-b2a1-4f5e-9d8c-7b6a5e4d3c2b"
+    name: Customer Analytics
+    slug: customer-analytics
     type: dashboard
     maturity: medium
     owner:
@@ -27,9 +32,11 @@ exposures:
     depends_on:
       - ref('int_customer_orders')
       - ref('fct_orders')
-    url: https://dashboards.company.com/customers
 
-  - name: sales_report
+  - id: 3
+    uuid: "9c8d7e6f-5a4b-4c3d-2e1f-0a9b8c7d6e5f"
+    name: Sales Report
+    slug: sales-report
     type: report
     maturity: high
     owner:
@@ -40,4 +47,3 @@ exposures:
       Automated email at 8 AM.
     depends_on:
       - ref('fct_orders')
-    url: https://reports.company.com/sales-daily
