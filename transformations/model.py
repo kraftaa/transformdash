@@ -61,44 +61,81 @@ class TransformationModel:
     def _execute_sql(self, context: Dict[str, Any]) -> pd.DataFrame:
         """
         Execute SQL query against database
-        Supports Jinja-like {{ ref('model_name') }} syntax for referencing dependencies
+        Renders Jinja2 templates and creates views/tables based on materialization
         """
         from postgres import PostgresConnector
+        from jinja2 import Template
         import re
 
-        # Process {{ ref('model_name') }} syntax
-        # Replace with actual table references or CTEs from context
-        processed_query = self.sql_query
+        # Step 1: Render Jinja2 templates
+        # Create Jinja2 environment with our custom functions
+        template = Template(self.sql_query)
 
-        # Find all {{ ref('...') }} patterns
-        ref_pattern = r"\{\{\s*ref\(['\"]([^'\"]+)['\"]\)\s*\}\}"
-        refs = re.findall(ref_pattern, self.sql_query)
+        # Define helper functions for Jinja2
+        def ref(model_name):
+            # For views/tables created by previous models, reference schema.name
+            if hasattr(self, '_schema'):
+                return f"{self._schema}.{model_name}"
+            return f"public.{model_name}"
 
-        # Create CTEs from context data for referenced models
-        ctes = []
-        for ref_model in refs:
-            if ref_model in context and isinstance(context[ref_model], pd.DataFrame):
-                # Model result is a DataFrame - create a temporary table name
-                temp_table = f"temp_{ref_model}"
-                processed_query = re.sub(
-                    r"\{\{\s*ref\(['\"]" + ref_model + r"['\"]\)\s*\}\}",
-                    temp_table,
-                    processed_query
-                )
-                # Note: We'll need to create temp tables in the database
-                # For now, this documents the pattern
-                ctes.append((ref_model, temp_table, context[ref_model]))
+        def source(schema_name, table_name):
+            # Reference raw source tables
+            return f"{schema_name}.{table_name}"
 
-        # Execute SQL query
+        def config(**kwargs):
+            # config() is stripped out - just return empty string
+            return ""
+
+        def is_incremental():
+            # Check if model already exists for incremental logic
+            return False  # For now, always do full refresh
+
+        # Render the template
+        rendered_sql = template.render(
+            ref=ref,
+            source=source,
+            config=config,
+            is_incremental=is_incremental,
+            this=f"public.{self.name}"  # {{ this }} refers to current model
+        )
+
+        # Step 2: Clean up the SQL (remove config lines, extra whitespace)
+        # Remove any standalone config() calls
+        rendered_sql = re.sub(r'\{\{.*?config\(.*?\).*?\}\}', '', rendered_sql, flags=re.DOTALL)
+        rendered_sql = rendered_sql.strip()
+
+        # Step 3: Execute based on materialization strategy
+        mat_type = getattr(self, 'config', {}).get('materialized', 'view')
+
         with PostgresConnector() as pg:
-            # Create temporary tables from context DataFrames
-            for ref_model, temp_table, df in ctes:
-                # This would ideally use CREATE TEMPORARY TABLE
-                # For now, we skip this and use direct query execution
-                pass
+            if mat_type == 'view':
+                # Create or replace view
+                create_sql = f"CREATE OR REPLACE VIEW public.{self.name} AS\n{rendered_sql}"
+                pg.execute(create_sql)
+                # Return a sample of the data
+                result_df = pg.query_to_dataframe(f"SELECT * FROM public.{self.name} LIMIT 5")
 
-            # Execute the processed query
-            result_df = pg.query_to_dataframe(processed_query)
+            elif mat_type == 'table':
+                # Create or replace table
+                drop_sql = f"DROP TABLE IF EXISTS public.{self.name}"
+                create_sql = f"CREATE TABLE public.{self.name} AS\n{rendered_sql}"
+                pg.execute(drop_sql)
+                pg.execute(create_sql)
+                result_df = pg.query_to_dataframe(f"SELECT * FROM public.{self.name} LIMIT 5")
+
+            elif mat_type == 'incremental':
+                # For now, treat as table (full refresh)
+                # TODO: Implement true incremental logic
+                drop_sql = f"DROP TABLE IF EXISTS public.{self.name}"
+                create_sql = f"CREATE TABLE public.{self.name} AS\n{rendered_sql}"
+                pg.execute(drop_sql)
+                pg.execute(create_sql)
+                result_df = pg.query_to_dataframe(f"SELECT * FROM public.{self.name} LIMIT 5")
+
+            else:
+                # Default: just execute and return results
+                result_df = pg.query_to_dataframe(rendered_sql)
+
             return result_df
 
     def __repr__(self):
