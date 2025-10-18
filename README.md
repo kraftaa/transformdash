@@ -5,7 +5,7 @@
 A modern, dbt-inspired data transformation platform that combines the power of SQL transformations, Python extensibility, DAG-based orchestration, and interactive data lineage visualization.
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
-![Python](https://img.shields.io/badge/python-3.9%2B-blue)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
@@ -64,7 +64,7 @@ A modern, dbt-inspired data transformation platform that combines the power of S
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.9+
+- Python 3.11+
 - PostgreSQL (or your preferred database)
 - Git
 
