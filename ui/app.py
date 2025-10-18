@@ -251,7 +251,7 @@ async def root():
 <body>
     <div class="container">
         <header>
-            <h1>🚀 TransformDash</h1>
+            <h1>✨ TransformDash</h1>
             <p class="subtitle">Hybrid Data Transformation & Dashboard Platform</p>
         </header>
 
