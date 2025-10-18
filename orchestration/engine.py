@@ -12,6 +12,7 @@ class ExecutionContext:
         self.metadata = {}
         self.start_time = None
         self.end_time = None
+        self.logs = []
 
     def add_result(self, model_name: str, result: Any, execution_time: float):
         self.results[model_name] = result
@@ -29,6 +30,12 @@ class ExecutionContext:
             "error": error
         }
 
+    def add_log(self, message: str, level: str = "INFO"):
+        """Add a log entry"""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        log_entry = f"[{timestamp}] [{level}] {message}"
+        self.logs.append(log_entry)
+
     def get_summary(self) -> Dict[str, Any]:
         total_time = (self.end_time - self.start_time).total_seconds() if self.end_time else 0
         successes = sum(1 for m in self.metadata.values() if m["status"] == "success")
@@ -39,7 +46,8 @@ class ExecutionContext:
             "successes": successes,
             "failures": failures,
             "total_execution_time": total_time,
-            "models": self.metadata
+            "models": self.metadata,
+            "logs": self.logs
         }
 
 
@@ -53,6 +61,7 @@ class TransformationEngine:
     def run(self, verbose: bool = True) -> ExecutionContext:
         """Execute all transformations in topological order"""
         self.context.start_time = datetime.now()
+        self.context.add_log("Starting transformation pipeline", "INFO")
 
         if verbose:
             print("\n" + "=" * 60)
@@ -63,12 +72,15 @@ class TransformationEngine:
             print("=" * 60 + "\n")
 
         execution_order = self.dag.get_execution_order()
+        self.context.add_log(f"Execution order: {' → '.join(execution_order)}", "INFO")
 
         for model_name in execution_order:
             model = self.dag.models[model_name]
             start = datetime.now()
 
             try:
+                self.context.add_log(f"Executing: {model_name} [{model.model_type.value}]", "INFO")
+
                 if verbose:
                     print(f"▶ Executing: {model_name} [{model.model_type.value}]")
 
@@ -79,6 +91,7 @@ class TransformationEngine:
                 execution_time = (end - start).total_seconds()
 
                 self.context.add_result(model_name, result, execution_time)
+                self.context.add_log(f"Completed: {model_name} in {execution_time:.3f}s", "SUCCESS")
 
                 if verbose:
                     print(f"  ✓ Completed in {execution_time:.3f}s")
@@ -90,6 +103,7 @@ class TransformationEngine:
                 end = datetime.now()
                 execution_time = (end - start).total_seconds()
                 self.context.add_error(model_name, str(e), execution_time)
+                self.context.add_log(f"Failed: {model_name} - {str(e)}", "ERROR")
 
                 if verbose:
                     print(f"  ✗ Failed after {execution_time:.3f}s")
@@ -100,6 +114,8 @@ class TransformationEngine:
                 # raise
 
         self.context.end_time = datetime.now()
+        total_time = (self.context.end_time - self.context.start_time).total_seconds()
+        self.context.add_log(f"Pipeline completed in {total_time:.3f}s", "INFO")
 
         if verbose:
             self._print_summary()
