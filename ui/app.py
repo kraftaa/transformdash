@@ -246,6 +246,88 @@ async def root():
             background: #5568d3;
             transform: scale(1.05);
         }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 50px auto;
+            padding: 0;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 900px;
+            max-height: 80vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: white;
+            border: none;
+            padding: 0;
+        }
+
+        .close {
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .close:hover {
+            opacity: 0.8;
+        }
+
+        .modal-body {
+            padding: 30px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .model-meta-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .model-meta-info strong {
+            color: #667eea;
+        }
     </style>
 </head>
 <body>
@@ -284,6 +366,19 @@ async def root():
             <div class="panel">
                 <h2>🔗 Data Lineage</h2>
                 <div id="lineage-graph"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Code Viewer Modal -->
+    <div id="codeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Model Code</h2>
+                <span class="close" onclick="closeModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="modalBody"></div>
             </div>
         </div>
     </div>
@@ -439,9 +534,51 @@ async def root():
                 .text(d => d.id);
         }
 
-        function highlightModel(modelName) {
-            console.log('Highlighting model:', modelName);
-            // Future: highlight in graph
+        async function highlightModel(modelName) {
+            try {
+                const response = await fetch(`/api/models/${modelName}/code`);
+                const data = await response.json();
+
+                document.getElementById('modalTitle').textContent = data.name;
+
+                const metaInfo = `
+                    <div class="model-meta-info">
+                        <p><strong>Type:</strong> ${data.config.materialized || 'view'}</p>
+                        <p><strong>Depends on:</strong> ${data.depends_on.length > 0 ? data.depends_on.join(', ') : 'None'}</p>
+                        <p><strong>File:</strong> ${data.file_path}</p>
+                    </div>
+                `;
+
+                const code = `
+                    <h3>SQL Code:</h3>
+                    <pre class="code-block"><code>${escapeHtml(data.code)}</code></pre>
+                `;
+
+                document.getElementById('modalBody').innerHTML = metaInfo + code;
+                document.getElementById('codeModal').style.display = 'block';
+
+            } catch (error) {
+                console.error('Error loading model code:', error);
+                alert('Failed to load model code');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('codeModal').style.display = 'none';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('codeModal');
+            if (event.target === modal) {
+                closeModal();
+            }
         }
 
         // Load on page load
@@ -481,6 +618,27 @@ async def get_lineage():
             "execution_order": dag.get_execution_order(),
             "graph": dag.graph,
             "visualization": dag.visualize()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/models/{model_name}/code")
+async def get_model_code(model_name: str):
+    """Get the SQL code for a specific model"""
+    try:
+        models = loader.load_all_models()
+        model = next((m for m in models if m.name == model_name), None)
+
+        if not model:
+            raise HTTPException(status_code=404, detail=f"Model {model_name} not found")
+
+        return {
+            "name": model.name,
+            "code": model.sql_query,
+            "config": getattr(model, 'config', {}),
+            "depends_on": model.depends_on,
+            "file_path": getattr(model, 'file_path', '')
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

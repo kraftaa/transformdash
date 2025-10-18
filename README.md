@@ -70,6 +70,26 @@ A modern, dbt-inspired data transformation platform that combines the power of S
 
 ### Installation
 
+**Option 1: Install via pip (Recommended)**
+```bash
+pip install transformdash
+
+# Run the web UI
+transformdash
+
+# Or import as a library
+python -c "from transformations import TransformationModel"
+```
+
+**Option 2: Docker (Production)**
+```bash
+# Using Docker Compose (includes PostgreSQL)
+docker-compose up -d
+
+# Access at http://localhost:8000
+```
+
+**Option 3: From Source (Development)**
 ```bash
 # Clone the repository
 git clone https://github.com/kraftaa/transformdash.git
@@ -79,8 +99,8 @@ cd transformdash
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install dependencies
-pip install -r requirements.txt
+# Install in editable mode
+pip install -e .
 ```
 
 ### Configuration
