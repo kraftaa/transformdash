@@ -1,0 +1,58 @@
+{
+  "run_id": "run_20251018_160607",
+  "timestamp": "2025-10-18T16:06:07.952191",
+  "summary": {
+    "total_models": 4,
+    "successes": 4,
+    "failures": 0,
+    "total_execution_time": 0.890392,
+    "models": {
+      "stg_customers": {
+        "execution_time": 0.424553,
+        "timestamp": "2025-10-18T16:06:07.485906",
+        "status": "success"
+      },
+      "stg_orders": {
+        "execution_time": 0.017292,
+        "timestamp": "2025-10-18T16:06:07.503239",
+        "status": "success"
+      },
+      "int_customer_orders": {
+        "execution_time": 0.3566,
+        "timestamp": "2025-10-18T16:06:07.859881",
+        "status": "success"
+      },
+      "fct_orders": {
+        "execution_time": 0.091664,
+        "timestamp": "2025-10-18T16:06:07.951621",
+        "status": "success"
+      }
+    },
+    "logs": [
+      "[2025-10-18 16:06:07.061] [INFO] Starting transformation pipeline",
+      "[2025-10-18 16:06:07.061] [INFO] Execution order: stg_customers \u2192 stg_orders \u2192 int_customer_orders \u2192 fct_orders",
+      "[2025-10-18 16:06:07.061] [INFO] Executing: stg_customers [sql]",
+      "[2025-10-18 16:06:07.485] [SUCCESS] Completed: stg_customers in 0.425s",
+      "[2025-10-18 16:06:07.485] [INFO] Executing: stg_orders [sql]",
+      "[2025-10-18 16:06:07.503] [SUCCESS] Completed: stg_orders in 0.017s",
+      "[2025-10-18 16:06:07.503] [INFO] Executing: int_customer_orders [sql]",
+      "[2025-10-18 16:06:07.859] [SUCCESS] Completed: int_customer_orders in 0.357s",
+      "[2025-10-18 16:06:07.859] [INFO] Executing: fct_orders [sql]",
+      "[2025-10-18 16:06:07.951] [SUCCESS] Completed: fct_orders in 0.092s",
+      "[2025-10-18 16:06:07.951] [INFO] Pipeline completed in 0.890s"
+    ]
+  },
+  "logs": [
+    "[2025-10-18 16:06:07.061] [INFO] Starting transformation pipeline",
+    "[2025-10-18 16:06:07.061] [INFO] Execution order: stg_customers \u2192 stg_orders \u2192 int_customer_orders \u2192 fct_orders",
+    "[2025-10-18 16:06:07.061] [INFO] Executing: stg_customers [sql]",
+    "[2025-10-18 16:06:07.485] [SUCCESS] Completed: stg_customers in 0.425s",
+    "[2025-10-18 16:06:07.485] [INFO] Executing: stg_orders [sql]",
+    "[2025-10-18 16:06:07.503] [SUCCESS] Completed: stg_orders in 0.017s",
+    "[2025-10-18 16:06:07.503] [INFO] Executing: int_customer_orders [sql]",
+    "[2025-10-18 16:06:07.859] [SUCCESS] Completed: int_customer_orders in 0.357s",
+    "[2025-10-18 16:06:07.859] [INFO] Executing: fct_orders [sql]",
+    "[2025-10-18 16:06:07.951] [SUCCESS] Completed: fct_orders in 0.092s",
+    "[2025-10-18 16:06:07.951] [INFO] Pipeline completed in 0.890s"
+  ]
+}
