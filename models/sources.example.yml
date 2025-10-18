@@ -1,0 +1,55 @@
+version: 2
+
+# EXAMPLE SOURCE CONFIGURATION
+# Copy this file to sources.yml and customize for your database
+
+sources:
+  - name: raw
+    description: "Your raw data source (e.g., production database, data lake)"
+    database: your_database_name  # Replace with your database
+    schema: public                # Replace with your schema
+    tables:
+      - name: customers
+        description: "Customer master data"
+        columns:
+          - name: id
+            description: "Primary key"
+            tests:
+              - not_null
+              - unique
+          - name: email
+            description: "Customer email address"
+          - name: created_at
+            description: "Customer registration date"
+
+      - name: orders
+        description: "Order transactions"
+        columns:
+          - name: id
+            description: "Primary key"
+            tests:
+              - not_null
+              - unique
+          - name: customer_id
+            description: "Foreign key to customers"
+            tests:
+              - not_null
+          - name: order_date
+            description: "Date order was placed"
+          - name: total_amount
+            description: "Order total value"
+
+      - name: products
+        description: "Product catalog"
+        columns:
+          - name: id
+            description: "Primary key"
+            tests:
+              - not_null
+              - unique
+          - name: name
+            description: "Product name"
+          - name: category
+            description: "Product category"
+          - name: price
+            description: "Product price"

@@ -1,0 +1,44 @@
+version: 2
+
+sources:
+  - name: public
+    description: "PostgreSQL public schema - sci_rx_production database"
+    database: sci_rx_production
+    schema: public
+    tables:
+      - name: beacons
+        description: "System notification and alert beacons"
+        columns:
+          - name: id
+            description: "Primary key"
+            tests:
+              - not_null
+              - unique
+          - name: created_at
+            description: "Timestamp when beacon was created"
+          - name: updated_at
+            description: "Timestamp when beacon was last updated"
+
+      - name: certifications
+        description: "Supplier certifications and accreditations"
+        columns:
+          - name: id
+            description: "Primary key"
+            tests:
+              - not_null
+              - unique
+
+      - name: blog_categories
+        description: "Blog category taxonomy"
+        columns:
+          - name: id
+            description: "Primary key"
+            tests:
+              - not_null
+              - unique
+
+      - name: ar_internal_metadata
+        description: "Rails internal metadata table"
+        columns:
+          - name: key
+            description: "Metadata key"

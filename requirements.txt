@@ -1,0 +1,23 @@
+# Database connectors
+psycopg2-binary>=2.9.6         # PostgreSQL driver
+pymongo>=4.4.0                 # MongoDB driver
+redis>=4.5.1                   # Redis client
+
+# SQL and ORM
+sqlalchemy>=2.0.15             # SQL toolkit and ORM
+
+# Async frameworks and orchestration (optional)
+fastapi>=0.95.2                # API framework for core engine
+uvicorn>=0.23.1                # ASGI server for FastAPI
+celery>=5.3.1                  # Task queue (optional for orchestration)
+prefect>=2.7.9                 # Workflow orchestration alternative
+
+# Data processing and transformation
+pandas>=2.0.2                  # Data manipulation library
+pyspark>=3.5.1                 # Spark for big data transformations (optional)
+
+# Testing
+pytest>=7.4.0                  # Testing framework
+
+# Visualization (for UI stack, if using React may not need Python packages)
+# No direct Python packages needed here; handled in frontend stack
