@@ -1,0 +1,62 @@
+{
+  "run_id": "run_20251018_154338",
+  "timestamp": "2025-10-18T15:43:38.969376",
+  "summary": {
+    "total_models": 4,
+    "successes": 0,
+    "failures": 4,
+    "total_execution_time": 0.464565,
+    "models": {
+      "stg_customers": {
+        "execution_time": 0.434925,
+        "timestamp": "2025-10-18T15:43:38.939778",
+        "status": "failed",
+        "error": "Execution failed on sql '{{ config(materialized='view') }}\n\n-- Bronze layer: Direct extraction from raw source with minimal transformation\n-- Pattern: Column aliasing and standardization\n\nwith transformed_data as (\n    select\n        id as customer_id,\n        email,\n        name as customer_name,\n        created_at\n    from {{ source('raw', 'customers') }}\n)\n\nselect * from transformed_data\n': syntax error at or near \"{\"\nLINE 1: {{ config(materialized='view') }}\n        ^\n"
+      },
+      "stg_orders": {
+        "execution_time": 0.009115,
+        "timestamp": "2025-10-18T15:43:38.948931",
+        "status": "failed",
+        "error": "Execution failed on sql '{{ config(materialized='view') }}\n\n-- Bronze layer: Orders staging table\n-- Pattern: Simple column aliasing from raw source\n\nwith transformed_data as (\n    select\n        id as order_id,\n        customer_id,\n        order_date,\n        total_amount,\n        status\n    from {{ source('raw', 'orders') }}\n)\n\nselect * from transformed_data\n': syntax error at or near \"{\"\nLINE 1: {{ config(materialized='view') }}\n        ^\n"
+      },
+      "int_customer_orders": {
+        "execution_time": 0.009211,
+        "timestamp": "2025-10-18T15:43:38.958183",
+        "status": "failed",
+        "error": "Execution failed on sql '{{ config(\n    materialized='incremental',\n    unique_key='order_id'\n) }}\n\n-- Silver layer: Join customers with their orders\n-- Pattern: Multi-table join with incremental processing\n\nwith transformed_data as (\n    select\n        o.order_id,\n        o.customer_id,\n        c.customer_name,\n        c.email as customer_email,\n        o.order_date,\n        o.total_amount,\n        o.status\n    from {{ ref('stg_orders') }} o\n    join {{ ref('stg_customers') }} c\n        on o.customer_id = c.customer_id\n\n    {% if is_incremental() %}\n        -- Only process new/updated orders on incremental runs\n        where o.order_date > (select max(order_date) from {{ this }})\n    {% endif %}\n)\n\nselect * from transformed_data\n': syntax error at or near \"{\"\nLINE 1: {{ config(\n        ^\n"
+      },
+      "fct_orders": {
+        "execution_time": 0.01109,
+        "timestamp": "2025-10-18T15:43:38.969319",
+        "status": "failed",
+        "error": "Execution failed on sql '{{ config(materialized='table') }}\n\n-- Gold layer: Final fact table for order analytics\n-- Pattern: Business-ready fact table with all dimensions\n\nwith transformed_data as (\n    select\n        order_id,\n        customer_id,\n        customer_name,\n        customer_email,\n        order_date,\n        total_amount,\n        status,\n        -- Derived metrics\n        extract(year from order_date) as order_year,\n        extract(month from order_date) as order_month,\n        extract(day from order_date) as order_day,\n        case\n            when total_amount >= 1000 then 'High Value'\n            when total_amount >= 100 then 'Medium Value'\n            else 'Low Value'\n        end as order_value_tier\n    from {{ ref('int_customer_orders') }}\n)\n\nselect * from transformed_data\n': syntax error at or near \"{\"\nLINE 1: {{ config(materialized='table') }}\n        ^\n"
+      }
+    },
+    "logs": [
+      "[2025-10-18 15:43:38.504] [INFO] Starting transformation pipeline",
+      "[2025-10-18 15:43:38.504] [INFO] Execution order: stg_customers \u2192 stg_orders \u2192 int_customer_orders \u2192 fct_orders",
+      "[2025-10-18 15:43:38.504] [INFO] Executing: stg_customers [sql]",
+      "[2025-10-18 15:43:38.939] [ERROR] Failed: stg_customers - Execution failed on sql '{{ config(materialized='view') }}\n\n-- Bronze layer: Direct extraction from raw source with minimal transformation\n-- Pattern: Column aliasing and standardization\n\nwith transformed_data as (\n    select\n        id as customer_id,\n        email,\n        name as customer_name,\n        created_at\n    from {{ source('raw', 'customers') }}\n)\n\nselect * from transformed_data\n': syntax error at or near \"{\"\nLINE 1: {{ config(materialized='view') }}\n        ^\n",
+      "[2025-10-18 15:43:38.939] [INFO] Executing: stg_orders [sql]",
+      "[2025-10-18 15:43:38.948] [ERROR] Failed: stg_orders - Execution failed on sql '{{ config(materialized='view') }}\n\n-- Bronze layer: Orders staging table\n-- Pattern: Simple column aliasing from raw source\n\nwith transformed_data as (\n    select\n        id as order_id,\n        customer_id,\n        order_date,\n        total_amount,\n        status\n    from {{ source('raw', 'orders') }}\n)\n\nselect * from transformed_data\n': syntax error at or near \"{\"\nLINE 1: {{ config(materialized='view') }}\n        ^\n",
+      "[2025-10-18 15:43:38.948] [INFO] Executing: int_customer_orders [sql]",
+      "[2025-10-18 15:43:38.958] [ERROR] Failed: int_customer_orders - Execution failed on sql '{{ config(\n    materialized='incremental',\n    unique_key='order_id'\n) }}\n\n-- Silver layer: Join customers with their orders\n-- Pattern: Multi-table join with incremental processing\n\nwith transformed_data as (\n    select\n        o.order_id,\n        o.customer_id,\n        c.customer_name,\n        c.email as customer_email,\n        o.order_date,\n        o.total_amount,\n        o.status\n    from {{ ref('stg_orders') }} o\n    join {{ ref('stg_customers') }} c\n        on o.customer_id = c.customer_id\n\n    {% if is_incremental() %}\n        -- Only process new/updated orders on incremental runs\n        where o.order_date > (select max(order_date) from {{ this }})\n    {% endif %}\n)\n\nselect * from transformed_data\n': syntax error at or near \"{\"\nLINE 1: {{ config(\n        ^\n",
+      "[2025-10-18 15:43:38.958] [INFO] Executing: fct_orders [sql]",
+      "[2025-10-18 15:43:38.969] [ERROR] Failed: fct_orders - Execution failed on sql '{{ config(materialized='table') }}\n\n-- Gold layer: Final fact table for order analytics\n-- Pattern: Business-ready fact table with all dimensions\n\nwith transformed_data as (\n    select\n        order_id,\n        customer_id,\n        customer_name,\n        customer_email,\n        order_date,\n        total_amount,\n        status,\n        -- Derived metrics\n        extract(year from order_date) as order_year,\n        extract(month from order_date) as order_month,\n        extract(day from order_date) as order_day,\n        case\n            when total_amount >= 1000 then 'High Value'\n            when total_amount >= 100 then 'Medium Value'\n            else 'Low Value'\n        end as order_value_tier\n    from {{ ref('int_customer_orders') }}\n)\n\nselect * from transformed_data\n': syntax error at or near \"{\"\nLINE 1: {{ config(materialized='table') }}\n        ^\n",
+      "[2025-10-18 15:43:38.969] [INFO] Pipeline completed in 0.465s"
+    ]
+  },
+  "logs": [
+    "[2025-10-18 15:43:38.504] [INFO] Starting transformation pipeline",
+    "[2025-10-18 15:43:38.504] [INFO] Execution order: stg_customers \u2192 stg_orders \u2192 int_customer_orders \u2192 fct_orders",
+    "[2025-10-18 15:43:38.504] [INFO] Executing: stg_customers [sql]",
+    "[2025-10-18 15:43:38.939] [ERROR] Failed: stg_customers - Execution failed on sql '{{ config(materialized='view') }}\n\n-- Bronze layer: Direct extraction from raw source with minimal transformation\n-- Pattern: Column aliasing and standardization\n\nwith transformed_data as (\n    select\n        id as customer_id,\n        email,\n        name as customer_name,\n        created_at\n    from {{ source('raw', 'customers') }}\n)\n\nselect * from transformed_data\n': syntax error at or near \"{\"\nLINE 1: {{ config(materialized='view') }}\n        ^\n",
+    "[2025-10-18 15:43:38.939] [INFO] Executing: stg_orders [sql]",
+    "[2025-10-18 15:43:38.948] [ERROR] Failed: stg_orders - Execution failed on sql '{{ config(materialized='view') }}\n\n-- Bronze layer: Orders staging table\n-- Pattern: Simple column aliasing from raw source\n\nwith transformed_data as (\n    select\n        id as order_id,\n        customer_id,\n        order_date,\n        total_amount,\n        status\n    from {{ source('raw', 'orders') }}\n)\n\nselect * from transformed_data\n': syntax error at or near \"{\"\nLINE 1: {{ config(materialized='view') }}\n        ^\n",
+    "[2025-10-18 15:43:38.948] [INFO] Executing: int_customer_orders [sql]",
+    "[2025-10-18 15:43:38.958] [ERROR] Failed: int_customer_orders - Execution failed on sql '{{ config(\n    materialized='incremental',\n    unique_key='order_id'\n) }}\n\n-- Silver layer: Join customers with their orders\n-- Pattern: Multi-table join with incremental processing\n\nwith transformed_data as (\n    select\n        o.order_id,\n        o.customer_id,\n        c.customer_name,\n        c.email as customer_email,\n        o.order_date,\n        o.total_amount,\n        o.status\n    from {{ ref('stg_orders') }} o\n    join {{ ref('stg_customers') }} c\n        on o.customer_id = c.customer_id\n\n    {% if is_incremental() %}\n        -- Only process new/updated orders on incremental runs\n        where o.order_date > (select max(order_date) from {{ this }})\n    {% endif %}\n)\n\nselect * from transformed_data\n': syntax error at or near \"{\"\nLINE 1: {{ config(\n        ^\n",
+    "[2025-10-18 15:43:38.958] [INFO] Executing: fct_orders [sql]",
+    "[2025-10-18 15:43:38.969] [ERROR] Failed: fct_orders - Execution failed on sql '{{ config(materialized='table') }}\n\n-- Gold layer: Final fact table for order analytics\n-- Pattern: Business-ready fact table with all dimensions\n\nwith transformed_data as (\n    select\n        order_id,\n        customer_id,\n        customer_name,\n        customer_email,\n        order_date,\n        total_amount,\n        status,\n        -- Derived metrics\n        extract(year from order_date) as order_year,\n        extract(month from order_date) as order_month,\n        extract(day from order_date) as order_day,\n        case\n            when total_amount >= 1000 then 'High Value'\n            when total_amount >= 100 then 'Medium Value'\n            else 'Low Value'\n        end as order_value_tier\n    from {{ ref('int_customer_orders') }}\n)\n\nselect * from transformed_data\n': syntax error at or near \"{\"\nLINE 1: {{ config(materialized='table') }}\n        ^\n",
+    "[2025-10-18 15:43:38.969] [INFO] Pipeline completed in 0.465s"
+  ]
+}

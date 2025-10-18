@@ -501,9 +501,17 @@ async def root():
             background: white;
             border: 2px solid #e0e0e0;
             border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
+            padding: 15px;
+            margin-bottom: 12px;
             transition: all 0.3s;
+            cursor: pointer;
+            max-height: 80px;
+            overflow: hidden;
+        }
+
+        .dashboard-card.expanded {
+            max-height: none;
+            overflow: visible;
         }
 
         .dashboard-card:hover {
@@ -515,13 +523,29 @@ async def root():
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
+        }
+
+        .dashboard-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
         }
 
         .dashboard-name {
-            font-size: 1.3em;
+            font-size: 1.1em;
             font-weight: bold;
             color: #333;
+        }
+
+        .dashboard-id {
+            background: #f3f4f6;
+            color: #6b7280;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            font-family: monospace;
         }
 
         .dashboard-type {
@@ -540,6 +564,30 @@ async def root():
         .type-report {
             background: #dcfce7;
             color: #15803d;
+        }
+
+        .dashboard-summary {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .dashboard-details {
+            display: none;
+            padding-top: 10px;
+            border-top: 1px solid #e5e7eb;
+            margin-top: 10px;
+        }
+
+        .dashboard-card.expanded .dashboard-details {
+            display: block;
+        }
+
+        .dashboard-card.expanded .dashboard-summary {
+            white-space: normal;
         }
 
         .dashboard-description {
@@ -562,11 +610,26 @@ async def root():
             border-radius: 6px;
             font-size: 0.9em;
             color: #374151;
+            cursor: pointer;
+        }
+
+        .model-tag:hover {
+            background: #e5e7eb;
         }
 
         .dashboard-owner {
             color: #888;
             font-size: 0.9em;
+        }
+
+        .expand-indicator {
+            font-size: 0.8em;
+            color: #9ca3af;
+            transition: transform 0.3s;
+        }
+
+        .dashboard-card.expanded .expand-indicator {
+            transform: rotate(180deg);
         }
     </style>
 </head>
@@ -880,8 +943,12 @@ async def root():
                     return;
                 }
 
-                dashboardsList.innerHTML = data.exposures.map(exposure => {
+                // Clear the list first
+                dashboardsList.innerHTML = '';
+
+                data.exposures.forEach(exposure => {
                     const typeClass = exposure.type === 'dashboard' ? 'type-dashboard' : 'type-report';
+                    const icon = exposure.type === 'dashboard' ? '📊' : '📄';
 
                     // Extract model names from depends_on (remove ref() wrapper)
                     const models = exposure.depends_on.map(dep => {
@@ -889,43 +956,112 @@ async def root():
                         return match ? match[1] : dep;
                     });
 
-                    return `
-                        <div class="dashboard-card">
-                            <div class="dashboard-header">
-                                <div class="dashboard-name">
-                                    ${exposure.type === 'dashboard' ? '📊' : '📄'} ${exposure.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                                </div>
-                                <span class="dashboard-type ${typeClass}">${exposure.type.toUpperCase()}</span>
-                            </div>
-                            <div class="dashboard-description">${exposure.description || 'No description provided'}</div>
-                            <div>
-                                <strong style="color: #667eea;">📋 Uses These Models:</strong>
-                                <div class="dashboard-models">
-                                    ${models.map(model =>
-                                        `<span class="model-tag" onclick="highlightModel('${model}')">${model}</span>`
-                                    ).join('')}
-                                </div>
-                            </div>
-                            ${exposure.owner ? `
-                                <div class="dashboard-owner">
-                                    👤 Owner: ${exposure.owner.name} (${exposure.owner.email})
-                                </div>
-                            ` : ''}
-                            ${exposure.url ? `
-                                <div style="margin-top: 10px;">
-                                    <a href="${exposure.url}" target="_blank" style="color: #667eea; text-decoration: none;">
-                                        🔗 View Dashboard →
-                                    </a>
-                                </div>
-                            ` : ''}
+                    // Safely get description
+                    const description = (exposure.description || 'No description provided').trim();
+                    const descriptionLines = description.split('\\n').filter(l => l.trim());
+                    const shortDescription = descriptionLines[0] || 'No description provided';
+
+                    // Create card element
+                    const card = document.createElement('div');
+                    card.className = 'dashboard-card';
+                    card.id = 'card-' + exposure.slug;
+                    card.onclick = (e) => toggleExpand(e, exposure.slug);
+
+                    // Build header
+                    const header = document.createElement('div');
+                    header.className = 'dashboard-header';
+                    header.innerHTML = `
+                        <div class="dashboard-left">
+                            <span>${icon}</span>
+                            <span class="dashboard-name">${exposure.name}</span>
+                            <span class="dashboard-id">#${exposure.id}</span>
+                        </div>
+                        <div>
+                            <span class="dashboard-type ${typeClass}">${exposure.type.toUpperCase()}</span>
+                            <span class="expand-indicator">▼</span>
                         </div>
                     `;
-                }).join('');
+
+                    // Build summary
+                    const summary = document.createElement('div');
+                    summary.className = 'dashboard-summary';
+                    summary.textContent = shortDescription;
+
+                    // Build details section
+                    const details = document.createElement('div');
+                    details.className = 'dashboard-details';
+
+                    // Description
+                    const descDiv = document.createElement('div');
+                    descDiv.className = 'dashboard-description';
+                    descDiv.innerHTML = description.replace(/\\n/g, '<br>');
+                    details.appendChild(descDiv);
+
+                    // Models section
+                    const modelsTitle = document.createElement('strong');
+                    modelsTitle.style.color = '#667eea';
+                    modelsTitle.textContent = '📋 Uses These Models:';
+                    details.appendChild(modelsTitle);
+
+                    const modelsDiv = document.createElement('div');
+                    modelsDiv.className = 'dashboard-models';
+                    models.forEach(model => {
+                        const tag = document.createElement('span');
+                        tag.className = 'model-tag';
+                        tag.textContent = model;
+                        tag.onclick = (e) => {
+                            e.stopPropagation();
+                            switchTab('lineage');
+                            setTimeout(() => highlightModel(model), 100);
+                        };
+                        modelsDiv.appendChild(tag);
+                    });
+                    details.appendChild(modelsDiv);
+
+                    // Owner info
+                    if (exposure.owner) {
+                        const ownerDiv = document.createElement('div');
+                        ownerDiv.className = 'dashboard-owner';
+                        ownerDiv.textContent = `👤 Owner: ${exposure.owner.name} (${exposure.owner.email})`;
+                        details.appendChild(ownerDiv);
+                    }
+
+                    // View button
+                    const btnDiv = document.createElement('div');
+                    btnDiv.style.marginTop = '10px';
+                    const btn = document.createElement('button');
+                    btn.textContent = '🔗 View Dashboard Details';
+                    btn.style.cssText = 'background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9em;';
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        viewDashboard(exposure.slug);
+                    };
+                    btnDiv.appendChild(btn);
+                    details.appendChild(btnDiv);
+
+                    // Assemble card
+                    card.appendChild(header);
+                    card.appendChild(summary);
+                    card.appendChild(details);
+                    dashboardsList.appendChild(card);
+                });
 
             } catch (error) {
                 console.error('Error loading dashboards:', error);
                 document.getElementById('dashboards-list').innerHTML = '<p style="color: #ef4444;">Failed to load dashboards</p>';
             }
+        }
+
+        function toggleExpand(event, slug) {
+            event.stopPropagation();
+            const card = document.getElementById(`card-${slug}`);
+            card.classList.toggle('expanded');
+        }
+
+        function viewDashboard(slug) {
+            // In a real implementation, this would navigate to a detail page
+            // For now, we'll show an alert
+            alert(`Navigating to dashboard: /dashboards/${slug}\n\nIn a full implementation, this would show detailed dashboard analytics, usage metrics, and lineage visualization.`);
         }
 
         async function loadRuns() {
