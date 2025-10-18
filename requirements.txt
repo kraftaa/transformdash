@@ -6,18 +6,25 @@ redis>=4.5.1                   # Redis client
 # SQL and ORM
 sqlalchemy>=2.0.15             # SQL toolkit and ORM
 
-# Async frameworks and orchestration (optional)
-fastapi>=0.95.2                # API framework for core engine
+# Environment and configuration
+python-dotenv>=1.0.0           # Load environment variables from .env
+
+# Web framework and API
+fastapi>=0.95.2                # API framework for web UI
 uvicorn>=0.23.1                # ASGI server for FastAPI
-celery>=5.3.1                  # Task queue (optional for orchestration)
-prefect>=2.7.9                 # Workflow orchestration alternative
+
+# Templating and YAML
+jinja2>=3.1.0                  # Template engine for SQL models
+pyyaml>=6.0                    # YAML parser for config files
 
 # Data processing and transformation
 pandas>=2.0.2                  # Data manipulation library
-pyspark>=3.5.1                 # Spark for big data transformations (optional)
+numpy>=1.20.0                  # Numerical computing
 
 # Testing
 pytest>=7.4.0                  # Testing framework
 
-# Visualization (for UI stack, if using React may not need Python packages)
-# No direct Python packages needed here; handled in frontend stack
+# Optional: Orchestration (uncomment if needed)
+# celery>=5.3.1                # Task queue for scheduling
+# prefect>=2.7.9               # Workflow orchestration
+# pyspark>=3.5.1               # Spark for big data transformations
