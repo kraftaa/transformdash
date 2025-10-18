@@ -35,7 +35,8 @@ async def root():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TransformDash - Data Transformation Platform</title>
+    <title>✨ TransformDash</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>">
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         * {
@@ -104,9 +105,7 @@ async def root():
         }
 
         .main-content {
-            display: grid;
-            grid-template-columns: 1fr 2fr;
-            gap: 20px;
+            display: block;
         }
 
         .panel {
@@ -497,6 +496,78 @@ async def root():
         .log-level-WARNING {
             color: #ffa726;
         }
+
+        .dashboard-card {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+
+        .dashboard-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+        }
+
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .dashboard-name {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .dashboard-type {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+
+        .type-dashboard {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .type-report {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .dashboard-description {
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+
+        .dashboard-models {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .model-tag {
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            color: #374151;
+        }
+
+        .dashboard-owner {
+            color: #888;
+            font-size: 0.9em;
+        }
     </style>
 </head>
 <body>
@@ -530,6 +601,7 @@ async def root():
                 <button class="tab active" onclick="switchTab('models')">📋 Models</button>
                 <button class="tab" onclick="switchTab('runs')">📊 Runs</button>
                 <button class="tab" onclick="switchTab('lineage')">🔗 Lineage</button>
+                <button class="tab" onclick="switchTab('dashboards')">✨ Dashboards</button>
             </div>
 
             <!-- Models Tab -->
@@ -553,6 +625,11 @@ async def root():
             <!-- Lineage Tab -->
             <div id="lineage-tab" class="tab-content">
                 <div id="lineage-graph" style="min-height: 600px;"></div>
+            </div>
+
+            <!-- Dashboards Tab -->
+            <div id="dashboards-tab" class="tab-content">
+                <div id="dashboards-list"></div>
             </div>
         </div>
     </div>
@@ -781,6 +858,73 @@ async def root():
                 loadRuns();
             } else if (tabName === 'lineage') {
                 drawLineage(modelsData);
+            } else if (tabName === 'dashboards') {
+                loadDashboards();
+            }
+        }
+
+        async function loadDashboards() {
+            try {
+                const response = await fetch('/api/exposures');
+                const data = await response.json();
+
+                const dashboardsList = document.getElementById('dashboards-list');
+
+                if (data.exposures.length === 0) {
+                    dashboardsList.innerHTML = `
+                        <div style="padding: 40px; text-align: center; color: #888;">
+                            <h3>No dashboards defined yet</h3>
+                            <p>Create an <code>exposures.yml</code> file to document which dashboards use which models.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                dashboardsList.innerHTML = data.exposures.map(exposure => {
+                    const typeClass = exposure.type === 'dashboard' ? 'type-dashboard' : 'type-report';
+
+                    // Extract model names from depends_on (remove ref() wrapper)
+                    const models = exposure.depends_on.map(dep => {
+                        const match = dep.match(/ref\(['"]([^'"]+)['"]\)/);
+                        return match ? match[1] : dep;
+                    });
+
+                    return `
+                        <div class="dashboard-card">
+                            <div class="dashboard-header">
+                                <div class="dashboard-name">
+                                    ${exposure.type === 'dashboard' ? '📊' : '📄'} ${exposure.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                </div>
+                                <span class="dashboard-type ${typeClass}">${exposure.type.toUpperCase()}</span>
+                            </div>
+                            <div class="dashboard-description">${exposure.description || 'No description provided'}</div>
+                            <div>
+                                <strong style="color: #667eea;">📋 Uses These Models:</strong>
+                                <div class="dashboard-models">
+                                    ${models.map(model =>
+                                        `<span class="model-tag" onclick="highlightModel('${model}')">${model}</span>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                            ${exposure.owner ? `
+                                <div class="dashboard-owner">
+                                    👤 Owner: ${exposure.owner.name} (${exposure.owner.email})
+                                </div>
+                            ` : ''}
+                            ${exposure.url ? `
+                                <div style="margin-top: 10px;">
+                                    <a href="${exposure.url}" target="_blank" style="color: #667eea; text-decoration: none;">
+                                        🔗 View Dashboard →
+                                    </a>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error('Error loading dashboards:', error);
+                document.getElementById('dashboards-list').innerHTML = '<p style="color: #ef4444;">Failed to load dashboards</p>';
             }
         }
 
@@ -920,9 +1064,8 @@ async def root():
 
         // Close modal when clicking outside
         window.onclick = function(event) {
-            const modal = document.getElementById('codeModal');
-            if (event.target === modal) {
-                closeModal();
+            if (event.target.classList.contains('modal')) {
+                closeModal(event.target.id);
             }
         }
 
@@ -1042,6 +1185,24 @@ async def get_run_details(run_id: str):
         return run_data
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/exposures")
+async def get_exposures():
+    """Get dashboards/exposures that depend on models"""
+    try:
+        import yaml
+        exposures_file = models_dir / "exposures.yml"
+
+        if not exposures_file.exists():
+            return {"exposures": []}
+
+        with open(exposures_file, 'r') as f:
+            data = yaml.safe_load(f)
+
+        return {"exposures": data.get('exposures', [])}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
