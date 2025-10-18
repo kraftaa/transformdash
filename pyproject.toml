@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transformdash"
+version = "1.0.0"
+description = "A modern, dbt-inspired data transformation platform"
+readme = "README.md"
+authors = [
+    { name = "Maria Kraft", email = "your.email@example.com" }
+]
+license = { text = "MIT" }
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Database",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+keywords = ["data", "transformation", "dbt", "etl", "analytics", "sql", "pipeline"]
+
+dependencies = [
+    "psycopg2-binary>=2.9.6",
+    "pymongo>=4.4.0",
+    "redis>=4.5.1",
+    "sqlalchemy>=2.0.15",
+    "python-dotenv>=1.0.0",
+    "fastapi>=0.95.2",
+    "uvicorn>=0.23.1",
+    "jinja2>=3.1.0",
+    "pyyaml>=6.0",
+    "pandas>=2.0.2",
+    "numpy>=1.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+orchestration = [
+    "celery>=5.3.1",
+    "prefect>=2.7.9",
+]
+bigdata = [
+    "pyspark>=3.5.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/kraftaa/transformdash"
+Documentation = "https://github.com/kraftaa/transformdash/wiki"
+Repository = "https://github.com/kraftaa/transformdash"
+"Bug Tracker" = "https://github.com/kraftaa/transformdash/issues"
+
+[project.scripts]
+transformdash = "ui.app:main"
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
