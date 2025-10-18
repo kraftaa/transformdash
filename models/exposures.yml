@@ -11,10 +11,12 @@ exposures:
       name: Data Team
       email: data@company.com
     description: |
-      Executive dashboard showing key business metrics and KPIs.
-      Updated daily at 6 AM.
+      Executive dashboard showing key business metrics and KPIs across all departments.
+      Updated daily at 6 AM. Includes revenue, profit, customer counts, and operational metrics.
     depends_on:
       - ref('fct_orders')
+      - ref('fct_sales_performance')
+      - ref('fct_inventory_metrics')
       - ref('stg_customers')
 
   - id: 2
@@ -27,23 +29,171 @@ exposures:
       name: Analytics Team
       email: analytics@company.com
     description: |
-      Customer behavior and segmentation analytics.
-      Real-time updates.
+      Customer behavior, segmentation, and lifetime value analytics.
+      Real-time updates. Track customer acquisition, retention, and churn.
     depends_on:
       - ref('int_customer_orders')
       - ref('fct_orders')
+      - ref('stg_customers')
 
   - id: 3
     uuid: "9c8d7e6f-5a4b-4c3d-2e1f-0a9b8c7d6e5f"
-    name: Sales Report
-    slug: sales-report
+    name: Sales Performance Report
+    slug: sales-performance-report
     type: report
     maturity: high
     owner:
       name: Sales Team
       email: sales@company.com
     description: |
-      Daily sales report sent to stakeholders.
-      Automated email at 8 AM.
+      Daily sales report with revenue, profit margins, and product performance.
+      Automated email sent to stakeholders at 8 AM. Includes weekly and monthly trends.
     depends_on:
+      - ref('fct_sales_performance')
+      - ref('fct_orders')
+      - ref('int_sales_commissions')
+
+  - id: 4
+    uuid: "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
+    name: Inventory Management Dashboard
+    slug: inventory-management
+    type: dashboard
+    maturity: high
+    owner:
+      name: Operations Team
+      email: operations@company.com
+    description: |
+      Warehouse inventory levels, stock alerts, and inventory value tracking.
+      Real-time updates. Monitor out-of-stock and low-stock items across all warehouses.
+    depends_on:
+      - ref('fct_inventory_metrics')
+      - ref('int_inventory_summary')
+      - ref('stg_warehouses')
+      - ref('stg_stock_levels')
+
+  - id: 5
+    uuid: "2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e"
+    name: Shipping & Logistics Dashboard
+    slug: shipping-logistics
+    type: dashboard
+    maturity: high
+    owner:
+      name: Logistics Team
+      email: logistics@company.com
+    description: |
+      Carrier performance, delivery times, and on-time delivery rates.
+      Updated hourly. Track shipments, delays, and carrier SLAs.
+    depends_on:
+      - ref('fct_shipping_logistics')
+      - ref('int_shipment_tracking')
+      - ref('stg_carriers')
+      - ref('stg_shipments')
+
+  - id: 6
+    uuid: "3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f"
+    name: Returns Analysis Dashboard
+    slug: returns-analysis
+    type: dashboard
+    maturity: medium
+    owner:
+      name: Customer Service Team
+      email: customerservice@company.com
+    description: |
+      Product returns, return reasons, and refund processing metrics.
+      Daily updates. Identify problem products and return patterns.
+    depends_on:
+      - ref('fct_customer_returns')
+      - ref('int_return_analysis')
+      - ref('stg_returns')
+
+  - id: 7
+    uuid: "4d5e6f7a-8b9c-0d1e-2f3a-4b5c6d7e8f9a"
+    name: Marketing ROI Dashboard
+    slug: marketing-roi
+    type: dashboard
+    maturity: medium
+    owner:
+      name: Marketing Team
+      email: marketing@company.com
+    description: |
+      Campaign performance, promotion utilization, and marketing spend analysis.
+      Updated daily. Track ROI, customer acquisition cost, and channel effectiveness.
+    depends_on:
+      - ref('fct_marketing_roi')
+      - ref('int_campaign_performance')
+      - ref('int_promo_utilization')
+      - ref('stg_campaigns')
+      - ref('stg_promotions')
+
+  - id: 8
+    uuid: "5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b"
+    name: Supplier Performance Report
+    slug: supplier-performance
+    type: report
+    maturity: high
+    owner:
+      name: Procurement Team
+      email: procurement@company.com
+    description: |
+      Weekly supplier performance report with delivery times and quality metrics.
+      Automated PDF report sent every Monday at 9 AM.
+    depends_on:
+      - ref('int_supplier_orders')
+      - ref('stg_suppliers')
+      - ref('stg_purchase_orders')
+
+  - id: 9
+    uuid: "6f7a8b9c-0d1e-2f3a-4b5c-6d7e8f9a0b1c"
+    name: Employee Performance Dashboard
+    slug: employee-performance
+    type: dashboard
+    maturity: medium
+    owner:
+      name: HR Team
+      email: hr@company.com
+    description: |
+      Employee metrics, department performance, and commission tracking for sales team.
+      Updated weekly. Confidential - restricted access.
+    depends_on:
+      - ref('int_employee_performance')
+      - ref('int_sales_commissions')
+      - ref('stg_employees')
+      - ref('stg_commissions')
+
+  - id: 10
+    uuid: "7a8b9c0d-1e2f-3a4b-5c6d-7e8f9a0b1c2d"
+    name: Financial Reconciliation Report
+    slug: financial-reconciliation
+    type: report
+    maturity: high
+    owner:
+      name: Finance Team
+      email: finance@company.com
+    description: |
+      Daily payment reconciliation, discrepancies, and cash flow tracking.
+      Critical financial report - automated at end of business day.
+    depends_on:
+      - ref('int_payment_reconciliation')
+      - ref('stg_payment_transactions')
+      - ref('fct_orders')
+
+  - id: 11
+    uuid: "8b9c0d1e-2f3a-4b5c-6d7e-8f9a0b1c2d3e"
+    name: Comprehensive Business Intelligence
+    slug: comprehensive-bi
+    type: dashboard
+    maturity: high
+    owner:
+      name: Executive Team
+      email: executive@company.com
+    description: |
+      Master dashboard combining all business metrics for executive decision-making.
+      Real-time updates across sales, operations, marketing, and finance.
+      Includes predictive analytics and trend analysis.
+    depends_on:
+      - ref('fct_sales_performance')
+      - ref('fct_inventory_metrics')
+      - ref('fct_shipping_logistics')
+      - ref('fct_customer_returns')
+      - ref('fct_marketing_roi')
       - ref('fct_orders')
