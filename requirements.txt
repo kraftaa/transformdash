@@ -20,6 +20,7 @@ pyyaml>=6.0                    # YAML parser for config files
 # Data processing and transformation
 pandas>=2.0.2                  # Data manipulation library
 numpy>=1.20.0                  # Numerical computing
+faker>=18.10.1                 # Generate fake data for testing
 
 # Testing
 pytest>=7.4.0                  # Testing framework

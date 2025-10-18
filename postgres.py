@@ -3,6 +3,7 @@ from psycopg2.extras import RealDictCursor
 import pandas as pd
 from typing import Optional, List, Dict, Any
 from config import config
+from sqlalchemy import create_engine
 
 class PostgresConnector:
     """
@@ -97,6 +98,36 @@ class PostgresConnector:
             ORDER BY ordinal_position;
         """
         return self.query_to_dataframe(query, (table_name,))
+
+    def insert_dataframe(self, df: pd.DataFrame, table_name: str, if_exists: str = 'append'):
+        """
+        Insert pandas DataFrame into PostgreSQL table using SQLAlchemy
+        Args:
+            df: DataFrame to insert
+            table_name: Target table name (can include schema, e.g., 'raw.customers')
+            if_exists: 'fail', 'replace', or 'append' (default)
+        """
+        # Create SQLAlchemy engine URL
+        url = f"postgresql+psycopg2://{self.conn_params['user']}:{self.conn_params['password']}@{self.conn_params['host']}:{self.conn_params['port']}/{self.conn_params['dbname']}"
+        engine = create_engine(url)
+
+        # Parse table name and schema
+        if '.' in table_name:
+            schema, table = table_name.split('.')
+        else:
+            schema = None
+            table = table_name
+
+        # Insert using SQLAlchemy engine
+        df.to_sql(
+            table,
+            engine,
+            schema=schema,
+            if_exists=if_exists,
+            index=False,
+            method='multi'
+        )
+        engine.dispose()
 
     def test_connection(self) -> bool:
         """Test if connection is working"""
