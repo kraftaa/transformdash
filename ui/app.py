@@ -1155,6 +1155,132 @@ async def root():
             alert(`Navigating to dashboard: /dashboards/${slug}\n\nIn a full implementation, this would show detailed dashboard analytics, usage metrics, and lineage visualization.`);
         }
 
+        // Chart Builder Functions
+        let currentChart = null;
+
+        async function loadTableColumns() {
+            const table = document.getElementById('chartTable').value;
+            if (!table) return;
+
+            try {
+                const response = await fetch(`/api/tables/${table}/columns`);
+                const data = await response.json();
+
+                const xAxis = document.getElementById('chartXAxis');
+                const yAxis = document.getElementById('chartYAxis');
+
+                // Clear existing options
+                xAxis.innerHTML = '<option value="">Select column...</option>';
+                yAxis.innerHTML = '<option value="">Select column...</option>';
+
+                // Add columns
+                data.columns.forEach(col => {
+                    const optionX = document.createElement('option');
+                    optionX.value = col.name;
+                    optionX.textContent = `${col.name} (${col.type})`;
+                    xAxis.appendChild(optionX);
+
+                    const optionY = document.createElement('option');
+                    optionY.value = col.name;
+                    optionY.textContent = `${col.name} (${col.type})`;
+                    yAxis.appendChild(optionY);
+                });
+            } catch (error) {
+                console.error('Error loading columns:', error);
+            }
+        }
+
+        async function createChart() {
+            const title = document.getElementById('chartTitle').value || 'Chart';
+            const table = document.getElementById('chartTable').value;
+            const chartType = document.getElementById('chartType').value;
+            const xAxis = document.getElementById('chartXAxis').value;
+            const yAxis = document.getElementById('chartYAxis').value;
+            const aggregation = document.getElementById('chartAggregation').value;
+
+            // Validation
+            if (!table || !xAxis || !yAxis) {
+                document.getElementById('chartError').style.display = 'block';
+                document.getElementById('chartError').textContent = 'Please select table, X-axis, and Y-axis';
+                return;
+            }
+
+            document.getElementById('chartError').style.display = 'none';
+
+            try {
+                // Query data
+                const response = await fetch('/api/query', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ table, x_axis: xAxis, y_axis: yAxis, aggregation })
+                });
+
+                const data = await response.json();
+
+                // Hide placeholder, show canvas
+                document.getElementById('chartPlaceholder').style.display = 'none';
+                document.getElementById('chartCanvas').style.display = 'block';
+
+                // Destroy existing chart if any
+                if (currentChart) {
+                    currentChart.destroy();
+                }
+
+                // Create new chart
+                const ctx = document.getElementById('chartCanvas').getContext('2d');
+                currentChart = new Chart(ctx, {
+                    type: chartType,
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: `${aggregation.toUpperCase()}(${yAxis})`,
+                            data: data.values,
+                            backgroundColor: [
+                                'rgba(102, 126, 234, 0.8)',
+                                'rgba(16, 185, 129, 0.8)',
+                                'rgba(245, 158, 11, 0.8)',
+                                'rgba(239, 68, 68, 0.8)',
+                                'rgba(139, 92, 246, 0.8)',
+                                'rgba(236, 72, 153, 0.8)',
+                            ],
+                            borderColor: 'rgba(102, 126, 234, 1)',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: title,
+                                font: { size: 18, weight: 'bold' }
+                            },
+                            legend: {
+                                display: chartType === 'pie' || chartType === 'doughnut'
+                            }
+                        },
+                        scales: chartType !== 'pie' && chartType !== 'doughnut' ? {
+                            y: { beginAtZero: true }
+                        } : {}
+                    }
+                });
+
+                // Enable save button
+                document.getElementById('saveChartBtn').disabled = false;
+
+            } catch (error) {
+                console.error('Error creating chart:', error);
+                document.getElementById('chartError').style.display = 'block';
+                document.getElementById('chartError').textContent = 'Error creating chart: ' + error.message;
+            }
+        }
+
+        function saveChart() {
+            const title = document.getElementById('chartTitle').value || 'Chart';
+            alert(`Chart "${title}" saved!\n\nIn a full implementation, this would save to a charts.yml file that can be loaded into dashboards.`);
+        }
+
         async function loadRuns() {
             try {
                 const response = await fetch('/api/runs');
@@ -1430,6 +1556,68 @@ async def get_exposures():
             data = yaml.safe_load(f)
 
         return {"exposures": data.get('exposures', [])}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/tables/{table_name}/columns")
+async def get_table_columns(table_name: str):
+    """Get columns for a specific table"""
+    try:
+        from postgres import PostgresConnector
+        with PostgresConnector() as pg:
+            query = """
+                SELECT column_name, data_type
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                AND table_name = %s
+                ORDER BY ordinal_position
+            """
+            result = pg.execute(query, (table_name,), fetch=True)
+            columns = [{"name": row['column_name'], "type": row['data_type']} for row in result]
+            return {"columns": columns}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/query")
+async def query_data(request: dict):
+    """Execute a query and return aggregated data for charting"""
+    try:
+        from postgres import PostgresConnector
+
+        table = request.get('table')
+        x_axis = request.get('x_axis')
+        y_axis = request.get('y_axis')
+        aggregation = request.get('aggregation', 'sum')
+
+        if not all([table, x_axis, y_axis]):
+            raise HTTPException(status_code=400, detail="Missing required parameters")
+
+        # Build aggregation query
+        agg_func = aggregation.upper()
+        query = f"""
+            SELECT
+                {x_axis} as label,
+                {agg_func}({y_axis}) as value
+            FROM public.{table}
+            WHERE {x_axis} IS NOT NULL
+            GROUP BY {x_axis}
+            ORDER BY {x_axis}
+            LIMIT 50
+        """
+
+        with PostgresConnector() as pg:
+            df = pg.query_to_dataframe(query)
+
+            # Convert to chart-friendly format
+            labels = df['label'].astype(str).tolist()
+            values = df['value'].tolist()
+
+            return {
+                "labels": labels,
+                "values": values
+            }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
