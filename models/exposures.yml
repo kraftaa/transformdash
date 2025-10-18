@@ -1,0 +1,43 @@
+version: 2
+
+exposures:
+  - name: executive_dashboard
+    type: dashboard
+    maturity: high
+    owner:
+      name: Data Team
+      email: data@company.com
+    description: |
+      Executive dashboard showing key business metrics and KPIs.
+      Updated daily at 6 AM.
+    depends_on:
+      - ref('fct_orders')
+      - ref('stg_customers')
+    url: https://dashboards.company.com/executive
+
+  - name: customer_analytics
+    type: dashboard
+    maturity: medium
+    owner:
+      name: Analytics Team
+      email: analytics@company.com
+    description: |
+      Customer behavior and segmentation analytics.
+      Real-time updates.
+    depends_on:
+      - ref('int_customer_orders')
+      - ref('fct_orders')
+    url: https://dashboards.company.com/customers
+
+  - name: sales_report
+    type: report
+    maturity: high
+    owner:
+      name: Sales Team
+      email: sales@company.com
+    description: |
+      Daily sales report sent to stakeholders.
+      Automated email at 8 AM.
+    depends_on:
+      - ref('fct_orders')
+    url: https://reports.company.com/sales-daily
