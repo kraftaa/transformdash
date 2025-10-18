@@ -20,6 +20,11 @@ app = FastAPI(title="TransformDash", description="Hybrid Data Transformation Pla
 models_dir = Path(__file__).parent.parent / "models"
 loader = DBTModelLoader(models_dir=str(models_dir))
 
+# Initialize run history
+sys.path.append(str(Path(__file__).parent.parent))
+from orchestration.history import RunHistory
+run_history = RunHistory()
+
 
 @app.get("/")
 async def root():
