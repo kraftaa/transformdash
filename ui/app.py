@@ -247,6 +247,55 @@ async def root():
             transform: scale(1.05);
         }
 
+        .run-btn {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: all 0.3s;
+            margin-left: 10px;
+        }
+
+        .run-btn:hover {
+            background: #059669;
+            transform: scale(1.05);
+        }
+
+        .run-btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .execution-status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .execution-status.success {
+            background: #d1fae5;
+            border-left: 4px solid #10b981;
+            display: block;
+        }
+
+        .execution-status.error {
+            background: #fee2e2;
+            border-left: 4px solid #ef4444;
+            display: block;
+        }
+
+        .execution-status.running {
+            background: #dbeafe;
+            border-left: 4px solid #3b82f6;
+            display: block;
+        }
+
         /* Modal styles */
         .modal {
             display: none;
@@ -359,7 +408,11 @@ async def root():
         <div class="main-content">
             <div class="panel">
                 <h2>📋 Models</h2>
-                <button class="refresh-btn" onclick="loadModels()">🔄 Refresh</button>
+                <div>
+                    <button class="refresh-btn" onclick="loadModels()">🔄 Refresh</button>
+                    <button class="run-btn" id="runBtn" onclick="runTransformations()">▶️ Run Transformations</button>
+                </div>
+                <div id="execution-status" class="execution-status"></div>
                 <div id="models-list" style="margin-top: 20px;"></div>
             </div>
 
@@ -573,6 +626,55 @@ async def root():
             return div.innerHTML;
         }
 
+        async function runTransformations() {
+            const statusDiv = document.getElementById('execution-status');
+            const runBtn = document.getElementById('runBtn');
+
+            try {
+                // Disable button and show running status
+                runBtn.disabled = true;
+                statusDiv.className = 'execution-status running';
+                statusDiv.innerHTML = '<strong>⏳ Running transformations...</strong><br>Executing models in DAG order';
+
+                // Execute transformations
+                const response = await fetch('/api/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Show success
+                    statusDiv.className = 'execution-status success';
+                    statusDiv.innerHTML = `
+                        <strong>✅ Transformations completed successfully!</strong><br>
+                        <p>Total Models: ${data.summary.total_models}</p>
+                        <p>✓ Successes: ${data.summary.successes}</p>
+                        <p>✗ Failures: ${data.summary.failures}</p>
+                        <p>⏱️ Total Time: ${data.summary.total_execution_time.toFixed(3)}s</p>
+                    `;
+
+                    // Refresh models to show updated status
+                    await loadModels();
+                } else {
+                    throw new Error(data.detail || 'Execution failed');
+                }
+
+            } catch (error) {
+                console.error('Error executing transformations:', error);
+                statusDiv.className = 'execution-status error';
+                statusDiv.innerHTML = `
+                    <strong>❌ Execution failed</strong><br>
+                    <p>${error.message}</p>
+                `;
+            } finally {
+                runBtn.disabled = false;
+            }
+        }
+
         // Close modal when clicking outside
         window.onclick = function(event) {
             const modal = document.getElementById('codeModal');
@@ -639,6 +741,33 @@ async def get_model_code(model_name: str):
             "config": getattr(model, 'config', {}),
             "depends_on": model.depends_on,
             "file_path": getattr(model, 'file_path', '')
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/execute")
+async def execute_transformations():
+    """Execute all transformations in DAG order"""
+    try:
+        from orchestration import TransformationEngine
+
+        models = loader.load_all_models()
+        engine = TransformationEngine(models)
+        context = engine.run(verbose=False)
+
+        summary = context.get_summary()
+
+        return {
+            "status": "completed",
+            "summary": summary,
+            "results": {
+                name: {
+                    "status": meta["status"],
+                    "execution_time": meta["execution_time"]
+                }
+                for name, meta in summary["models"].items()
+            }
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -119,16 +119,30 @@ cp models/sources.example.yml models/sources.yml
 
 ### Run Your First Transformation
 
+**Method 1: Web UI (Recommended)**
 ```bash
-# Test database connection
-python postgres.py
-
-# Run transformation pipeline
-python demo_real_dbt_style.py
-
-# Start web UI
+# Start the web interface
 python ui/app.py
 # Visit http://localhost:8000
+
+# Then click the "▶️ Run Transformations" button
+```
+
+**Method 2: Python Script**
+```bash
+# Run from command line
+python demo_real_dbt_style.py
+```
+
+**Method 3: API**
+```bash
+# Execute via API
+curl -X POST http://localhost:8000/api/execute
+```
+
+**Test Database Connection**
+```bash
+python postgres.py
 ```
 
 ---
@@ -254,15 +268,25 @@ select * from transformed_data
 - **Model Catalog**: Browse all transformation models
 - **Layer Statistics**: Bronze/Silver/Gold model counts
 - **Real-time Updates**: Refresh models dynamically
+- **Code Viewer**: Click any model to see its SQL code
+- **Run Transformations**: One-click execution of entire DAG
 
 ### Lineage Graph
 - **Interactive Visualization**: D3.js-powered lineage graphs
 - **Dependency Tracking**: See how models depend on each other
 - **Color-Coded Layers**: Bronze (🟫), Silver (⚪), Gold (🟡)
 
+### Execution
+- **▶️ Run Button**: Execute all transformations in DAG order
+- **Status Tracking**: See execution progress and results
+- **Error Handling**: Clear error messages if something fails
+- **Metrics**: Total time, successes, failures
+
 ### API Endpoints
 - `GET /`: Interactive dashboard
 - `GET /api/models`: List all models with dependencies
+- `GET /api/models/{name}/code`: Get SQL code for a model
+- `POST /api/execute`: Run all transformations
 - `GET /api/lineage`: Get DAG structure
 - `GET /api/health`: Health check
 
