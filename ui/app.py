@@ -382,6 +382,121 @@ async def root():
         .model-meta-info strong {
             color: #667eea;
         }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 500;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            color: #667eea;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .run-item {
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .run-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+        }
+
+        .run-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .run-id {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .run-time {
+            color: #888;
+            font-size: 0.9em;
+        }
+
+        .run-stats {
+            display: flex;
+            gap: 15px;
+            font-size: 0.9em;
+        }
+
+        .stat-success {
+            color: #10b981;
+        }
+
+        .stat-failure {
+            color: #ef4444;
+        }
+
+        .log-viewer {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            max-height: 500px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .log-entry {
+            margin-bottom: 4px;
+        }
+
+        .log-level-INFO {
+            color: #4fc3f7;
+        }
+
+        .log-level-SUCCESS {
+            color: #66bb6a;
+        }
+
+        .log-level-ERROR {
+            color: #ef5350;
+        }
+
+        .log-level-WARNING {
+            color: #ffa726;
+        }
     </style>
 </head>
 <body>
@@ -410,9 +525,15 @@ async def root():
             </div>
         </div>
 
-        <div class="main-content">
-            <div class="panel">
-                <h2>📋 Models</h2>
+        <div class="panel" style="grid-column: 1 / -1;">
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('models')">📋 Models</button>
+                <button class="tab" onclick="switchTab('runs')">📊 Runs</button>
+                <button class="tab" onclick="switchTab('lineage')">🔗 Lineage</button>
+            </div>
+
+            <!-- Models Tab -->
+            <div id="models-tab" class="tab-content active">
                 <div>
                     <button class="refresh-btn" onclick="loadModels()">🔄 Refresh</button>
                     <button class="run-btn" id="runBtn" onclick="runTransformations()">▶️ Run Transformations</button>
@@ -421,9 +542,17 @@ async def root():
                 <div id="models-list" style="margin-top: 20px;"></div>
             </div>
 
-            <div class="panel">
-                <h2>🔗 Data Lineage</h2>
-                <div id="lineage-graph"></div>
+            <!-- Runs Tab -->
+            <div id="runs-tab" class="tab-content">
+                <div>
+                    <button class="refresh-btn" onclick="loadRuns()">🔄 Refresh Runs</button>
+                </div>
+                <div id="runs-list" style="margin-top: 20px;"></div>
+            </div>
+
+            <!-- Lineage Tab -->
+            <div id="lineage-tab" class="tab-content">
+                <div id="lineage-graph" style="min-height: 600px;"></div>
             </div>
         </div>
     </div>
@@ -433,10 +562,23 @@ async def root():
         <div class="modal-content">
             <div class="modal-header">
                 <h2 id="modalTitle">Model Code</h2>
-                <span class="close" onclick="closeModal()">&times;</span>
+                <span class="close" onclick="closeModal('codeModal')">&times;</span>
             </div>
             <div class="modal-body">
                 <div id="modalBody"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logs Viewer Modal -->
+    <div id="logsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="logsModalTitle">Run Logs</h2>
+                <span class="close" onclick="closeModal('logsModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="logsModalBody"></div>
             </div>
         </div>
     </div>
@@ -621,8 +763,104 @@ async def root():
             }
         }
 
-        function closeModal() {
-            document.getElementById('codeModal').style.display = 'none';
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+
+            // Load data if needed
+            if (tabName === 'runs') {
+                loadRuns();
+            } else if (tabName === 'lineage') {
+                drawLineage(modelsData);
+            }
+        }
+
+        async function loadRuns() {
+            try {
+                const response = await fetch('/api/runs');
+                const data = await response.json();
+
+                const runsList = document.getElementById('runs-list');
+
+                if (data.runs.length === 0) {
+                    runsList.innerHTML = '<p style="color: #888;">No runs yet. Click "Run Transformations" to execute your first pipeline.</p>';
+                    return;
+                }
+
+                runsList.innerHTML = data.runs.map(run => {
+                    const timestamp = new Date(run.timestamp).toLocaleString();
+                    const successRate = run.summary.total_models > 0
+                        ? ((run.summary.successes / run.summary.total_models) * 100).toFixed(0)
+                        : 0;
+
+                    return `
+                        <div class="run-item" onclick="viewRunLogs('${run.run_id}')">
+                            <div class="run-header">
+                                <span class="run-id">${run.run_id}</span>
+                                <span class="run-time">${timestamp}</span>
+                            </div>
+                            <div class="run-stats">
+                                <span class="stat-success">✓ ${run.summary.successes} success</span>
+                                <span class="stat-failure">✗ ${run.summary.failures} failed</span>
+                                <span>⏱️ ${run.summary.total_execution_time.toFixed(2)}s</span>
+                                <span>📊 ${successRate}% success rate</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error('Error loading runs:', error);
+                document.getElementById('runs-list').innerHTML = '<p style="color: #ef4444;">Failed to load runs</p>';
+            }
+        }
+
+        async function viewRunLogs(runId) {
+            try {
+                const response = await fetch(`/api/runs/${runId}`);
+                const data = await response.json();
+
+                document.getElementById('logsModalTitle').textContent = `Run Logs - ${data.run_id}`;
+
+                const summary = `
+                    <div class="model-meta-info">
+                        <p><strong>Timestamp:</strong> ${new Date(data.timestamp).toLocaleString()}</p>
+                        <p><strong>Total Models:</strong> ${data.summary.total_models}</p>
+                        <p><strong>Successes:</strong> ${data.summary.successes}</p>
+                        <p><strong>Failures:</strong> ${data.summary.failures}</p>
+                        <p><strong>Total Time:</strong> ${data.summary.total_execution_time.toFixed(3)}s</p>
+                    </div>
+                `;
+
+                const logs = data.logs.map(log => {
+                    // Extract log level for coloring
+                    const levelMatch = log.match(/\[(INFO|SUCCESS|ERROR|WARNING)\]/);
+                    const level = levelMatch ? levelMatch[1] : 'INFO';
+
+                    return `<div class="log-entry log-level-${level}">${escapeHtml(log)}</div>`;
+                }).join('');
+
+                const logsViewer = `
+                    <h3>Execution Logs:</h3>
+                    <div class="log-viewer">${logs}</div>
+                `;
+
+                document.getElementById('logsModalBody').innerHTML = summary + logsViewer;
+                document.getElementById('logsModal').style.display = 'block';
+
+            } catch (error) {
+                console.error('Error loading run logs:', error);
+                alert('Failed to load run logs');
+            }
         }
 
         function escapeHtml(text) {
@@ -756,6 +994,10 @@ async def execute_transformations():
     """Execute all transformations in DAG order"""
     try:
         from orchestration import TransformationEngine
+        from datetime import datetime
+
+        # Generate run ID
+        run_id = datetime.now().strftime("run_%Y%m%d_%H%M%S")
 
         models = loader.load_all_models()
         engine = TransformationEngine(models)
@@ -763,8 +1005,12 @@ async def execute_transformations():
 
         summary = context.get_summary()
 
+        # Save run history
+        run_history.save_run(run_id, summary, context.logs)
+
         return {
             "status": "completed",
+            "run_id": run_id,
             "summary": summary,
             "results": {
                 name: {
@@ -774,6 +1020,28 @@ async def execute_transformations():
                 for name, meta in summary["models"].items()
             }
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/runs")
+async def get_runs(limit: int = 50):
+    """Get execution history"""
+    try:
+        runs = run_history.get_all_runs(limit=limit)
+        return {"runs": runs}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/runs/{run_id}")
+async def get_run_details(run_id: str):
+    """Get detailed information about a specific run"""
+    try:
+        run_data = run_history.get_run(run_id)
+        return run_data
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
