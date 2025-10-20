@@ -304,7 +304,7 @@
                             </svg>
                             Refresh
                         </button>
-                        <button class="btn btn-primary" onclick="runTransformations()">
+                        <button class="btn btn-primary" id="runBtn" onclick="runTransformations()">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polygon points="5 3 19 12 5 21 5 3"/>
                             </svg>
@@ -335,6 +335,91 @@
                         <p class="page-subtitle">Create and manage visualizations</p>
                     </div>
                 </div>
+
+                <!-- Chart Builder Section -->
+                <div class="section-title" style="margin-top: 2rem;">✨ Create New Chart</div>
+                <div style="display: grid; grid-template-columns: 350px 1fr; gap: 1.5rem; margin-bottom: 3rem;">
+                    <!-- Chart Builder Panel -->
+                    <div style="background: var(--color-bg-surface); border: 1px solid var(--color-border); padding: 1.5rem; border-radius: var(--radius-lg); overflow-y: auto; max-height: 600px;">
+                        <h3 style="margin-bottom: 1.25rem; color: var(--color-text-primary);">📈 Chart Builder</h3>
+
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Chart Title</label>
+                            <input type="text" id="chartTitle" placeholder="My Chart" class="input">
+                        </div>
+
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Data Source</label>
+                            <select id="chartTable" onchange="loadTableColumns()" class="input">
+                                <option value="">Select table...</option>
+                                <option value="fct_orders">fct_orders (Gold Layer)</option>
+                                <option value="int_customer_orders">int_customer_orders (Silver)</option>
+                                <option value="stg_customers">stg_customers (Bronze)</option>
+                                <option value="stg_orders">stg_orders (Bronze)</option>
+                            </select>
+                        </div>
+
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Chart Type</label>
+                            <select id="chartType" class="input">
+                                <option value="bar">📊 Bar Chart</option>
+                                <option value="line">📈 Line Chart</option>
+                                <option value="pie">🥧 Pie Chart</option>
+                                <option value="doughnut">🍩 Doughnut Chart</option>
+                            </select>
+                        </div>
+
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">X-Axis (Labels)</label>
+                            <select id="chartXAxis" class="input">
+                                <option value="">Select column...</option>
+                            </select>
+                        </div>
+
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Y-Axis (Values)</label>
+                            <select id="chartYAxis" class="input">
+                                <option value="">Select column...</option>
+                            </select>
+                        </div>
+
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Aggregation</label>
+                            <select id="chartAggregation" class="input">
+                                <option value="sum">SUM</option>
+                                <option value="avg">AVG</option>
+                                <option value="count">COUNT</option>
+                                <option value="min">MIN</option>
+                                <option value="max">MAX</option>
+                            </select>
+                        </div>
+
+                        <button onclick="createChart()" class="btn btn-primary" style="width: 100%;">
+                            ✨ Create Chart
+                        </button>
+
+                        <div id="chartError" style="margin-top: 1rem; padding: 0.75rem; background: var(--color-error-light); border-radius: var(--radius-md); color: var(--color-error-dark); display: none; font-size: 0.875rem;"></div>
+                    </div>
+
+                    <!-- Chart Preview Panel -->
+                    <div style="background: var(--color-bg-surface); border: 1px solid var(--color-border); padding: 1.5rem; border-radius: var(--radius-lg); max-height: 600px; display: flex; flex-direction: column;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h3 style="color: var(--color-text-primary);">Preview</h3>
+                            <button onclick="saveChart()" id="saveChartBtn" disabled class="btn btn-secondary">
+                                💾 Save Chart
+                            </button>
+                        </div>
+                        <div style="flex: 1; position: relative;">
+                            <canvas id="chartCanvas" style="display: none; max-height: 480px;"></canvas>
+                            <div id="chartPlaceholder" style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--color-text-muted); text-align: center;">
+                                Select options and click "Create Chart" to see preview
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- All Charts List -->
+                <div class="section-title">📊 All Charts</div>
                 <div id="all-charts-list" class="charts-grid"></div>
             </div>
 
@@ -441,6 +526,25 @@
                 </button>
             </div>
             <div class="modal-body" id="logsModalBody"></div>
+        </div>
+    </div>
+
+    <div id="chartModal" class="modal">
+        <div class="modal-overlay" onclick="closeModal('chartModal')"></div>
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 id="chartModalTitle">Chart</h2>
+                <button class="modal-close" onclick="closeModal('chartModal')">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body" id="chartModalBody"></div>
+            <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid var(--color-border); display: flex; justify-content: flex-end; gap: 0.75rem;">
+                <button class="btn btn-secondary" onclick="closeModal('chartModal')">Close</button>
+                <button class="btn btn-primary" onclick="goToChartDashboard()">Go to Dashboard</button>
+            </div>
         </div>
     </div>
 

@@ -283,10 +283,13 @@ async function loadModels() {
                 };
 
                 return `
-                    <div class="model-card">
-                        <div class="model-card-content">
+                    <div class="model-card" id="model-${model.name}">
+                        <div class="model-card-content" onclick="toggleModelCode('${model.name}')">
                             <div class="model-info">
-                                <h4 class="model-name">${model.name}</h4>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <span class="expand-icon" id="expand-model-${model.name}">▶</span>
+                                    <h4 class="model-name">${model.name}</h4>
+                                </div>
                                 <div class="model-badges">
                                     <span class="badge badge-${layer}">${layer.toUpperCase()}</span>
                                     <span class="badge badge-type">${model.type.toUpperCase()}</span>
@@ -295,9 +298,15 @@ async function loadModels() {
                                     `<div class="model-dependencies"><strong>Depends on:</strong> ${model.depends_on.join(', ')}</div>` :
                                     '<div class="model-dependencies">No dependencies</div>'}
                             </div>
-                            <button onclick="viewModelCode('${model.name}')" class="btn-view-code">
-                                View Code
-                            </button>
+                        </div>
+                        <div class="model-code-section" id="code-${model.name}" style="display: none;">
+                            <div class="model-code-actions">
+                                <input type="text" class="code-search" id="search-${model.name}" placeholder="Search in code..." onkeyup="searchModelCode('${model.name}')">
+                                <button class="action-btn-small" onclick="copyModelCode('${model.name}')">📋 Copy Code</button>
+                            </div>
+                            <div class="model-code-content" id="content-${model.name}">
+                                <div class="loading">Loading code...</div>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -389,13 +398,15 @@ function drawLineage(models) {
     });
 
     // Draw links (adjusted for wider nodes)
-    const nodeHalfWidth = 90;  // Half of nodeWidth (180/2)
+    const nodeHalfWidth = 120;  // Half of nodeWidth (240/2)
 
-    svg.selectAll('.link')
+    const linkPaths = svg.selectAll('.link')
         .data(links)
         .enter()
         .append('path')
         .attr('class', 'link')
+        .attr('data-source', d => d.source)
+        .attr('data-target', d => d.target)
         .attr('d', d => {
             const source = nodes.find(n => n.id === d.source);
             const target = nodes.find(n => n.id === d.target);
@@ -405,11 +416,12 @@ function drawLineage(models) {
                     C ${(source.x + target.x) / 2} ${source.y},
                       ${(source.x + target.x) / 2} ${target.y},
                       ${target.x - nodeHalfWidth} ${target.y}`;
-        });
+        })
+        .style('cursor', 'pointer');
 
     // Draw nodes (wider and taller for better readability)
-    const nodeWidth = 180;  // Increased from 120
-    const nodeHeight = 50;  // Increased from 40
+    const nodeWidth = 240;  // Increased to accommodate longer names
+    const nodeHeight = 56;  // Slightly taller
     const halfWidth = nodeWidth / 2;
     const halfHeight = nodeHeight / 2;
 
@@ -422,14 +434,109 @@ function drawLineage(models) {
 
     nodeGroups.append('rect')
         .attr('width', nodeWidth)
-        .attr('height', nodeHeight);
+        .attr('height', nodeHeight)
+        .attr('rx', 8)
+        .attr('ry', 8);
 
     nodeGroups.append('text')
         .attr('x', halfWidth)
         .attr('y', halfHeight + 5)
-        .text(d => d.id.length > 22 ? d.id.substring(0, 20) + '...' : d.id)  // Show more characters
+        .text(d => d.id.length > 30 ? d.id.substring(0, 28) + '...' : d.id)  // Show more characters
         .append('title')
         .text(d => d.id);
+
+    // Add click functionality to nodes
+    nodeGroups
+        .style('cursor', 'pointer')
+        .on('click', function(event, d) {
+            viewModelCode(d.id);
+        });
+
+    // Add click and hover functionality to links
+    linkPaths
+        .on('click', function(event, d) {
+            event.stopPropagation();
+            highlightConnection(d.source, d.target, svg);
+        })
+        .on('mouseenter', function(event, d) {
+            // Temporary highlight on hover
+            d3.select(this)
+                .style('stroke', '#667eea')
+                .style('stroke-width', '4px')
+                .style('opacity', '1');
+        })
+        .on('mouseleave', function(event, d) {
+            // Reset hover unless this link is clicked/highlighted
+            const isHighlighted = d3.select(this).classed('highlighted');
+            if (!isHighlighted) {
+                d3.select(this)
+                    .style('stroke', null)
+                    .style('stroke-width', null)
+                    .style('opacity', null);
+            }
+        });
+
+    // Click on background to clear highlights
+    svg.on('click', function(event) {
+        if (event.target === this) {
+            clearLineageHighlights(svg);
+        }
+    });
+}
+
+// Highlight a specific connection in the lineage graph
+function highlightConnection(sourceId, targetId, svg) {
+    // Clear previous highlights
+    clearLineageHighlights(svg);
+
+    // Highlight the clicked link
+    svg.selectAll('.link')
+        .filter(function() {
+            const source = d3.select(this).attr('data-source');
+            const target = d3.select(this).attr('data-target');
+            return source === sourceId && target === targetId;
+        })
+        .classed('highlighted', true)
+        .style('stroke', '#667eea')
+        .style('stroke-width', '4px')
+        .style('opacity', '1');
+
+    // Highlight connected nodes
+    svg.selectAll('.node')
+        .filter(function(d) {
+            return d.id === sourceId || d.id === targetId;
+        })
+        .classed('highlighted', true)
+        .select('rect')
+        .style('stroke', '#667eea')
+        .style('stroke-width', '3px')
+        .style('filter', 'brightness(1.2)');
+
+    // Dim other elements
+    svg.selectAll('.link:not(.highlighted)')
+        .style('opacity', '0.2');
+
+    svg.selectAll('.node:not(.highlighted)')
+        .style('opacity', '0.3');
+}
+
+// Clear all highlights in the lineage graph
+function clearLineageHighlights(svg) {
+    // Reset links
+    svg.selectAll('.link')
+        .classed('highlighted', false)
+        .style('stroke', null)
+        .style('stroke-width', null)
+        .style('opacity', null);
+
+    // Reset nodes
+    svg.selectAll('.node')
+        .classed('highlighted', false)
+        .style('opacity', null)
+        .select('rect')
+        .style('stroke', null)
+        .style('stroke-width', null)
+        .style('filter', null);
 }
 
 // Highlight Model (show code in modal)
@@ -462,9 +569,130 @@ async function highlightModel(modelName) {
     }
 }
 
-// Alias for viewModelCode - calls highlightModel
+// Alias for viewModelCode - calls highlightModel (for lineage graph compatibility)
 function viewModelCode(modelName) {
+    // For lineage graph clicks, open modal
     highlightModel(modelName);
+}
+
+// Toggle model code inline (for model cards)
+let expandedModels = new Set();
+
+async function toggleModelCode(modelName) {
+    const codeSection = document.getElementById(`code-${modelName}`);
+    const expandIcon = document.getElementById(`expand-model-${modelName}`);
+    const contentDiv = document.getElementById(`content-${modelName}`);
+
+    if (expandedModels.has(modelName)) {
+        // Collapse
+        codeSection.style.display = 'none';
+        expandIcon.textContent = '▶';
+        expandedModels.delete(modelName);
+    } else {
+        // Expand
+        codeSection.style.display = 'block';
+        expandIcon.textContent = '▼';
+        expandedModels.add(modelName);
+
+        // Load code if not already loaded
+        if (contentDiv.innerHTML.includes('Loading code')) {
+            await loadModelCodeInline(modelName);
+        }
+    }
+}
+
+async function loadModelCodeInline(modelName) {
+    const contentDiv = document.getElementById(`content-${modelName}`);
+
+    try {
+        const response = await fetch(`/api/models/${modelName}/code`);
+        const data = await response.json();
+
+        const metaInfo = `
+            <div class="model-meta-info">
+                <div><strong>Type:</strong> ${data.config.materialized || 'view'}</div>
+                <div><strong>Depends on:</strong> ${data.depends_on.length > 0 ? data.depends_on.join(', ') : 'None'}</div>
+                <div><strong>File:</strong> ${data.file_path}</div>
+            </div>
+        `;
+
+        const code = `
+            <pre class="code-block" id="code-block-${modelName}"><code>${escapeHtml(data.code)}</code></pre>
+        `;
+
+        contentDiv.innerHTML = metaInfo + code;
+    } catch (error) {
+        console.error('Error loading model code:', error);
+        contentDiv.innerHTML = '<div class="error-logs">Failed to load model code</div>';
+    }
+}
+
+// Search in model code
+function searchModelCode(modelName) {
+    const searchInput = document.getElementById(`search-${modelName}`);
+    const query = searchInput.value.toLowerCase();
+    const codeBlock = document.getElementById(`code-block-${modelName}`);
+
+    if (!codeBlock) return;
+
+    const code = codeBlock.querySelector('code');
+    if (!code) return;
+
+    // Get original text (stored in data attribute)
+    if (!code.dataset.originalText) {
+        code.dataset.originalText = code.textContent;
+    }
+
+    const originalText = code.dataset.originalText;
+
+    if (!query) {
+        // Reset to original
+        code.innerHTML = escapeHtml(originalText);
+        return;
+    }
+
+    // Highlight matches
+    const lines = originalText.split('\n');
+    const highlightedLines = lines.map(line => {
+        if (line.toLowerCase().includes(query)) {
+            const regex = new RegExp(`(${query})`, 'gi');
+            return escapeHtml(line).replace(regex, '<mark>$1</mark>');
+        }
+        return escapeHtml(line);
+    });
+
+    code.innerHTML = highlightedLines.join('\n');
+}
+
+// Copy model code to clipboard
+async function copyModelCode(modelName) {
+    const codeBlock = document.getElementById(`code-block-${modelName}`);
+    if (!codeBlock) return;
+
+    const code = codeBlock.querySelector('code');
+    if (!code) return;
+
+    const text = code.dataset.originalText || code.textContent;
+
+    try {
+        await navigator.clipboard.writeText(text);
+
+        // Show feedback
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = '✓ Copied!';
+        btn.style.background = 'var(--color-success)';
+        btn.style.color = 'white';
+
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.style.background = '';
+            btn.style.color = '';
+        }, 2000);
+    } catch (error) {
+        console.error('Error copying to clipboard:', error);
+        alert('Failed to copy code');
+    }
 }
 
 // Load Lineage Graph
@@ -1102,15 +1330,7 @@ async function loadAllCharts() {
         // Display each chart as a card
         allCharts.forEach(chart => {
             const card = document.createElement('div');
-            card.style.cssText = 'background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;';
-            card.onmouseenter = () => {
-                card.style.transform = 'translateY(-2px)';
-                card.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
-            };
-            card.onmouseleave = () => {
-                card.style.transform = 'translateY(0)';
-                card.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-            };
+            card.className = 'chart-item-card';
 
             // Chart type icon
             const typeIcons = {
@@ -1122,12 +1342,12 @@ async function loadAllCharts() {
             };
 
             card.innerHTML = `
-                <div style="font-size: 1.5em; margin-bottom: 8px;">${typeIcons[chart.type] || '📊'}</div>
-                <div style="font-weight: bold; color: #333; margin-bottom: 5px; font-size: 0.95em;">${chart.title}</div>
-                <div style="font-size: 0.75em; color: #666; margin-bottom: 8px;">${chart.dashboardName}</div>
-                <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-                    <span style="background: #e0e7ff; color: #667eea; padding: 3px 8px; border-radius: 4px; font-size: 0.7em;">${chart.type}</span>
-                    <span style="background: #e0f2fe; color: #0284c7; padding: 3px 8px; border-radius: 4px; font-size: 0.7em;">${chart.model}</span>
+                <div class="chart-item-icon">${typeIcons[chart.type] || '📊'}</div>
+                <div class="chart-item-title">${chart.title}</div>
+                <div class="chart-item-dashboard">${chart.dashboardName}</div>
+                <div class="chart-item-badges">
+                    <span class="chart-badge chart-badge-type">${chart.type}</span>
+                    <span class="chart-badge chart-badge-model">${chart.model}</span>
                 </div>
             `;
 
@@ -1141,7 +1361,7 @@ async function loadAllCharts() {
 
         // Show total count
         const countDiv = document.createElement('div');
-        countDiv.style.cssText = 'grid-column: 1 / -1; text-align: center; color: #666; font-size: 0.9em; margin-top: 10px;';
+        countDiv.className = 'charts-count';
         countDiv.textContent = `📊 Total: ${allCharts.length} charts across ${data.dashboards.length} dashboards`;
         chartsList.appendChild(countDiv);
 
@@ -1283,9 +1503,133 @@ async function createChart() {
     }
 }
 
-function saveChart() {
+async function saveChart() {
     const title = document.getElementById('chartTitle').value || 'Chart';
-    alert(`Chart "${title}" saved!\n\nIn a full implementation, this would save to a charts.yml file that can be loaded into dashboards.`);
+    const table = document.getElementById('chartTable').value;
+    const chartType = document.getElementById('chartType').value;
+    const xAxis = document.getElementById('chartXAxis').value;
+    const yAxis = document.getElementById('chartYAxis').value;
+    const aggregation = document.getElementById('chartAggregation').value;
+
+    // Validation
+    if (!table || !xAxis || !yAxis) {
+        alert('Please fill in all required fields before saving');
+        return;
+    }
+
+    const saveBtn = document.getElementById('saveChartBtn');
+    const originalText = saveBtn.textContent;
+    saveBtn.textContent = '💾 Saving...';
+    saveBtn.disabled = true;
+
+    try {
+        // Generate chart ID
+        const chartId = `chart_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        // Save chart configuration
+        const response = await fetch('/api/charts/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id: chartId,
+                title: title,
+                type: chartType,
+                model: table,
+                x_axis: xAxis,
+                y_axis: yAxis,
+                aggregation: aggregation
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            saveBtn.textContent = '✓ Saved!';
+            saveBtn.style.background = 'var(--color-success)';
+
+            // Show success modal with options
+            showChartSavedModal(result.dashboard_id, chartId, title);
+
+            setTimeout(() => {
+                saveBtn.textContent = originalText;
+                saveBtn.style.background = '';
+                saveBtn.disabled = false;
+            }, 3000);
+        } else {
+            throw new Error(result.message || 'Failed to save chart');
+        }
+    } catch (error) {
+        console.error('Error saving chart:', error);
+        saveBtn.textContent = '❌ Failed';
+        saveBtn.style.background = 'var(--color-error)';
+
+        setTimeout(() => {
+            saveBtn.textContent = originalText;
+            saveBtn.style.background = '';
+            saveBtn.disabled = false;
+        }, 3000);
+
+        alert('Failed to save chart: ' + error.message);
+    }
+}
+
+function showChartSavedModal(dashboardId, chartId, title) {
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'chart-saved-modal';
+    modal.innerHTML = `
+        <div class="modal-overlay" onclick="closeChartSavedModal()"></div>
+        <div class="modal-container" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>✓ Chart Saved Successfully!</h2>
+                <button class="modal-close" onclick="closeChartSavedModal()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">
+                    Your chart "<strong>${title}</strong>" has been saved to the "Custom Charts" dashboard.
+                </p>
+                <div style="display: flex; gap: 0.75rem; flex-direction: column;">
+                    <button class="btn btn-primary" style="width: 100%;" onclick="viewChartInDashboard('${dashboardId}'); closeChartSavedModal();">
+                        📊 View in Dashboard
+                    </button>
+                    <button class="btn btn-secondary" style="width: 100%;" onclick="closeChartSavedModal();">
+                        Continue Creating Charts
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+function closeChartSavedModal() {
+    const modal = document.getElementById('chart-saved-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+async function viewChartInDashboard(dashboardId) {
+    // Switch to dashboards tab
+    switchTab('dashboards');
+
+    // Wait for dashboards to load
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Expand the dashboard
+    const dashboardCard = document.getElementById('dashboard-' + dashboardId);
+    if (dashboardCard && !dashboardCard.classList.contains('expanded')) {
+        await toggleDashboard(dashboardId);
+    }
+
+    // Scroll to dashboard
+    if (dashboardCard) {
+        dashboardCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
 }
 
 // Runs Management

@@ -200,6 +200,79 @@ async def get_dashboards():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/charts/save")
+async def save_chart(request: dict):
+    """Save a chart configuration to dashboards.yml"""
+    try:
+        import yaml
+        dashboards_file = models_dir / "dashboards.yml"
+
+        # Get chart config from request
+        chart_config = {
+            "id": request.get("id"),
+            "title": request.get("title"),
+            "type": request.get("type"),
+            "model": request.get("model"),
+            "x_axis": request.get("x_axis"),
+            "y_axis": request.get("y_axis"),
+            "aggregation": request.get("aggregation", "sum")
+        }
+
+        # Load existing dashboards or create new structure
+        if dashboards_file.exists():
+            with open(dashboards_file, 'r') as f:
+                data = yaml.safe_load(f) or {}
+        else:
+            data = {}
+
+        if 'dashboards' not in data:
+            data['dashboards'] = []
+
+        # Find or create the "Custom Charts" dashboard
+        custom_dashboard = None
+        for dashboard in data['dashboards']:
+            if dashboard.get('id') == 'custom_charts':
+                custom_dashboard = dashboard
+                break
+
+        if not custom_dashboard:
+            custom_dashboard = {
+                'id': 'custom_charts',
+                'name': 'Custom Charts',
+                'description': 'User-created charts',
+                'charts': []
+            }
+            data['dashboards'].append(custom_dashboard)
+
+        # Add chart to dashboard
+        if 'charts' not in custom_dashboard:
+            custom_dashboard['charts'] = []
+
+        # Check if chart with same ID exists and update it
+        chart_exists = False
+        for i, chart in enumerate(custom_dashboard['charts']):
+            if chart.get('id') == chart_config['id']:
+                custom_dashboard['charts'][i] = chart_config
+                chart_exists = True
+                break
+
+        if not chart_exists:
+            custom_dashboard['charts'].append(chart_config)
+
+        # Save back to file
+        with open(dashboards_file, 'w') as f:
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+        return {
+            "success": True,
+            "message": "Chart saved successfully!",
+            "dashboard_id": "custom_charts",
+            "chart_id": chart_config['id']
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/tables/{table_name}/columns")
 async def get_table_columns(table_name: str):
     """Get columns for a specific table"""
