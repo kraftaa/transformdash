@@ -573,10 +573,13 @@ async function renderDashboardChart(chartConfig, container, filters = {}) {
             throw new Error('Invalid chart data received');
         }
 
-        // Get colors
-        const colors = getChartColors(chartConfig, chartData.labels.length);
+        // Check if data is empty
+        const hasData = chartData.labels.length > 0 && chartData.values.length > 0;
 
-        // Create Chart.js chart
+        // Get colors
+        const colors = getChartColors(chartConfig, chartData.labels.length || 1);
+
+        // Create Chart.js chart with empty state handling
         new Chart(canvas, {
             type: chartConfig.type,
             data: {
@@ -595,16 +598,63 @@ async function renderDashboardChart(chartConfig, container, filters = {}) {
                 maintainAspectRatio: false,
                 plugins: {
                     legend: {
-                        display: ['pie', 'doughnut'].includes(chartConfig.type)
+                        display: ['pie', 'doughnut'].includes(chartConfig.type),
+                        labels: {
+                            color: '#374151',  // Darker gray for better contrast
+                            font: {
+                                size: 12,
+                                weight: '500'
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        borderColor: '#667eea',
+                        borderWidth: 1
                     }
                 },
                 scales: ['line', 'bar'].includes(chartConfig.type) ? {
+                    x: {
+                        ticks: {
+                            color: '#374151',  // Darker text
+                            font: {
+                                size: 11
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
                     y: {
-                        beginAtZero: true
+                        beginAtZero: true,
+                        ticks: {
+                            color: '#374151',  // Darker text
+                            font: {
+                                size: 11
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
                     }
                 } : {}
             }
         });
+
+        // Add "No data" overlay if chart is empty
+        if (!hasData) {
+            const noDataDiv = document.createElement('div');
+            noDataDiv.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none;';
+            noDataDiv.innerHTML = `
+                <div style="font-size: 1.2em; font-weight: 500; color: #9ca3af;">No data available</div>
+                <div style="font-size: 0.85em; color: #d1d5db; margin-top: 5px;">Try adjusting your filters</div>
+            `;
+            // Make canvas wrapper position relative
+            canvas.parentElement.style.position = 'relative';
+            canvas.parentElement.appendChild(noDataDiv);
+        }
 
     } catch (error) {
         console.error('Error rendering chart:', chartConfig.id, error);
@@ -617,7 +667,7 @@ async function renderDashboardChart(chartConfig, container, filters = {}) {
 }
 
 // Render metric chart (single KPI value)
-async function renderMetricChart(canvas, chartConfig) {
+async function renderMetricChart(canvas, chartConfig, filters = {}) {
     try {
         // Determine which field to query
         const metricField = chartConfig.metric || chartConfig.y_axis;
@@ -625,7 +675,7 @@ async function renderMetricChart(canvas, chartConfig) {
             throw new Error('No metric field specified');
         }
 
-        // For metrics, query the data
+        // For metrics, query the data with filters
         const queryResponse = await fetch('/api/query', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -633,7 +683,8 @@ async function renderMetricChart(canvas, chartConfig) {
                 table: chartConfig.model,
                 x_axis: metricField,
                 y_axis: metricField,
-                aggregation: chartConfig.aggregation || 'sum'
+                aggregation: chartConfig.aggregation || 'sum',
+                filters: filters  // Pass filters to backend
             })
         });
 
@@ -643,21 +694,28 @@ async function renderMetricChart(canvas, chartConfig) {
 
         const chartData = await queryResponse.json();
 
-        // Validate data
-        if (!chartData.values || chartData.values.length === 0) {
-            throw new Error('No data returned for metric');
-        }
-
-        const value = chartData.values.reduce((a, b) => a + b, 0);
+        // Check if we have data
+        const hasData = chartData.values && chartData.values.length > 0;
+        const value = hasData ? chartData.values.reduce((a, b) => a + b, 0) : 0;
 
         // Hide canvas and show metric value instead
         canvas.style.display = 'none';
         const metricDiv = document.createElement('div');
-        metricDiv.style.cssText = 'text-align: center; padding: 30px 0;';
-        metricDiv.innerHTML = `
-            <div style="font-size: 3em; font-weight: bold; color: #667eea;">${formatMetricValue(value)}</div>
-            <div style="font-size: 0.9em; color: #888; margin-top: 5px;">${chartConfig.aggregation?.toUpperCase() || 'TOTAL'}</div>
-        `;
+        metricDiv.style.cssText = 'text-align: center; padding: 30px 0; position: relative;';
+
+        if (hasData) {
+            metricDiv.innerHTML = `
+                <div style="font-size: 3em; font-weight: bold; color: #667eea;">${formatMetricValue(value)}</div>
+                <div style="font-size: 0.9em; color: #888; margin-top: 5px;">${chartConfig.aggregation?.toUpperCase() || 'TOTAL'}</div>
+            `;
+        } else {
+            // Show empty state for metrics
+            metricDiv.innerHTML = `
+                <div style="font-size: 2.5em; font-weight: bold; color: #d1d5db;">—</div>
+                <div style="font-size: 0.85em; color: #9ca3af; margin-top: 8px;">No data available</div>
+                <div style="font-size: 0.75em; color: #d1d5db; margin-top: 4px;">Try adjusting your filters</div>
+            `;
+        }
         canvas.parentElement.appendChild(metricDiv);
 
     } catch (error) {
@@ -1602,6 +1660,18 @@ function enterFullscreenMode(dashboardId) {
     dashboardClone.classList.add('expanded', 'fullscreen-dashboard');
     dashboardClone.querySelector('.dashboard-details').style.display = 'grid';
 
+    // Add back arrow at the start of the header
+    const headerLeft = dashboardClone.querySelector('.dashboard-header > div:first-child');
+    if (headerLeft) {
+        const backBtn = document.createElement('button');
+        backBtn.className = 'icon-btn';
+        backBtn.title = 'Back to Dashboards';
+        backBtn.onclick = () => exitFullscreenMode();
+        backBtn.innerHTML = '←';
+        backBtn.style.cssText = 'margin-right: 12px; font-size: 1.2em;';
+        headerLeft.insertBefore(backBtn, headerLeft.firstChild);
+    }
+
     // Replace action buttons with export and exit buttons
     const headerRight = dashboardClone.querySelector('.dashboard-header > div:last-child');
     if (headerRight) {
@@ -1659,6 +1729,12 @@ function enterFullscreenMode(dashboardId) {
         .fullscreen-dashboard .icon-btn:hover {
             background: rgba(255,255,255,0.3);
             border-color: rgba(255,255,255,0.5);
+            transform: translateY(-1px);
+        }
+        .fullscreen-dashboard .dashboard-header .dashboard-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
     `;
     document.head.appendChild(style);

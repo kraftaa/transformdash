@@ -220,32 +220,41 @@ async def query_data(request: dict):
         if not all([table, x_axis, y_axis]):
             raise HTTPException(status_code=400, detail="Missing required parameters")
 
-        # Build WHERE clauses from filters
-        where_clauses = [f"{x_axis} IS NOT NULL"]
-        params = []
-
-        if filters:
-            for field, value in filters.items():
-                if value:  # Only add filter if value is not empty
-                    where_clauses.append(f"{field} = %s")
-                    params.append(value)
-
-        where_sql = "WHERE " + " AND ".join(where_clauses)
-
-        # Build aggregation query
-        agg_func = aggregation.upper()
-        query = f"""
-            SELECT
-                {x_axis} as label,
-                {agg_func}({y_axis}) as value
-            FROM public.{table}
-            {where_sql}
-            GROUP BY {x_axis}
-            ORDER BY {x_axis}
-            LIMIT 50
-        """
-
         with PostgresConnector() as pg:
+            # First, get available columns for this table
+            col_query = """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = %s
+            """
+            col_result = pg.execute(col_query, (table,), fetch=True)
+            available_columns = {row['column_name'] for row in col_result}
+
+            # Build WHERE clauses from filters - only use filters that exist in this table
+            where_clauses = [f"{x_axis} IS NOT NULL"]
+            params = []
+
+            if filters:
+                for field, value in filters.items():
+                    if value and field in available_columns:  # Check if column exists
+                        where_clauses.append(f"{field} = %s")
+                        params.append(value)
+
+            where_sql = "WHERE " + " AND ".join(where_clauses)
+
+            # Build aggregation query
+            agg_func = aggregation.upper()
+            query = f"""
+                SELECT
+                    {x_axis} as label,
+                    {agg_func}({y_axis}) as value
+                FROM public.{table}
+                {where_sql}
+                GROUP BY {x_axis}
+                ORDER BY {x_axis}
+                LIMIT 50
+            """
+
             df = pg.query_to_dataframe(query, tuple(params) if params else None)
 
             # Convert to chart-friendly format
