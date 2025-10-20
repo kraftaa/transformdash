@@ -287,194 +287,296 @@ async def root():
 
         .panel {
             background: white;
-            border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-radius: 10px;
+            padding: 28px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--color-gray-200);
         }
 
         h2 {
-            color: #667eea;
+            color: var(--color-primary);
             margin-bottom: 20px;
             font-size: 1.5em;
-            border-bottom: 2px solid #667eea;
+            border-bottom: 2px solid var(--color-primary);
             padding-bottom: 10px;
         }
 
         .model-item {
-            padding: 12px;
-            border-left: 4px solid #667eea;
-            background: #f8f9fa;
+            padding: 14px 16px;
+            border-left: 4px solid var(--color-primary);
+            background: var(--color-gray-50);
             margin-bottom: 10px;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.2s ease;
+            border: 1px solid var(--color-gray-200);
+            border-left-width: 4px;
         }
 
         .model-item:hover {
-            background: #e9ecef;
-            transform: translateX(5px);
+            background: white;
+            transform: translateX(4px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--color-primary);
         }
 
         .model-name {
-            font-weight: bold;
-            color: #333;
-            margin-bottom: 5px;
+            font-weight: 700;
+            color: var(--color-gray-900);
+            margin-bottom: 6px;
+            font-size: 0.95em;
         }
 
         .model-meta {
             font-size: 0.85em;
-            color: #666;
+            color: var(--color-gray-600);
         }
 
         .badge {
             display: inline-block;
-            padding: 3px 8px;
+            padding: 4px 10px;
             border-radius: 12px;
             font-size: 0.75em;
-            font-weight: bold;
-            margin-right: 5px;
+            font-weight: 700;
+            margin-right: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .badge-bronze {
-            background: #cd7f32;
+            background: var(--color-bronze);
             color: white;
         }
 
         .badge-silver {
-            background: #c0c0c0;
-            color: #333;
+            background: var(--color-silver);
+            color: var(--color-gray-800);
         }
 
         .badge-gold {
-            background: #ffd700;
-            color: #333;
+            background: var(--color-gold);
+            color: var(--color-gray-800);
         }
 
         .badge-sql {
-            background: #0078d4;
+            background: var(--color-info);
             color: white;
         }
 
         #lineage-graph {
             min-height: 600px;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            background: #fafafa;
+            border: 1px solid var(--color-gray-200);
+            border-radius: 10px;
+            background: var(--color-gray-50);
         }
 
         .node {
             cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .node:hover rect {
+            filter: brightness(1.1);
         }
 
         .node rect {
-            fill: #667eea;
-            stroke: #5568d3;
+            fill: var(--color-primary);
+            stroke: var(--color-primary-dark);
             stroke-width: 2px;
             rx: 8px;
+            transition: all 0.2s ease;
         }
 
         .node.bronze rect {
-            fill: #cd7f32;
-            stroke: #b06727;
+            fill: var(--color-bronze);
+            stroke: var(--color-bronze-dark);
         }
 
         .node.silver rect {
-            fill: #c0c0c0;
-            stroke: #a8a8a8;
+            fill: var(--color-silver);
+            stroke: var(--color-silver-dark);
         }
 
         .node.gold rect {
-            fill: #ffd700;
-            stroke: #e6c200;
+            fill: var(--color-gold);
+            stroke: var(--color-gold-dark);
         }
 
         .node text {
             fill: white;
             font-size: 12px;
-            font-weight: bold;
+            font-weight: 700;
             text-anchor: middle;
+            pointer-events: none;
         }
 
         .node.gold text, .node.silver text {
-            fill: #333;
+            fill: var(--color-gray-900);
         }
 
         .link {
             fill: none;
-            stroke: #999;
+            stroke: var(--color-gray-400);
             stroke-width: 2px;
             marker-end: url(#arrowhead);
+            transition: all 0.2s ease;
         }
 
         .link:hover {
-            stroke: #667eea;
+            stroke: var(--color-primary);
             stroke-width: 3px;
         }
 
         .refresh-btn {
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
+            background: white;
+            color: var(--color-primary);
+            border: 2px solid var(--color-primary);
+            padding: 8px 16px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 1em;
-            font-weight: bold;
-            transition: all 0.3s;
+            font-size: 0.9em;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .refresh-btn:hover {
-            background: #5568d3;
-            transform: scale(1.05);
+            background: var(--color-primary);
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
         }
 
         .run-btn {
-            background: #10b981;
+            background: var(--color-success);
             color: white;
             border: none;
-            padding: 12px 24px;
-            border-radius: 6px;
+            padding: 10px 20px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 1em;
-            font-weight: bold;
-            transition: all 0.3s;
+            font-size: 0.95em;
+            font-weight: 700;
+            transition: all 0.2s ease;
             margin-left: 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: var(--shadow-sm);
         }
 
         .run-btn:hover {
-            background: #059669;
-            transform: scale(1.05);
+            background: var(--color-success-dark);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
         }
 
         .run-btn:disabled {
-            background: #9ca3af;
+            background: var(--color-gray-400);
             cursor: not-allowed;
             transform: none;
+            box-shadow: none;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        /* Empty States */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--color-gray-500);
+        }
+
+        .empty-state-icon {
+            font-size: 4em;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            color: var(--color-gray-700);
+            font-size: 1.3em;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .empty-state p {
+            color: var(--color-gray-500);
+            font-size: 0.95em;
+            line-height: 1.6;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .empty-state-action {
+            margin-top: 24px;
+        }
+
+        .empty-state-btn {
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .empty-state-btn:hover {
+            background: var(--color-primary-dark);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
         }
 
         .execution-status {
             margin-top: 20px;
-            padding: 15px;
+            padding: 16px 20px;
             border-radius: 8px;
             display: none;
+            border-left: 4px solid transparent;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .execution-status.success {
-            background: #d1fae5;
-            border-left: 4px solid #10b981;
+            background: var(--color-success-light);
+            border-left-color: var(--color-success);
             display: block;
         }
 
         .execution-status.error {
-            background: #fee2e2;
-            border-left: 4px solid #ef4444;
+            background: var(--color-error-light);
+            border-left-color: var(--color-error);
             display: block;
         }
 
         .execution-status.running {
-            background: #dbeafe;
-            border-left: 4px solid #3b82f6;
+            background: var(--color-info-light);
+            border-left-color: var(--color-info);
             display: block;
+        }
+
+        .execution-status strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 1.05em;
         }
 
         /* Modal styles */
@@ -486,7 +588,14 @@ async def root():
             top: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0,0,0,0.5);
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
         .modal-content {
@@ -500,13 +609,25 @@ async def root():
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            box-shadow: var(--shadow-xl);
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .modal-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
             color: white;
-            padding: 20px 30px;
+            padding: 24px 32px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -517,46 +638,67 @@ async def root():
             color: white;
             border: none;
             padding: 0;
+            font-size: 1.4em;
         }
 
         .close {
             color: white;
-            font-size: 32px;
+            font-size: 28px;
             font-weight: bold;
             cursor: pointer;
             line-height: 1;
+            transition: all 0.2s ease;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
         }
 
         .close:hover {
-            opacity: 0.8;
+            background: rgba(255, 255, 255, 0.2);
+            transform: rotate(90deg);
         }
 
         .modal-body {
-            padding: 30px;
+            padding: 32px;
             overflow-y: auto;
             flex: 1;
         }
 
         .code-block {
-            background: #2d2d2d;
-            color: #f8f8f2;
+            background: #1e293b;
+            color: #e2e8f0;
             padding: 20px;
             border-radius: 8px;
             overflow-x: auto;
-            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-            font-size: 14px;
-            line-height: 1.6;
+            font-family: 'Monaco', 'Menlo', 'Consolas', 'SF Mono', monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            border: 1px solid #334155;
         }
 
         .model-meta-info {
-            background: #f8f9fa;
-            padding: 15px;
+            background: var(--color-gray-50);
+            padding: 16px 20px;
             border-radius: 8px;
             margin-bottom: 20px;
+            border: 1px solid var(--color-gray-200);
+        }
+
+        .model-meta-info p {
+            margin-bottom: 8px;
+            color: var(--color-gray-700);
+        }
+
+        .model-meta-info p:last-child {
+            margin-bottom: 0;
         }
 
         .model-meta-info strong {
-            color: #667eea;
+            color: var(--color-primary);
+            font-weight: 600;
         }
 
         /* Tabs */
@@ -785,13 +927,13 @@ async def root():
 
         .dashboard-card {
             background: white;
-            border: 2px solid #e0e0e0;
-            border-radius: 12px;
-            padding: 15px;
+            border: 2px solid var(--color-gray-200);
+            border-radius: 10px;
+            padding: 18px 20px;
             margin-bottom: 12px;
-            transition: all 0.3s;
+            transition: all 0.3s ease;
             cursor: pointer;
-            max-height: 80px;
+            max-height: 85px;
             overflow: hidden;
         }
 
@@ -801,8 +943,9 @@ async def root():
         }
 
         .dashboard-card:hover {
-            border-color: #667eea;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+            border-color: var(--color-primary);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
         }
 
         .dashboard-header {
@@ -890,58 +1033,154 @@ async def root():
         }
 
         .model-tag {
-            background: #f3f4f6;
-            border: 1px solid #d1d5db;
-            padding: 4px 10px;
+            background: var(--color-gray-100);
+            border: 1px solid var(--color-gray-300);
+            padding: 5px 12px;
             border-radius: 6px;
-            font-size: 0.9em;
-            color: #374151;
+            font-size: 0.85em;
+            color: var(--color-gray-700);
             cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
         }
 
         .model-tag:hover {
-            background: #e5e7eb;
+            background: var(--color-primary);
+            color: white;
+            border-color: var(--color-primary);
+            transform: translateY(-1px);
         }
 
         .dashboard-owner {
-            color: #888;
+            color: var(--color-gray-500);
             font-size: 0.9em;
         }
 
         .expand-indicator {
             font-size: 0.8em;
-            color: #9ca3af;
-            transition: transform 0.3s;
+            color: var(--color-gray-400);
+            transition: transform 0.3s ease;
         }
 
         .dashboard-card.expanded .expand-indicator {
             transform: rotate(180deg);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            body {
+                padding: 12px;
+            }
+
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 16px;
+            }
+
+            .header-right {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            h1 {
+                font-size: 1.6em;
+            }
+
+            .stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .panel {
+                padding: 20px;
+            }
+
+            .tabs {
+                gap: 4px;
+            }
+
+            .tab {
+                padding: 10px 14px;
+                font-size: 0.85em;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats {
+                grid-template-columns: 1fr;
+            }
+
+            .run-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            .run-stats {
+                flex-direction: column;
+                gap: 8px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>✨ TransformDash</h1>
-            <p class="subtitle">Hybrid Data Transformation & Dashboard Platform</p>
+            <div class="header-left">
+                <h1>✨ TransformDash</h1>
+                <p class="subtitle">Hybrid Data Transformation & Dashboard Platform</p>
+                <div class="status-indicator">
+                    <span class="status-dot"></span>
+                    <span id="last-sync">Last synced: <span id="sync-time">Never</span></span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Toggle Dark Mode">
+                    <span id="theme-icon">🌙</span>
+                </button>
+            </div>
         </header>
 
         <div class="stats" id="stats">
             <div class="stat-card">
-                <div class="stat-label">Total Models</div>
+                <div class="stat-header">
+                    <div class="stat-label">Total Models</div>
+                    <div class="stat-icon">📦</div>
+                </div>
                 <div class="stat-value" id="total-models">-</div>
+                <div class="stat-delta neutral" id="total-delta">
+                    <span>—</span>
+                </div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Bronze Layer</div>
+                <div class="stat-header">
+                    <div class="stat-label">Bronze Layer</div>
+                    <div class="stat-icon">🥉</div>
+                </div>
                 <div class="stat-value" id="bronze-count">-</div>
+                <div class="stat-delta neutral">
+                    <span>Staging</span>
+                </div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Silver Layer</div>
+                <div class="stat-header">
+                    <div class="stat-label">Silver Layer</div>
+                    <div class="stat-icon">🥈</div>
+                </div>
                 <div class="stat-value" id="silver-count">-</div>
+                <div class="stat-delta neutral">
+                    <span>Intermediate</span>
+                </div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Gold Layer</div>
+                <div class="stat-header">
+                    <div class="stat-label">Gold Layer</div>
+                    <div class="stat-icon">🥇</div>
+                </div>
                 <div class="stat-value" id="gold-count">-</div>
+                <div class="stat-delta neutral">
+                    <span>Analytics</span>
+                </div>
             </div>
         </div>
 
@@ -956,7 +1195,7 @@ async def root():
 
             <!-- Models Tab -->
             <div id="models-tab" class="tab-content active">
-                <div>
+                <div class="btn-group">
                     <button class="refresh-btn" onclick="loadModels()">🔄 Refresh</button>
                     <button class="run-btn" id="runBtn" onclick="runTransformations()">▶️ Run Transformations</button>
                 </div>
@@ -966,8 +1205,14 @@ async def root():
 
             <!-- Runs Tab -->
             <div id="runs-tab" class="tab-content">
-                <div>
-                    <button class="refresh-btn" onclick="loadRuns()">🔄 Refresh Runs</button>
+                <div class="btn-group">
+                    <button class="refresh-btn" onclick="loadRuns()">🔄 Refresh</button>
+                </div>
+                <div class="runs-filter">
+                    <button class="filter-btn active" onclick="filterRuns('all')">All Runs</button>
+                    <button class="filter-btn" onclick="filterRuns('success')">✅ Success</button>
+                    <button class="filter-btn" onclick="filterRuns('failed')">❌ Failed</button>
+                    <button class="filter-btn" onclick="filterRuns('partial')">⚠️ Partial</button>
                 </div>
                 <div id="runs-list" style="margin-top: 20px;"></div>
             </div>
@@ -1101,11 +1346,31 @@ async def root():
 
     <script>
         let modelsData = [];
+        let allRuns = [];
+        let currentFilter = 'all';
+
+        // Dark Mode Toggle
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            document.getElementById('theme-icon').textContent = isDark ? '☀️' : '🌙';
+            localStorage.setItem('darkMode', isDark);
+        }
+
+        // Load dark mode preference
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.body.classList.add('dark-mode');
+            document.getElementById('theme-icon').textContent = '☀️';
+        }
 
         async function loadModels() {
             try {
                 const response = await fetch('/api/models');
                 modelsData = await response.json();
+
+                // Update sync time
+                const now = new Date();
+                document.getElementById('sync-time').textContent = now.toLocaleTimeString();
 
                 // Update stats
                 document.getElementById('total-models').textContent = modelsData.length;
@@ -1118,31 +1383,49 @@ async def root():
 
                 // Display models list
                 const modelsList = document.getElementById('models-list');
-                modelsList.innerHTML = modelsData.map(model => {
-                    const layer = getModelLayer(model.name);
-                    const badge = `<span class="badge badge-${layer}">${layer.toUpperCase()}</span>`;
-                    const typeBadge = `<span class="badge badge-sql">${model.type.toUpperCase()}</span>`;
 
-                    return `
-                        <div class="model-item" onclick="highlightModel('${model.name}')">
-                            <div class="model-name">${model.name}</div>
-                            <div class="model-meta">
-                                ${badge}
-                                ${typeBadge}
-                                ${model.depends_on.length > 0 ?
-                                    `<br>Depends on: ${model.depends_on.join(', ')}` :
-                                    '<br>No dependencies'}
-                            </div>
+                if (modelsData.length === 0) {
+                    modelsList.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📦</div>
+                            <h3>No Models Found</h3>
+                            <p>Add SQL or Python transformation models to the models/ directory to get started.</p>
                         </div>
                     `;
-                }).join('');
+                } else {
+                    modelsList.innerHTML = modelsData.map(model => {
+                        const layer = getModelLayer(model.name);
+                        const badge = `<span class="badge badge-${layer}">${layer.toUpperCase()}</span>`;
+                        const typeBadge = `<span class="badge badge-sql">${model.type.toUpperCase()}</span>`;
+
+                        return `
+                            <div class="model-item" onclick="highlightModel('${model.name}')">
+                                <div class="model-name">${model.name}</div>
+                                <div class="model-meta">
+                                    ${badge}
+                                    ${typeBadge}
+                                    ${model.depends_on.length > 0 ?
+                                        `<br>Depends on: ${model.depends_on.join(', ')}` :
+                                        '<br>No dependencies'}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
 
                 // Draw lineage graph
                 drawLineage(modelsData);
 
             } catch (error) {
                 console.error('Error loading models:', error);
-                alert('Failed to load models');
+                const modelsList = document.getElementById('models-list');
+                modelsList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">❌</div>
+                        <h3>Failed to Load Models</h3>
+                        <p>There was an error loading the transformation models. Please check the console for details.</p>
+                    </div>
+                `;
             }
         }
 
@@ -1570,40 +1853,117 @@ async def root():
             try {
                 const response = await fetch('/api/runs');
                 const data = await response.json();
+                allRuns = data.runs;
 
-                const runsList = document.getElementById('runs-list');
-
-                if (data.runs.length === 0) {
-                    runsList.innerHTML = '<p style="color: #888;">No runs yet. Click "Run Transformations" to execute your first pipeline.</p>';
-                    return;
-                }
-
-                runsList.innerHTML = data.runs.map(run => {
-                    const timestamp = new Date(run.timestamp).toLocaleString();
-                    const successRate = run.summary.total_models > 0
-                        ? ((run.summary.successes / run.summary.total_models) * 100).toFixed(0)
-                        : 0;
-
-                    return `
-                        <div class="run-item" onclick="viewRunLogs('${run.run_id}')">
-                            <div class="run-header">
-                                <span class="run-id">${run.run_id}</span>
-                                <span class="run-time">${timestamp}</span>
-                            </div>
-                            <div class="run-stats">
-                                <span class="stat-success">✓ ${run.summary.successes} success</span>
-                                <span class="stat-failure">✗ ${run.summary.failures} failed</span>
-                                <span>⏱️ ${run.summary.total_execution_time.toFixed(2)}s</span>
-                                <span>📊 ${successRate}% success rate</span>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
+                displayRuns();
 
             } catch (error) {
                 console.error('Error loading runs:', error);
-                document.getElementById('runs-list').innerHTML = '<p style="color: #ef4444;">Failed to load runs</p>';
+                const runsList = document.getElementById('runs-list');
+                runsList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">❌</div>
+                        <h3>Failed to Load Runs</h3>
+                        <p>There was an error loading the run history. Please try refreshing.</p>
+                    </div>
+                `;
             }
+        }
+
+        function displayRuns() {
+            const runsList = document.getElementById('runs-list');
+
+            if (allRuns.length === 0) {
+                runsList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📊</div>
+                        <h3>No Runs Yet</h3>
+                        <p>Click "Run Transformations" in the Models tab to execute your first pipeline.</p>
+                        <div class="empty-state-action">
+                            <button class="empty-state-btn" onclick="switchTab('models'); setTimeout(() => document.getElementById('runBtn').focus(), 100)">
+                                ▶️ Run Your First Transformation
+                            </button>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Filter runs based on current filter
+            let filteredRuns = allRuns;
+            if (currentFilter !== 'all') {
+                filteredRuns = allRuns.filter(run => {
+                    const status = getRunStatus(run);
+                    return status === currentFilter;
+                });
+            }
+
+            if (filteredRuns.length === 0) {
+                runsList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <h3>No Matching Runs</h3>
+                        <p>No runs match the current filter. Try selecting a different filter.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            runsList.innerHTML = filteredRuns.map(run => {
+                const timestamp = new Date(run.timestamp).toLocaleString();
+                const successRate = run.summary.total_models > 0
+                    ? ((run.summary.successes / run.summary.total_models) * 100).toFixed(0)
+                    : 0;
+
+                const status = getRunStatus(run);
+                const statusBadge = getStatusBadge(status);
+
+                return `
+                    <div class="run-item ${status}" onclick="viewRunLogs('${run.run_id}')">
+                        <div class="run-header">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <span class="run-id">${run.run_id}</span>
+                                ${statusBadge}
+                            </div>
+                            <span class="run-time">${timestamp}</span>
+                        </div>
+                        <div class="run-stats">
+                            <span class="run-stat-item stat-success">✓ ${run.summary.successes}</span>
+                            <span class="run-stat-item stat-failure">✗ ${run.summary.failures}</span>
+                            <span class="run-stat-item stat-neutral">⏱️ ${run.summary.total_execution_time.toFixed(2)}s</span>
+                            <span class="run-stat-item stat-neutral">📊 ${successRate}% success</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getRunStatus(run) {
+            if (run.summary.failures === 0) return 'success';
+            if (run.summary.successes === 0) return 'failed';
+            return 'partial';
+        }
+
+        function getStatusBadge(status) {
+            const badges = {
+                'success': '<span class="run-status-badge success">✓ Success</span>',
+                'failed': '<span class="run-status-badge failed">✗ Failed</span>',
+                'partial': '<span class="run-status-badge partial">⚠️ Partial</span>'
+            };
+            return badges[status] || '';
+        }
+
+        function filterRuns(filter) {
+            currentFilter = filter;
+
+            // Update active filter button
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Re-display runs with filter
+            displayRuns();
         }
 
         async function viewRunLogs(runId) {
