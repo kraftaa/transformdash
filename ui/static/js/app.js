@@ -1416,9 +1416,14 @@ async function loadDashboardFilters(dashboardId, container) {
             dashboardFilters[dashboardId] = {};
         }
 
-        container.innerHTML = '<div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 15px;"><h4 style="margin: 0 0 10px 0; font-size: 0.9em; color: #666;">🔍 Filters</h4><div id="filter-controls-' + dashboardId + '" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;"></div></div>';
+        // Determine if we're in fullscreen mode
+        const isFullscreen = container.id.includes('fullscreen');
+        const controlsId = isFullscreen ? `filter-controls-fullscreen-${dashboardId}` : `filter-controls-${dashboardId}`;
+        const selectPrefix = isFullscreen ? 'filter-fullscreen' : 'filter';
 
-        const filtersControls = document.getElementById('filter-controls-' + dashboardId);
+        container.innerHTML = `<div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 15px;"><h4 style="margin: 0 0 10px 0; font-size: 0.9em; color: #666;">🔍 Filters</h4><div id="${controlsId}" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;"></div></div>`;
+
+        const filtersControls = document.getElementById(controlsId);
 
         // Create filter dropdowns
         for (const [field, filterInfo] of Object.entries(data.filters)) {
@@ -1430,7 +1435,7 @@ async function loadDashboardFilters(dashboardId, container) {
             label.style.cssText = 'font-size: 0.85em; color: #666; margin-bottom: 4px; font-weight: 500;';
 
             const select = document.createElement('select');
-            select.id = `filter-${dashboardId}-${field}`;
+            select.id = `${selectPrefix}-${dashboardId}-${field}`;
             select.style.cssText = 'padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9em; background: white;';
 
             // Add "All" option
@@ -1473,8 +1478,11 @@ async function loadDashboardFilters(dashboardId, container) {
 }
 
 async function updateCascadingFilters(dashboardId, changedField) {
-    // Get all filter controls for this dashboard
-    const filtersControls = document.getElementById('filter-controls-' + dashboardId);
+    // Get all filter controls for this dashboard - check both modes
+    let filtersControls = document.getElementById('filter-controls-fullscreen-' + dashboardId);
+    if (!filtersControls) {
+        filtersControls = document.getElementById('filter-controls-' + dashboardId);
+    }
     if (!filtersControls) return;
 
     // Get current filter selections
@@ -1485,12 +1493,16 @@ async function updateCascadingFilters(dashboardId, changedField) {
         const response = await fetch(`/api/dashboard/${dashboardId}/filters`);
         const data = await response.json();
 
+        // Check which mode we're in for select IDs
+        const isFullscreen = !!document.getElementById('filter-controls-fullscreen-' + dashboardId);
+        const prefix = isFullscreen ? 'filter-fullscreen' : 'filter';
+
         // Update dropdown options for filters that come AFTER the changed one
         // This creates a cascading effect where earlier selections filter later options
         for (const [field, filterInfo] of Object.entries(data.filters)) {
             if (field === changedField) continue;
 
-            const select = document.getElementById(`filter-${dashboardId}-${field}`);
+            const select = document.getElementById(`${prefix}-${dashboardId}-${field}`);
             if (!select) continue;
 
             const currentValue = select.value;
@@ -1514,7 +1526,14 @@ async function updateCascadingFilters(dashboardId, changedField) {
 }
 
 async function reloadDashboardCharts(dashboardId) {
-    const chartsContainer = document.getElementById('charts-' + dashboardId);
+    // Check if we're in fullscreen mode
+    let chartsContainer = document.getElementById('charts-fullscreen-' + dashboardId);
+
+    // If not in fullscreen, use regular container
+    if (!chartsContainer) {
+        chartsContainer = document.getElementById('charts-' + dashboardId);
+    }
+
     if (!chartsContainer) return;
 
     // Clear and reload charts with current filters
@@ -1527,8 +1546,12 @@ function clearDashboardFilters(dashboardId) {
     // Reset filter state
     dashboardFilters[dashboardId] = {};
 
-    // Reset all dropdowns
-    const filtersControls = document.getElementById('filter-controls-' + dashboardId);
+    // Reset all dropdowns - check both regular and fullscreen mode
+    let filtersControls = document.getElementById('filter-controls-fullscreen-' + dashboardId);
+    if (!filtersControls) {
+        filtersControls = document.getElementById('filter-controls-' + dashboardId);
+    }
+
     if (filtersControls) {
         const selects = filtersControls.querySelectorAll('select');
         selects.forEach(select => select.value = '');
@@ -1540,10 +1563,144 @@ function clearDashboardFilters(dashboardId) {
 
 // ============= Dashboard Export Functions =============
 
-function openDashboardInTab(dashboardId) {
-    // Create a standalone URL for the dashboard
-    const url = `${window.location.origin}/?dashboard=${dashboardId}`;
-    window.open(url, '_blank');
+// Store original state for fullscreen mode
+let fullscreenState = {
+    active: false,
+    dashboardId: null,
+    originalContent: null
+};
+
+async function openDashboardInTab(dashboardId) {
+    const dashboardCard = document.getElementById('dashboard-' + dashboardId);
+    if (!dashboardCard) return;
+
+    // Ensure dashboard is expanded first
+    if (!dashboardCard.classList.contains('expanded')) {
+        await toggleDashboard(dashboardId);
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    // Enter fullscreen mode
+    enterFullscreenMode(dashboardId);
+}
+
+function enterFullscreenMode(dashboardId) {
+    if (fullscreenState.active) return;
+
+    const container = document.querySelector('.container');
+    const dashboardCard = document.getElementById('dashboard-' + dashboardId);
+
+    if (!container || !dashboardCard) return;
+
+    // Store original state
+    fullscreenState.active = true;
+    fullscreenState.dashboardId = dashboardId;
+    fullscreenState.originalContent = container.innerHTML;
+
+    // Create fullscreen view
+    const dashboardClone = dashboardCard.cloneNode(true);
+    dashboardClone.classList.add('expanded', 'fullscreen-dashboard');
+    dashboardClone.querySelector('.dashboard-details').style.display = 'grid';
+
+    // Replace action buttons with export and exit buttons
+    const headerRight = dashboardClone.querySelector('.dashboard-header > div:last-child');
+    if (headerRight) {
+        headerRight.innerHTML = `
+            <button class="icon-btn" onclick="event.stopPropagation(); exportDashboardPDF('${dashboardId}')" title="Export as PDF">
+                📄
+            </button>
+            <button class="icon-btn" onclick="event.stopPropagation(); exportDashboardData('${dashboardId}', 'csv')" title="Export as CSV">
+                📊
+            </button>
+            <button class="icon-btn" onclick="event.stopPropagation(); exportDashboardData('${dashboardId}', 'excel')" title="Export as Excel">
+                📈
+            </button>
+            <button class="icon-btn" onclick="exitFullscreenMode()" title="Exit Fullscreen" style="margin-left: 8px;">
+                ✕
+            </button>
+        `;
+    }
+
+    // Clear container and add fullscreen dashboard
+    container.innerHTML = '';
+    container.appendChild(dashboardClone);
+
+    // Add fullscreen styles
+    const style = document.createElement('style');
+    style.id = 'fullscreen-styles';
+    style.textContent = `
+        .container {
+            max-width: 100% !important;
+            padding: 20px !important;
+        }
+        .fullscreen-dashboard {
+            width: 100%;
+            max-width: none !important;
+        }
+        .fullscreen-dashboard .dashboard-header {
+            background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+            color: white;
+            padding: 20px;
+            border-radius: 12px 12px 0 0;
+        }
+        .fullscreen-dashboard .dashboard-name {
+            color: white !important;
+            font-size: 1.5em;
+        }
+        .fullscreen-dashboard .dashboard-id {
+            color: rgba(255,255,255,0.9) !important;
+        }
+        .fullscreen-dashboard .icon-btn {
+            background: rgba(255,255,255,0.2);
+            border-color: rgba(255,255,255,0.3);
+            color: white;
+            font-size: 1.3em;
+        }
+        .fullscreen-dashboard .icon-btn:hover {
+            background: rgba(255,255,255,0.3);
+            border-color: rgba(255,255,255,0.5);
+        }
+    `;
+    document.head.appendChild(style);
+
+    // Now reload the charts in the cloned dashboard
+    const chartsContainer = dashboardClone.querySelector('.dashboard-details');
+    const filtersContainer = dashboardClone.querySelector('.dashboard-filters');
+
+    if (chartsContainer) {
+        chartsContainer.id = 'charts-fullscreen-' + dashboardId;
+        loadDashboardCharts(dashboardId, chartsContainer, dashboardFilters[dashboardId] || {});
+    }
+
+    if (filtersContainer) {
+        filtersContainer.id = 'filters-fullscreen-' + dashboardId;
+        filtersContainer.style.display = 'block';
+        loadDashboardFilters(dashboardId, filtersContainer);
+    }
+}
+
+function exitFullscreenMode() {
+    if (!fullscreenState.active) return;
+
+    const container = document.querySelector('.container');
+    if (!container) return;
+
+    // Restore original content
+    container.innerHTML = fullscreenState.originalContent;
+
+    // Remove fullscreen styles
+    const style = document.getElementById('fullscreen-styles');
+    if (style) style.remove();
+
+    // Reset state
+    fullscreenState = {
+        active: false,
+        dashboardId: null,
+        originalContent: null
+    };
+
+    // Reload the dashboards list
+    loadDashboards();
 }
 
 async function exportDashboardPDF(dashboardId) {
@@ -1558,24 +1715,65 @@ async function exportDashboardPDF(dashboardId) {
             await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for charts to load
         }
 
-        // Store original styles
-        const originalDisplay = document.body.style.display;
-        const originalChildren = Array.from(document.body.children);
+        // Create a temporary container for print
+        const printContainer = document.createElement('div');
+        printContainer.id = 'print-container';
+        printContainer.style.display = 'none';
 
-        // Hide everything except the dashboard
-        originalChildren.forEach(child => {
-            if (!child.contains(dashboardCard)) {
-                child.style.display = 'none';
+        // Clone the dashboard
+        const clone = dashboardCard.cloneNode(true);
+        clone.classList.add('expanded');
+        clone.querySelector('.dashboard-details').style.display = 'grid';
+
+        // Remove action buttons
+        const headerRight = clone.querySelector('.dashboard-header > div:last-child');
+        if (headerRight) headerRight.remove();
+
+        printContainer.appendChild(clone);
+        document.body.appendChild(printContainer);
+
+        // Add print-specific styles
+        const printStyles = document.createElement('style');
+        printStyles.id = 'print-styles';
+        printStyles.textContent = `
+            @media print {
+                body > *:not(#print-container) {
+                    display: none !important;
+                }
+                #print-container {
+                    display: block !important;
+                }
+                .dashboard-card {
+                    box-shadow: none !important;
+                    page-break-inside: avoid;
+                }
+                .dashboard-header {
+                    cursor: default !important;
+                }
+                .expand-indicator {
+                    display: none !important;
+                }
+                .icon-btn {
+                    display: none !important;
+                }
+                .dashboard-filters {
+                    display: none !important;
+                }
             }
-        });
+        `;
+        document.head.appendChild(printStyles);
+
+        // Wait a moment for styles to apply
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         // Print
         window.print();
 
-        // Restore
-        originalChildren.forEach(child => {
-            child.style.display = '';
-        });
+        // Cleanup after print dialog closes (small delay)
+        setTimeout(() => {
+            document.body.removeChild(printContainer);
+            document.head.removeChild(printStyles);
+        }, 500);
 
     } catch (error) {
         console.error('Error exporting PDF:', error);
