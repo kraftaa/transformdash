@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - TransformDash</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+
+    <!-- External Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/enhancements.css">
+
+    <style>
+        /* Full-page dashboard view styling */
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--color-bg-primary, #f5f7fa);
+        }
+
+        .dashboard-page {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding: 20px 24px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+        }
+
+        .dashboard-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1a202c;
+            margin: 0;
+        }
+
+        .dashboard-description {
+            font-size: 1rem;
+            color: #718096;
+            margin-top: 8px;
+        }
+
+        .dashboard-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .action-btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            background: white;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: #f7fafc;
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .back-btn {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .back-btn:hover {
+            background: #5568d3;
+            color: white;
+        }
+
+        .dashboard-filters {
+            padding: 20px 24px;
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .filter-label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .filter-select {
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            min-width: 150px;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 24px;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+            transition: box-shadow 0.2s;
+        }
+
+        .chart-container:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #1a202c;
+            margin: 0 0 16px 0;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px;
+            color: #718096;
+        }
+
+        .error {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px;
+            color: #e53e3e;
+        }
+
+        /* Dark mode */
+        body.dark-mode {
+            background: #1a202c;
+        }
+
+        body.dark-mode .dashboard-header,
+        body.dark-mode .dashboard-filters,
+        body.dark-mode .chart-container {
+            background: #2d3748;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        body.dark-mode .dashboard-title,
+        body.dark-mode .chart-title {
+            color: #f7fafc;
+        }
+
+        body.dark-mode .dashboard-description,
+        body.dark-mode .filter-label {
+            color: #cbd5e0;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-page">
+        <!-- Dashboard Header -->
+        <div class="dashboard-header">
+            <div>
+                <h1 class="dashboard-title" id="dashboardName">Loading...</h1>
+                <p class="dashboard-description" id="dashboardDescription"></p>
+            </div>
+            <div class="dashboard-actions">
+                <button class="action-btn back-btn" onclick="window.close()">
+                    ← Back
+                </button>
+                <button class="action-btn" onclick="exportPDF()">
+                    📄 Export PDF
+                </button>
+                <button class="action-btn" onclick="exportData('csv')">
+                    📊 Export CSV
+                </button>
+                <button class="action-btn" onclick="exportData('excel')">
+                    📈 Export Excel
+                </button>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div id="filtersContainer" class="dashboard-filters" style="display: none;">
+            <!-- Filters will be loaded here -->
+        </div>
+
+        <!-- Charts Grid -->
+        <div id="chartsGrid" class="charts-grid">
+            <div class="loading">
+                <div>Loading dashboard...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dashboardId = '{{ dashboard_id }}';
+        let currentFilters = {};
+
+        // Load dashboard on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadDashboard();
+        });
+
+        async function loadDashboard() {
+            try {
+                // Fetch dashboard config
+                const response = await fetch('/api/dashboards');
+                const data = await response.json();
+
+                const dashboard = data.dashboards.find(d => d.id === dashboardId);
+                if (!dashboard) {
+                    throw new Error('Dashboard not found');
+                }
+
+                // Set dashboard info
+                document.getElementById('dashboardName').textContent = dashboard.name;
+                document.getElementById('dashboardDescription').textContent = dashboard.description || '';
+
+                // Load filters
+                await loadFilters(dashboard);
+
+                // Load charts
+                await loadCharts(dashboard);
+
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                document.getElementById('chartsGrid').innerHTML = `
+                    <div class="error">
+                        <div style="font-size: 3em; margin-bottom: 16px;">❌</div>
+                        <h3>Failed to Load Dashboard</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function loadFilters(dashboard) {
+            if (!dashboard.filters || dashboard.filters.length === 0) {
+                return;
+            }
+
+            const container = document.getElementById('filtersContainer');
+            container.style.display = 'flex';
+
+            try {
+                const response = await fetch(`/api/dashboard/${dashboardId}/filters`);
+                const filterData = await response.json();
+
+                container.innerHTML = dashboard.filters.map(filter => {
+                    const options = filterData[filter.field] || [];
+                    return `
+                        <div class="filter-group">
+                            <label class="filter-label">${filter.label}</label>
+                            <select class="filter-select"
+                                    onchange="applyFilter('${filter.field}', this.value)">
+                                <option value="">All ${filter.label}</option>
+                                ${options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+                            </select>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading filters:', error);
+            }
+        }
+
+        async function loadCharts(dashboard) {
+            const grid = document.getElementById('chartsGrid');
+            grid.innerHTML = '';
+
+            for (const chartConfig of dashboard.charts) {
+                const chartDiv = document.createElement('div');
+                chartDiv.className = 'chart-container';
+                chartDiv.innerHTML = `
+                    <h3 class="chart-title">${chartConfig.title}</h3>
+                    <canvas id="chart-${chartConfig.id}"></canvas>
+                `;
+                grid.appendChild(chartDiv);
+
+                await renderChart(chartConfig);
+            }
+        }
+
+        async function renderChart(chartConfig) {
+            try {
+                const response = await fetch('/api/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        table: chartConfig.table,
+                        columns: chartConfig.columns,
+                        filters: currentFilters
+                    })
+                });
+
+                const data = await response.json();
+
+                if (chartConfig.type === 'metric') {
+                    // Render metric
+                    const canvas = document.getElementById(`chart-${chartConfig.id}`);
+                    const ctx = canvas.getContext('2d');
+                    const value = data.data[0]?.[chartConfig.value_column] || 0;
+
+                    canvas.style.display = 'none';
+                    canvas.parentElement.innerHTML += `
+                        <div style="text-align: center; font-size: 3rem; font-weight: 700; color: #667eea; padding: 40px 0;">
+                            ${typeof value === 'number' ? value.toLocaleString() : value}
+                        </div>
+                    `;
+                } else {
+                    // Render chart
+                    const canvas = document.getElementById(`chart-${chartConfig.id}`);
+                    const ctx = canvas.getContext('2d');
+
+                    new Chart(ctx, {
+                        type: chartConfig.type,
+                        data: {
+                            labels: data.data.map(row => row[chartConfig.x_axis]),
+                            datasets: [{
+                                label: chartConfig.title,
+                                data: data.data.map(row => row[chartConfig.y_axis]),
+                                backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                                borderColor: 'rgba(102, 126, 234, 1)',
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: {
+                                legend: { display: false }
+                            }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error(`Error rendering chart ${chartConfig.id}:`, error);
+            }
+        }
+
+        function applyFilter(field, value) {
+            if (value) {
+                currentFilters[field] = value;
+            } else {
+                delete currentFilters[field];
+            }
+
+            // Reload dashboard with new filters
+            loadDashboard();
+        }
+
+        function exportPDF() {
+            alert('PDF export functionality would generate a PDF of this dashboard');
+        }
+
+        function exportData(format) {
+            alert(`${format.toUpperCase()} export functionality would export all data from this dashboard`);
+        }
+    </script>
+</body>
+</html>

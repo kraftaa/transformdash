@@ -213,14 +213,35 @@ let currentFilter = 'all';
 function toggleDarkMode() {
     document.body.classList.toggle('dark-mode');
     const isDark = document.body.classList.contains('dark-mode');
-    document.getElementById('theme-icon').textContent = isDark ? '☀️' : '🌙';
+
+    // Update theme icons
+    const lightIcon = document.getElementById('theme-icon-light');
+    const darkIcon = document.getElementById('theme-icon-dark');
+
+    if (isDark) {
+        lightIcon?.classList.add('hidden');
+        darkIcon?.classList.remove('hidden');
+    } else {
+        lightIcon?.classList.remove('hidden');
+        darkIcon?.classList.add('hidden');
+    }
+
     localStorage.setItem('darkMode', isDark);
 }
 
 // Load dark mode preference on page load
-if (localStorage.getItem('darkMode') === 'true') {
+// Dark mode by default (unless explicitly disabled)
+const darkModeSetting = localStorage.getItem('darkMode');
+if (darkModeSetting === null || darkModeSetting === 'true') {
     document.body.classList.add('dark-mode');
-    document.getElementById('theme-icon').textContent = '☀️';
+    const lightIcon = document.getElementById('theme-icon-light');
+    const darkIcon = document.getElementById('theme-icon-dark');
+    lightIcon?.classList.add('hidden');
+    darkIcon?.classList.remove('hidden');
+    // Set to true if not set yet
+    if (darkModeSetting === null) {
+        localStorage.setItem('darkMode', 'true');
+    }
 }
 
 // Load Models
@@ -229,64 +250,73 @@ async function loadModels() {
         const response = await fetch('/api/models');
         modelsData = await response.json();
 
-        // Update sync time
-        const now = new Date();
-        document.getElementById('sync-time').textContent = now.toLocaleTimeString();
+        // Update stats (these exist in overview)
+        const totalModelsEl = document.getElementById('total-models');
+        const bronzeEl = document.getElementById('bronze-count');
+        const silverEl = document.getElementById('silver-count');
+        const goldEl = document.getElementById('gold-count');
 
-        // Update stats
-        document.getElementById('total-models').textContent = modelsData.length;
-        document.getElementById('bronze-count').textContent =
-            modelsData.filter(m => m.name.startsWith('stg_')).length;
-        document.getElementById('silver-count').textContent =
-            modelsData.filter(m => m.name.startsWith('int_')).length;
-        document.getElementById('gold-count').textContent =
-            modelsData.filter(m => m.name.startsWith('fct_') || m.name.startsWith('dim_')).length;
+        if (totalModelsEl) totalModelsEl.textContent = modelsData.length;
+        if (bronzeEl) bronzeEl.textContent = modelsData.filter(m => m.name.startsWith('stg_')).length;
+        if (silverEl) silverEl.textContent = modelsData.filter(m => m.name.startsWith('int_')).length;
+        if (goldEl) goldEl.textContent = modelsData.filter(m => m.name.startsWith('fct_') || m.name.startsWith('dim_')).length;
 
-        // Display models list
+        // Display models list (if we're in models view)
         const modelsList = document.getElementById('models-list');
+        if (!modelsList) return; // Not in models view
 
         if (modelsData.length === 0) {
             modelsList.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">📦</div>
-                    <h3>No Models Found</h3>
-                    <p>Add SQL or Python transformation models to the models/ directory to get started.</p>
+                <div style="text-align: center; padding: 60px 20px; background: white; border-radius: 12px; border: 1px solid var(--color-border);">
+                    <div style="font-size: 4em; margin-bottom: 20px;">📦</div>
+                    <h3 style="margin-bottom: 10px;">No Models Found</h3>
+                    <p style="color: #888;">Add SQL or Python transformation models to the models/ directory to get started.</p>
                 </div>
             `;
         } else {
             modelsList.innerHTML = modelsData.map(model => {
                 const layer = getModelLayer(model.name);
-                const badge = `<span class="badge badge-${layer}">${layer.toUpperCase()}</span>`;
-                const typeBadge = `<span class="badge badge-sql">${model.type.toUpperCase()}</span>`;
+                const layerColors = {
+                    'bronze': 'background: rgba(205, 127, 50, 0.1); color: #b06727;',
+                    'silver': 'background: rgba(192, 192, 192, 0.2); color: #6b7280;',
+                    'gold': 'background: rgba(255, 215, 0, 0.15); color: #e6c200;'
+                };
 
                 return `
-                    <div class="model-item" onclick="highlightModel('${model.name}')">
-                        <div class="model-name">${model.name}</div>
-                        <div class="model-meta">
-                            ${badge}
-                            ${typeBadge}
-                            ${model.depends_on.length > 0 ?
-                                `<br>Depends on: ${model.depends_on.join(', ')}` :
-                                '<br>No dependencies'}
+                    <div class="model-card">
+                        <div class="model-card-content">
+                            <div class="model-info">
+                                <h4 class="model-name">${model.name}</h4>
+                                <div class="model-badges">
+                                    <span class="badge badge-${layer}">${layer.toUpperCase()}</span>
+                                    <span class="badge badge-type">${model.type.toUpperCase()}</span>
+                                </div>
+                                ${model.depends_on.length > 0 ?
+                                    `<div class="model-dependencies"><strong>Depends on:</strong> ${model.depends_on.join(', ')}</div>` :
+                                    '<div class="model-dependencies">No dependencies</div>'}
+                            </div>
+                            <button onclick="viewModelCode('${model.name}')" class="btn-view-code">
+                                View Code
+                            </button>
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
-        // Draw lineage graph
-        drawLineage(modelsData);
-
     } catch (error) {
         console.error('Error loading models:', error);
         const modelsList = document.getElementById('models-list');
-        modelsList.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-state-icon">❌</div>
-                <h3>Failed to Load Models</h3>
-                <p>There was an error loading the transformation models. Please check the console for details.</p>
-            </div>
-        `;
+        if (modelsList) {
+            modelsList.innerHTML = `
+                <div style="text-align: center; padding: 60px 20px; background: #fee; border-radius: 12px; border: 1px solid #fcc;">
+                    <div style="font-size: 4em; margin-bottom: 20px;">❌</div>
+                    <h3 style="margin-bottom: 10px; color: #c00;">Failed to Load Models</h3>
+                    <p style="color: #666;">There was an error loading the transformation models. Check the console for details.</p>
+                    <pre style="margin-top: 20px; padding: 12px; background: white; border-radius: 8px; text-align: left; font-size: 0.85em;">${error.message}</pre>
+                </div>
+            `;
+        }
     }
 }
 
@@ -358,7 +388,9 @@ function drawLineage(models) {
         });
     });
 
-    // Draw links
+    // Draw links (adjusted for wider nodes)
+    const nodeHalfWidth = 90;  // Half of nodeWidth (180/2)
+
     svg.selectAll('.link')
         .data(links)
         .enter()
@@ -369,28 +401,33 @@ function drawLineage(models) {
             const target = nodes.find(n => n.id === d.target);
             if (!source || !target) return '';
 
-            return `M ${source.x + 60} ${source.y}
+            return `M ${source.x + nodeHalfWidth} ${source.y}
                     C ${(source.x + target.x) / 2} ${source.y},
                       ${(source.x + target.x) / 2} ${target.y},
-                      ${target.x - 60} ${target.y}`;
+                      ${target.x - nodeHalfWidth} ${target.y}`;
         });
 
-    // Draw nodes
+    // Draw nodes (wider and taller for better readability)
+    const nodeWidth = 180;  // Increased from 120
+    const nodeHeight = 50;  // Increased from 40
+    const halfWidth = nodeWidth / 2;
+    const halfHeight = nodeHeight / 2;
+
     const nodeGroups = svg.selectAll('.node')
         .data(nodes)
         .enter()
         .append('g')
         .attr('class', d => `node ${d.layer}`)
-        .attr('transform', d => `translate(${d.x - 60}, ${d.y - 20})`);
+        .attr('transform', d => `translate(${d.x - halfWidth}, ${d.y - halfHeight})`);
 
     nodeGroups.append('rect')
-        .attr('width', 120)
-        .attr('height', 40);
+        .attr('width', nodeWidth)
+        .attr('height', nodeHeight);
 
     nodeGroups.append('text')
-        .attr('x', 60)
-        .attr('y', 25)
-        .text(d => d.id.length > 12 ? d.id.substring(0, 10) + '...' : d.id)
+        .attr('x', halfWidth)
+        .attr('y', halfHeight + 5)
+        .text(d => d.id.length > 22 ? d.id.substring(0, 20) + '...' : d.id)  // Show more characters
         .append('title')
         .text(d => d.id);
 }
@@ -422,6 +459,47 @@ async function highlightModel(modelName) {
     } catch (error) {
         console.error('Error loading model code:', error);
         alert('Failed to load model code');
+    }
+}
+
+// Alias for viewModelCode - calls highlightModel
+function viewModelCode(modelName) {
+    highlightModel(modelName);
+}
+
+// Load Lineage Graph
+async function loadLineageGraph() {
+    try {
+        const response = await fetch('/api/models');
+        const models = await response.json();
+
+        if (models.length === 0) {
+            const container = document.getElementById('lineage-graph');
+            if (container) {
+                container.innerHTML = `
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 400px; color: #888;">
+                        <div style="font-size: 4em; margin-bottom: 20px;">🔗</div>
+                        <h3 style="color: #666;">No Models to Display</h3>
+                        <p>Add models to see their lineage relationships</p>
+                    </div>
+                `;
+            }
+            return;
+        }
+
+        drawLineage(models);
+    } catch (error) {
+        console.error('Error loading lineage graph:', error);
+        const container = document.getElementById('lineage-graph');
+        if (container) {
+            container.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 400px; background: #fee; color: #c00; padding: 20px; border-radius: 12px;">
+                    <div style="font-size: 4em; margin-bottom: 20px;">❌</div>
+                    <h3>Failed to Load Lineage Graph</h3>
+                    <pre style="margin-top: 10px; padding: 10px; background: white; border-radius: 6px;">${error.message}</pre>
+                </div>
+            `;
+        }
     }
 }
 
@@ -598,12 +676,16 @@ async function toggleDashboard(dashboardId) {
             // Show filters
             const filtersContainer = document.getElementById('filters-' + dashboardId);
             if (filtersContainer) {
-                filtersContainer.style.display = 'block';
+                filtersContainer.style.display = 'flex';
                 // Load filters if not already loaded
                 if (filtersContainer.children.length === 0) {
                     await loadDashboardFilters(dashboardId, filtersContainer);
                 }
             }
+
+            // Show charts container and add active class
+            chartsContainer.style.display = 'grid';
+            chartsContainer.classList.add('active');
 
             // Load charts if not already loaded
             if (chartsContainer.children.length === 0) {
@@ -623,6 +705,10 @@ async function toggleDashboard(dashboardId) {
             if (filtersContainer) {
                 filtersContainer.style.display = 'none';
             }
+
+            // Hide charts container
+            chartsContainer.style.display = 'none';
+            chartsContainer.classList.remove('active');
         }
     } finally {
         // Release lock after a short delay
@@ -1273,9 +1359,10 @@ function displayRuns() {
         const statusBadge = getStatusBadge(status);
 
         return `
-            <div class="run-item ${status}" onclick="viewRunLogs('${run.run_id}')">
-                <div class="run-header">
+            <div class="run-card ${status}">
+                <div class="run-header" onclick="toggleRunDetails('${run.run_id}')">
                     <div style="display: flex; align-items: center; gap: 12px;">
+                        <span class="expand-icon" id="expand-run-${run.run_id}">▶</span>
                         <span class="run-id">${run.run_id}</span>
                         ${statusBadge}
                     </div>
@@ -1286,6 +1373,17 @@ function displayRuns() {
                     <span class="run-stat-item stat-failure">✗ ${run.summary.failures}</span>
                     <span class="run-stat-item stat-neutral">⏱️ ${run.summary.total_execution_time.toFixed(2)}s</span>
                     <span class="run-stat-item stat-neutral">📊 ${successRate}% success</span>
+                </div>
+                <div class="run-details" id="run-details-${run.run_id}" style="display: none;">
+                    <div class="run-details-actions">
+                        <input type="text" class="log-search" id="search-${run.run_id}"
+                               placeholder="Search logs..." onkeyup="searchRunLogs('${run.run_id}')">
+                        <button class="action-btn-small" onclick="printRunLogs('${run.run_id}')">🖨️ Print</button>
+                        <button class="action-btn-small" onclick="saveRunLogs('${run.run_id}')">💾 Save</button>
+                    </div>
+                    <div class="run-logs" id="logs-${run.run_id}">
+                        <div class="loading">Loading logs...</div>
+                    </div>
                 </div>
             </div>
         `;
@@ -1357,6 +1455,124 @@ async function viewRunLogs(runId) {
         console.error('Error loading run logs:', error);
         alert('Failed to load run logs');
     }
+}
+
+// Toggle run details expansion (inline)
+let expandedRuns = new Set();
+
+async function toggleRunDetails(runId) {
+    const detailsDiv = document.getElementById(`run-details-${runId}`);
+    const expandIcon = document.getElementById(`expand-run-${runId}`);
+    const logsDiv = document.getElementById(`logs-${runId}`);
+
+    if (expandedRuns.has(runId)) {
+        // Collapse
+        detailsDiv.style.display = 'none';
+        expandIcon.textContent = '▶';
+        expandedRuns.delete(runId);
+    } else {
+        // Expand
+        detailsDiv.style.display = 'block';
+        expandIcon.textContent = '▼';
+        expandedRuns.add(runId);
+
+        // Load logs if not already loaded
+        if (logsDiv.innerHTML.includes('Loading logs')) {
+            await loadRunLogsInline(runId);
+        }
+    }
+}
+
+async function loadRunLogsInline(runId) {
+    const logsDiv = document.getElementById(`logs-${runId}`);
+
+    try {
+        const response = await fetch(`/api/runs/${runId}`);
+        const data = await response.json();
+
+        const logs = data.logs.map(log => {
+            const levelMatch = log.match(/\[(INFO|SUCCESS|ERROR|WARNING)\]/);
+            const level = levelMatch ? levelMatch[1] : 'INFO';
+            return `<div class="log-entry log-level-${level}" data-log="${escapeHtml(log)}">${escapeHtml(log)}</div>`;
+        }).join('');
+
+        logsDiv.innerHTML = logs || '<div class="empty-logs">No logs available</div>';
+    } catch (error) {
+        console.error('Error loading run logs:', error);
+        logsDiv.innerHTML = '<div class="error-logs">Failed to load logs</div>';
+    }
+}
+
+// Search run logs
+function searchRunLogs(runId) {
+    const searchInput = document.getElementById(`search-${runId}`);
+    const query = searchInput.value.toLowerCase();
+    const logsDiv = document.getElementById(`logs-${runId}`);
+    const logEntries = logsDiv.querySelectorAll('.log-entry');
+
+    logEntries.forEach(entry => {
+        const text = entry.textContent.toLowerCase();
+        if (!query || text.includes(query)) {
+            entry.style.display = '';
+            if (query) {
+                // Highlight matched text
+                const originalText = entry.getAttribute('data-log');
+                const regex = new RegExp(`(${query})`, 'gi');
+                entry.innerHTML = originalText.replace(regex, '<mark>$1</mark>');
+            }
+        } else {
+            entry.style.display = 'none';
+        }
+    });
+}
+
+// Print run logs
+function printRunLogs(runId) {
+    const logsDiv = document.getElementById(`logs-${runId}`);
+    const logEntries = Array.from(logsDiv.querySelectorAll('.log-entry:not([style*="display: none"])'));
+
+    const printWindow = window.open('', '', 'width=800,height=600');
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Run Logs - ${runId}</title>
+            <style>
+                body { font-family: 'Courier New', monospace; padding: 20px; }
+                h1 { font-size: 18px; margin-bottom: 20px; }
+                .log-entry { padding: 4px 0; white-space: pre-wrap; }
+                .log-level-ERROR { color: #dc2626; }
+                .log-level-SUCCESS { color: #16a34a; }
+                .log-level-WARNING { color: #ea580c; }
+                @media print {
+                    body { margin: 0; padding: 15px; }
+                }
+            </style>
+        </head>
+        <body>
+            <h1>Run Logs - ${runId}</h1>
+            ${logEntries.map(e => `<div class="log-entry ${e.className}">${e.textContent}</div>`).join('')}
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+}
+
+// Save run logs
+function saveRunLogs(runId) {
+    const logsDiv = document.getElementById(`logs-${runId}`);
+    const logEntries = Array.from(logsDiv.querySelectorAll('.log-entry:not([style*="display: none"])'));
+    const logsText = logEntries.map(e => e.textContent).join('\n');
+
+    const blob = new Blob([logsText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${runId}-logs.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
 function escapeHtml(text) {
@@ -1830,17 +2046,9 @@ let fullscreenState = {
 };
 
 async function openDashboardInTab(dashboardId) {
-    const dashboardCard = document.getElementById('dashboard-' + dashboardId);
-    if (!dashboardCard) return;
-
-    // Ensure dashboard is expanded first
-    if (!dashboardCard.classList.contains('expanded')) {
-        await toggleDashboard(dashboardId);
-        await new Promise(resolve => setTimeout(resolve, 500));
-    }
-
-    // Enter fullscreen mode
-    enterFullscreenMode(dashboardId);
+    // Open dashboard in a new browser tab
+    const url = `/dashboard/${dashboardId}`;
+    window.open(url, '_blank');
 }
 
 function enterFullscreenMode(dashboardId) {
