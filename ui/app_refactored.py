@@ -201,29 +201,40 @@ async def get_dashboards():
 
 
 @app.post("/api/charts/save")
-async def save_chart(request: dict):
+async def save_chart(request: Request):
     """Save a chart configuration to dashboards.yml"""
     try:
         import yaml
+        import logging
+
+        # Parse request body
+        body = await request.json()
+        logging.info(f"Received chart save request: {body}")
+
         dashboards_file = models_dir / "dashboards.yml"
+        logging.info(f"Dashboards file path: {dashboards_file}")
 
         # Get chart config from request
         chart_config = {
-            "id": request.get("id"),
-            "title": request.get("title"),
-            "type": request.get("type"),
-            "model": request.get("model"),
-            "x_axis": request.get("x_axis"),
-            "y_axis": request.get("y_axis"),
-            "aggregation": request.get("aggregation", "sum")
+            "id": body.get("id"),
+            "title": body.get("title"),
+            "type": body.get("type"),
+            "model": body.get("model"),
+            "x_axis": body.get("x_axis"),
+            "y_axis": body.get("y_axis"),
+            "aggregation": body.get("aggregation", "sum")
         }
+
+        logging.info(f"Chart config: {chart_config}")
 
         # Load existing dashboards or create new structure
         if dashboards_file.exists():
             with open(dashboards_file, 'r') as f:
                 data = yaml.safe_load(f) or {}
+            logging.info(f"Loaded existing dashboards: {len(data.get('dashboards', []))} dashboards")
         else:
             data = {}
+            logging.info("No existing dashboards file, creating new")
 
         if 'dashboards' not in data:
             data['dashboards'] = []
@@ -243,6 +254,9 @@ async def save_chart(request: dict):
                 'charts': []
             }
             data['dashboards'].append(custom_dashboard)
+            logging.info("Created new Custom Charts dashboard")
+        else:
+            logging.info("Found existing Custom Charts dashboard")
 
         # Add chart to dashboard
         if 'charts' not in custom_dashboard:
@@ -254,14 +268,18 @@ async def save_chart(request: dict):
             if chart.get('id') == chart_config['id']:
                 custom_dashboard['charts'][i] = chart_config
                 chart_exists = True
+                logging.info(f"Updated existing chart: {chart_config['id']}")
                 break
 
         if not chart_exists:
             custom_dashboard['charts'].append(chart_config)
+            logging.info(f"Added new chart: {chart_config['id']}")
 
         # Save back to file
         with open(dashboards_file, 'w') as f:
             yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+        logging.info(f"Successfully saved chart to {dashboards_file}")
 
         return {
             "success": True,
@@ -270,6 +288,9 @@ async def save_chart(request: dict):
             "chart_id": chart_config['id']
         }
     except Exception as e:
+        import traceback
+        error_detail = f"{str(e)}\n{traceback.format_exc()}"
+        logging.error(f"Error saving chart: {error_detail}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
