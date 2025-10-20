@@ -287,23 +287,50 @@ async function loadDashboards() {
             // Dashboard header
             const header = document.createElement('div');
             header.className = 'dashboard-header';
-            header.style.cursor = 'pointer';
-            header.onclick = () => toggleDashboard(dashboard.id);
-            header.innerHTML = `
-                <div class="dashboard-left">
-                    <span>📊</span>
-                    <span class="dashboard-name">${dashboard.name}</span>
-                    <span class="dashboard-id">${dashboard.charts?.length || 0} charts</span>
-                </div>
-                <div>
-                    <span class="expand-indicator" id="expand-${dashboard.id}">▼</span>
-                </div>
+            header.style.cssText = 'cursor: pointer; display: flex; justify-content: space-between; align-items: center;';
+
+            // Left side with name
+            const headerLeft = document.createElement('div');
+            headerLeft.className = 'dashboard-left';
+            headerLeft.onclick = () => toggleDashboard(dashboard.id);
+            headerLeft.innerHTML = `
+                <span>📊</span>
+                <span class="dashboard-name">${dashboard.name}</span>
+                <span class="dashboard-id">${dashboard.charts?.length || 0} charts</span>
             `;
+
+            // Right side with action buttons
+            const headerRight = document.createElement('div');
+            headerRight.style.cssText = 'display: flex; gap: 8px; align-items: center;';
+            headerRight.innerHTML = `
+                <button class="icon-btn" onclick="event.stopPropagation(); openDashboardInTab('${dashboard.id}')" title="Open in new tab">
+                    🔗
+                </button>
+                <button class="icon-btn" onclick="event.stopPropagation(); exportDashboardPDF('${dashboard.id}')" title="Export as PDF">
+                    📄
+                </button>
+                <button class="icon-btn" onclick="event.stopPropagation(); exportDashboardData('${dashboard.id}', 'csv')" title="Export as CSV">
+                    📊
+                </button>
+                <button class="icon-btn" onclick="event.stopPropagation(); exportDashboardData('${dashboard.id}', 'excel')" title="Export as Excel">
+                    📈
+                </button>
+                <span class="expand-indicator" id="expand-${dashboard.id}" onclick="toggleDashboard('${dashboard.id}')" style="cursor: pointer; padding: 0 8px;">▼</span>
+            `;
+
+            header.appendChild(headerLeft);
+            header.appendChild(headerRight);
 
             // Dashboard description
             const desc = document.createElement('div');
             desc.className = 'dashboard-summary';
             desc.textContent = dashboard.description || 'No description';
+
+            // Filters container
+            const filtersContainer = document.createElement('div');
+            filtersContainer.id = 'filters-' + dashboard.id;
+            filtersContainer.className = 'dashboard-filters';
+            filtersContainer.style.display = 'none';  // Hidden until dashboard expanded
 
             // Charts container (hidden by default, CSS handles styling)
             const chartsContainer = document.createElement('div');
@@ -313,6 +340,7 @@ async function loadDashboards() {
             // Assemble card
             card.appendChild(header);
             card.appendChild(desc);
+            card.appendChild(filtersContainer);
             card.appendChild(chartsContainer);
             dashboardsList.appendChild(card);
         });
@@ -366,6 +394,16 @@ async function toggleDashboard(dashboardId) {
             dashboardCard.classList.add('expanded');
             expandIndicator.textContent = '▲';
 
+            // Show filters
+            const filtersContainer = document.getElementById('filters-' + dashboardId);
+            if (filtersContainer) {
+                filtersContainer.style.display = 'block';
+                // Load filters if not already loaded
+                if (filtersContainer.children.length === 0) {
+                    await loadDashboardFilters(dashboardId, filtersContainer);
+                }
+            }
+
             // Load charts if not already loaded
             if (chartsContainer.children.length === 0) {
                 console.log('>>> Loading charts for:', dashboardId);
@@ -378,6 +416,12 @@ async function toggleDashboard(dashboardId) {
             console.log('>>> COLLAPSING dashboard:', dashboardId);
             dashboardCard.classList.remove('expanded');
             expandIndicator.textContent = '▼';
+
+            // Hide filters
+            const filtersContainer = document.getElementById('filters-' + dashboardId);
+            if (filtersContainer) {
+                filtersContainer.style.display = 'none';
+            }
         }
     } finally {
         // Release lock after a short delay
@@ -389,8 +433,8 @@ async function toggleDashboard(dashboardId) {
 }
 
 // Load charts for a specific dashboard
-async function loadDashboardCharts(dashboardId, container) {
-    console.log('loadDashboardCharts called for:', dashboardId);
+async function loadDashboardCharts(dashboardId, container, filters = {}) {
+    console.log('loadDashboardCharts called for:', dashboardId, 'with filters:', filters);
 
     try {
         const response = await fetch('/api/dashboards');
@@ -417,7 +461,7 @@ async function loadDashboardCharts(dashboardId, container) {
         // Render each chart sequentially to avoid overwhelming the server
         let chartsRendered = 0;
         for (const chartConfig of dashboard.charts) {
-            await renderDashboardChart(chartConfig, container);
+            await renderDashboardChart(chartConfig, container, filters);
             chartsRendered++;
         }
 
@@ -444,7 +488,7 @@ async function loadDashboardCharts(dashboardId, container) {
 }
 
 // Render a single chart from configuration
-async function renderDashboardChart(chartConfig, container) {
+async function renderDashboardChart(chartConfig, container, filters = {}) {
     try {
         // Skip charts with unsupported features (but log them properly)
         if (chartConfig.metrics || chartConfig.calculation) {
@@ -501,7 +545,7 @@ async function renderDashboardChart(chartConfig, container) {
 
         // Handle metric type
         if (chartConfig.type === 'metric') {
-            await renderMetricChart(canvas, chartConfig);
+            await renderMetricChart(canvas, chartConfig, filters);
             return;
         }
 
@@ -513,7 +557,8 @@ async function renderDashboardChart(chartConfig, container) {
                 table: chartConfig.model,
                 x_axis: chartConfig.x_axis,
                 y_axis: chartConfig.y_axis,
-                aggregation: chartConfig.aggregation || 'sum'
+                aggregation: chartConfig.aggregation || 'sum',
+                filters: filters  // Pass filters to backend
             })
         });
 
@@ -1348,6 +1393,228 @@ async function goToChartDashboard() {
 window.onclick = function(event) {
     if (event.target.classList.contains('modal')) {
         closeModal(event.target.id);
+    }
+}
+
+// ============= Dashboard Filters =============
+
+// Store current filter selections per dashboard
+let dashboardFilters = {};
+
+async function loadDashboardFilters(dashboardId, container) {
+    try {
+        const response = await fetch(`/api/dashboard/${dashboardId}/filters`);
+        const data = await response.json();
+
+        if (!data.filters || Object.keys(data.filters).length === 0) {
+            container.innerHTML = '<p style="color: #888; font-size: 0.9em; padding: 10px;">No filters available</p>';
+            return;
+        }
+
+        // Initialize filter state for this dashboard
+        if (!dashboardFilters[dashboardId]) {
+            dashboardFilters[dashboardId] = {};
+        }
+
+        container.innerHTML = '<div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 15px;"><h4 style="margin: 0 0 10px 0; font-size: 0.9em; color: #666;">🔍 Filters</h4><div id="filter-controls-' + dashboardId + '" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;"></div></div>';
+
+        const filtersControls = document.getElementById('filter-controls-' + dashboardId);
+
+        // Create filter dropdowns
+        for (const [field, filterInfo] of Object.entries(data.filters)) {
+            const filterWrapper = document.createElement('div');
+            filterWrapper.style.cssText = 'display: flex; flex-direction: column; min-width: 150px;';
+
+            const label = document.createElement('label');
+            label.textContent = filterInfo.label;
+            label.style.cssText = 'font-size: 0.85em; color: #666; margin-bottom: 4px; font-weight: 500;';
+
+            const select = document.createElement('select');
+            select.id = `filter-${dashboardId}-${field}`;
+            select.style.cssText = 'padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9em; background: white;';
+
+            // Add "All" option
+            const allOption = document.createElement('option');
+            allOption.value = '';
+            allOption.textContent = 'All';
+            select.appendChild(allOption);
+
+            // Add value options
+            filterInfo.values.forEach(value => {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = value;
+                select.appendChild(option);
+            });
+
+            // Handle cascading filters: when one filter changes, update others
+            select.onchange = async () => {
+                dashboardFilters[dashboardId][field] = select.value;
+                await updateCascadingFilters(dashboardId, field);
+                await reloadDashboardCharts(dashboardId);
+            };
+
+            filterWrapper.appendChild(label);
+            filterWrapper.appendChild(select);
+            filtersControls.appendChild(filterWrapper);
+        }
+
+        // Add clear filters button
+        const clearBtn = document.createElement('button');
+        clearBtn.textContent = '🗑️ Clear Filters';
+        clearBtn.style.cssText = 'padding: 6px 12px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85em; margin-top: auto;';
+        clearBtn.onclick = () => clearDashboardFilters(dashboardId);
+        filtersControls.appendChild(clearBtn);
+
+    } catch (error) {
+        console.error('Error loading filters:', error);
+        container.innerHTML = '<p style="color: #ef4444; font-size: 0.9em; padding: 10px;">Failed to load filters</p>';
+    }
+}
+
+async function updateCascadingFilters(dashboardId, changedField) {
+    // Get all filter controls for this dashboard
+    const filtersControls = document.getElementById('filter-controls-' + dashboardId);
+    if (!filtersControls) return;
+
+    // Get current filter selections
+    const currentFilters = dashboardFilters[dashboardId] || {};
+
+    // Re-fetch filter options with current selections applied
+    try {
+        const response = await fetch(`/api/dashboard/${dashboardId}/filters`);
+        const data = await response.json();
+
+        // Update dropdown options for filters that come AFTER the changed one
+        // This creates a cascading effect where earlier selections filter later options
+        for (const [field, filterInfo] of Object.entries(data.filters)) {
+            if (field === changedField) continue;
+
+            const select = document.getElementById(`filter-${dashboardId}-${field}`);
+            if (!select) continue;
+
+            const currentValue = select.value;
+
+            // Clear and rebuild options
+            select.innerHTML = '<option value="">All</option>';
+
+            filterInfo.values.forEach(value => {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = value;
+                if (value === currentValue) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error updating cascading filters:', error);
+    }
+}
+
+async function reloadDashboardCharts(dashboardId) {
+    const chartsContainer = document.getElementById('charts-' + dashboardId);
+    if (!chartsContainer) return;
+
+    // Clear and reload charts with current filters
+    chartsContainer.innerHTML = '<p style="color: #888; padding: 20px; text-align: center;">⏳ Reloading charts with filters...</p>';
+
+    await loadDashboardCharts(dashboardId, chartsContainer, dashboardFilters[dashboardId]);
+}
+
+function clearDashboardFilters(dashboardId) {
+    // Reset filter state
+    dashboardFilters[dashboardId] = {};
+
+    // Reset all dropdowns
+    const filtersControls = document.getElementById('filter-controls-' + dashboardId);
+    if (filtersControls) {
+        const selects = filtersControls.querySelectorAll('select');
+        selects.forEach(select => select.value = '');
+    }
+
+    // Reload charts without filters
+    reloadDashboardCharts(dashboardId);
+}
+
+// ============= Dashboard Export Functions =============
+
+function openDashboardInTab(dashboardId) {
+    // Create a standalone URL for the dashboard
+    const url = `${window.location.origin}/?dashboard=${dashboardId}`;
+    window.open(url, '_blank');
+}
+
+async function exportDashboardPDF(dashboardId) {
+    try {
+        // Use browser's print functionality for PDF
+        const dashboardCard = document.getElementById('dashboard-' + dashboardId);
+        if (!dashboardCard) return;
+
+        // Ensure dashboard is expanded
+        if (!dashboardCard.classList.contains('expanded')) {
+            await toggleDashboard(dashboardId);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for charts to load
+        }
+
+        // Store original styles
+        const originalDisplay = document.body.style.display;
+        const originalChildren = Array.from(document.body.children);
+
+        // Hide everything except the dashboard
+        originalChildren.forEach(child => {
+            if (!child.contains(dashboardCard)) {
+                child.style.display = 'none';
+            }
+        });
+
+        // Print
+        window.print();
+
+        // Restore
+        originalChildren.forEach(child => {
+            child.style.display = '';
+        });
+
+    } catch (error) {
+        console.error('Error exporting PDF:', error);
+        alert('Failed to export PDF: ' + error.message);
+    }
+}
+
+async function exportDashboardData(dashboardId, format) {
+    try {
+        const filters = dashboardFilters[dashboardId] || {};
+
+        const response = await fetch(`/api/dashboard/${dashboardId}/export`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                format: format,
+                filters: filters
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Export failed');
+        }
+
+        // Download the file
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${dashboardId}_data.${format === 'excel' ? 'xlsx' : 'csv'}`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        alert(`Dashboard data exported as ${format.toUpperCase()} successfully!`);
+    } catch (error) {
+        console.error('Error exporting data:', error);
+        alert('Failed to export data: ' + error.message);
     }
 }
 

@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 from pathlib import Path
 import sys
+import pandas as pd
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
@@ -214,9 +215,22 @@ async def query_data(request: dict):
         x_axis = request.get('x_axis')
         y_axis = request.get('y_axis')
         aggregation = request.get('aggregation', 'sum')
+        filters = request.get('filters', {})
 
         if not all([table, x_axis, y_axis]):
             raise HTTPException(status_code=400, detail="Missing required parameters")
+
+        # Build WHERE clauses from filters
+        where_clauses = [f"{x_axis} IS NOT NULL"]
+        params = []
+
+        if filters:
+            for field, value in filters.items():
+                if value:  # Only add filter if value is not empty
+                    where_clauses.append(f"{field} = %s")
+                    params.append(value)
+
+        where_sql = "WHERE " + " AND ".join(where_clauses)
 
         # Build aggregation query
         agg_func = aggregation.upper()
@@ -225,14 +239,14 @@ async def query_data(request: dict):
                 {x_axis} as label,
                 {agg_func}({y_axis}) as value
             FROM public.{table}
-            WHERE {x_axis} IS NOT NULL
+            {where_sql}
             GROUP BY {x_axis}
             ORDER BY {x_axis}
             LIMIT 50
         """
 
         with PostgresConnector() as pg:
-            df = pg.query_to_dataframe(query)
+            df = pg.query_to_dataframe(query, tuple(params) if params else None)
 
             # Convert to chart-friendly format
             labels = df['label'].astype(str).tolist()
@@ -250,6 +264,170 @@ async def query_data(request: dict):
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "service": "transformdash"}
+
+
+@app.post("/api/dashboard/{dashboard_id}/export")
+async def export_dashboard_data(dashboard_id: str, request: dict):
+    """Export all dashboard data as CSV or Excel"""
+    try:
+        from postgres import PostgresConnector
+        import yaml
+        import io
+        from fastapi.responses import StreamingResponse
+
+        dashboards_file = models_dir / "dashboards.yml"
+        with open(dashboards_file, 'r') as f:
+            data = yaml.safe_load(f)
+
+        dashboard = next((d for d in data.get('dashboards', []) if d['id'] == dashboard_id), None)
+        if not dashboard:
+            raise HTTPException(status_code=404, detail="Dashboard not found")
+
+        export_format = request.get('format', 'csv')  # csv or excel
+        filters = request.get('filters', {})
+
+        # Collect all data from all charts
+        all_data = {}
+
+        with PostgresConnector() as pg:
+            for chart in dashboard.get('charts', []):
+                # Skip metric-only charts and advanced charts
+                if chart.get('type') == 'metric' or chart.get('metrics') or chart.get('calculation'):
+                    continue
+
+                if not chart.get('model') or not chart.get('x_axis') or not chart.get('y_axis'):
+                    continue
+
+                # Build query with filters
+                table = chart['model']
+                x_axis = chart['x_axis']
+                y_axis = chart['y_axis']
+                agg_func = chart.get('aggregation', 'sum').upper()
+
+                # Apply filters from request
+                where_clauses = []
+                params = []
+                if filters:
+                    for field, value in filters.items():
+                        where_clauses.append(f"{field} = %s")
+                        params.append(value)
+
+                where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+                query = f"""
+                    SELECT
+                        {x_axis} as label,
+                        {agg_func}({y_axis}) as value
+                    FROM public.{table}
+                    {where_sql}
+                    GROUP BY {x_axis}
+                    ORDER BY {x_axis}
+                """
+
+                df = pg.query_to_dataframe(query, tuple(params) if params else None)
+                all_data[chart['title']] = df
+
+        # Export as requested format
+        if export_format == 'excel':
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                for sheet_name, df in all_data.items():
+                    # Excel sheet names have 31 char limit
+                    safe_name = sheet_name[:31]
+                    df.to_excel(writer, sheet_name=safe_name, index=False)
+            output.seek(0)
+
+            return StreamingResponse(
+                output,
+                media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                headers={'Content-Disposition': f'attachment; filename="{dashboard_id}_data.xlsx"'}
+            )
+        else:  # CSV - combine all data
+            output = io.StringIO()
+            for chart_title, df in all_data.items():
+                output.write(f"\n{chart_title}\n")
+                df.to_csv(output, index=False)
+                output.write("\n")
+            output.seek(0)
+
+            return StreamingResponse(
+                iter([output.getvalue()]),
+                media_type='text/csv',
+                headers={'Content-Disposition': f'attachment; filename="{dashboard_id}_data.csv"'}
+            )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/dashboard/{dashboard_id}/filters")
+async def get_dashboard_filters(dashboard_id: str):
+    """Get available filter options for a dashboard"""
+    try:
+        from postgres import PostgresConnector
+        import yaml
+
+        dashboards_file = models_dir / "dashboards.yml"
+        with open(dashboards_file, 'r') as f:
+            data = yaml.safe_load(f)
+
+        dashboard = next((d for d in data.get('dashboards', []) if d['id'] == dashboard_id), None)
+        if not dashboard:
+            raise HTTPException(status_code=404, detail="Dashboard not found")
+
+        # Collect all possible filter fields from charts
+        filter_fields = set()
+        models_used = set()
+
+        for chart in dashboard.get('charts', []):
+            if chart.get('model'):
+                models_used.add(chart['model'])
+            if chart.get('filters'):
+                for f in chart['filters']:
+                    filter_fields.add(f['field'])
+
+        # Get unique values for each filter field
+        filters = {}
+        with PostgresConnector() as pg:
+            for model in models_used:
+                # Get columns for this model
+                query = f"""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = %s
+                    ORDER BY ordinal_position
+                """
+                result = pg.execute(query, (model,), fetch=True)
+                columns = [row['column_name'] for row in result]
+
+                # Get distinct values for common filter columns
+                common_filters = ['order_year', 'order_month', 'sale_year', 'sale_month',
+                                'order_value_tier', 'status', 'category', 'warehouse_id']
+
+                for col in columns:
+                    if any(cf in col.lower() for cf in ['year', 'month', 'tier', 'status', 'category', 'warehouse']):
+                        try:
+                            query = f"""
+                                SELECT DISTINCT {col} as value
+                                FROM public.{model}
+                                WHERE {col} IS NOT NULL
+                                ORDER BY {col}
+                                LIMIT 100
+                            """
+                            result = pg.execute(query, fetch=True)
+                            values = [row['value'] for row in result]
+                            if values:
+                                filters[col] = {
+                                    'label': col.replace('_', ' ').title(),
+                                    'values': values
+                                }
+                        except:
+                            continue
+
+        return {"filters": filters}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
