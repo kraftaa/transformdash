@@ -38,6 +38,12 @@ async def root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.get("/modern", response_class=HTMLResponse)
+async def modern_dashboard(request: Request):
+    """Serve the modern UI dashboard (work in progress)"""
+    return templates.TemplateResponse("index_modern.html", {"request": request})
+
+
 @app.get("/api/models")
 async def get_models():
     """Get all models with their dependencies"""
