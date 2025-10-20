@@ -305,14 +305,10 @@ async function loadDashboards() {
             desc.className = 'dashboard-summary';
             desc.textContent = dashboard.description || 'No description';
 
-            // Charts container (hidden by default)
+            // Charts container (hidden by default, CSS handles styling)
             const chartsContainer = document.createElement('div');
             chartsContainer.id = 'charts-' + dashboard.id;
             chartsContainer.className = 'dashboard-details';
-            chartsContainer.style.display = 'none';
-            chartsContainer.style.gridTemplateColumns = 'repeat(auto-fit, minmax(400px, 1fr))';
-            chartsContainer.style.gap = '20px';
-            chartsContainer.style.marginTop = '20px';
 
             // Assemble card
             card.appendChild(header);
@@ -334,67 +330,111 @@ async function loadDashboards() {
 }
 
 // Toggle dashboard expansion and load charts
+// Use a lock to prevent double-toggling
+let toggleLock = new Set();
+
 async function toggleDashboard(dashboardId) {
-    console.log('toggleDashboard called for:', dashboardId);
+    console.log('>>> toggleDashboard CALLED for:', dashboardId);
+    console.log('>>> Call stack:', new Error().stack);
 
-    const chartsContainer = document.getElementById('charts-' + dashboardId);
-    const expandIndicator = document.getElementById('expand-' + dashboardId);
-
-    console.log('chartsContainer:', chartsContainer);
-    console.log('expandIndicator:', expandIndicator);
-
-    if (!chartsContainer || !expandIndicator) {
-        console.error('Could not find elements for dashboard:', dashboardId);
+    // Prevent double-toggle
+    if (toggleLock.has(dashboardId)) {
+        console.log('>>> Toggle BLOCKED (lock exists) for:', dashboardId);
         return;
     }
 
-    if (chartsContainer.style.display === 'none' || chartsContainer.style.display === '') {
-        // Expand and load charts
-        console.log('Expanding dashboard:', dashboardId);
-        chartsContainer.style.display = 'grid';
-        expandIndicator.textContent = '▲';
+    toggleLock.add(dashboardId);
+    console.log('>>> Toggle PROCEEDING for:', dashboardId);
 
-        // Load charts if not already loaded
-        if (chartsContainer.children.length === 0) {
-            console.log('Loading charts for:', dashboardId);
-            await loadDashboardCharts(dashboardId, chartsContainer);
+    try {
+        const dashboardCard = document.getElementById('dashboard-' + dashboardId);
+        const chartsContainer = document.getElementById('charts-' + dashboardId);
+        const expandIndicator = document.getElementById('expand-' + dashboardId);
+
+        if (!dashboardCard || !chartsContainer || !expandIndicator) {
+            console.error('>>> Could not find elements for dashboard:', dashboardId);
+            return;
         }
-    } else {
-        // Collapse
-        console.log('Collapsing dashboard:', dashboardId);
-        chartsContainer.style.display = 'none';
-        expandIndicator.textContent = '▼';
+
+        // Check if currently expanded by looking at the card's class
+        const isExpanded = dashboardCard.classList.contains('expanded');
+        console.log('>>> Current expanded state:', isExpanded);
+
+        if (!isExpanded) {
+            // Expand
+            console.log('>>> EXPANDING dashboard:', dashboardId);
+            dashboardCard.classList.add('expanded');
+            expandIndicator.textContent = '▲';
+
+            // Load charts if not already loaded
+            if (chartsContainer.children.length === 0) {
+                console.log('>>> Loading charts for:', dashboardId);
+                await loadDashboardCharts(dashboardId, chartsContainer);
+            } else {
+                console.log('>>> Charts already loaded (', chartsContainer.children.length, 'children)');
+            }
+        } else {
+            // Collapse
+            console.log('>>> COLLAPSING dashboard:', dashboardId);
+            dashboardCard.classList.remove('expanded');
+            expandIndicator.textContent = '▼';
+        }
+    } finally {
+        // Release lock after a short delay
+        setTimeout(() => {
+            toggleLock.delete(dashboardId);
+            console.log('>>> Toggle lock released for:', dashboardId);
+        }, 300);
     }
 }
 
 // Load charts for a specific dashboard
 async function loadDashboardCharts(dashboardId, container) {
+    console.log('loadDashboardCharts called for:', dashboardId);
+
     try {
         const response = await fetch('/api/dashboards');
         const data = await response.json();
 
         const dashboard = data.dashboards.find(d => d.id === dashboardId);
         if (!dashboard || !dashboard.charts) {
+            console.log('No dashboard or charts found for:', dashboardId);
             container.innerHTML = '<p style="color: #888;">No charts configured for this dashboard</p>';
             return;
         }
 
+        console.log('Found dashboard with', dashboard.charts.length, 'charts');
+
         // Show loading state
         container.innerHTML = '<p style="color: #888;">⏳ Loading charts...</p>';
 
-        // Clear after a moment to ensure proper rendering
-        setTimeout(() => {
-            container.innerHTML = '';
-        }, 100);
+        // Wait a moment for loading state to be visible
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Clear container before adding charts
+        container.innerHTML = '';
 
         // Render each chart sequentially to avoid overwhelming the server
+        let chartsRendered = 0;
         for (const chartConfig of dashboard.charts) {
             await renderDashboardChart(chartConfig, container);
+            chartsRendered++;
         }
+
+        console.log('Finished rendering', chartsRendered, 'charts. Container has', container.children.length, 'children');
 
         // Show message if no charts were rendered
         if (container.children.length === 0) {
-            container.innerHTML = '<p style="color: #888;">✓ No compatible charts to display (some chart types require additional features)</p>';
+            console.log('No children in container after rendering, showing empty state');
+            container.innerHTML = `
+                <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; text-align: center; color: #6b7280;">
+                    <div style="font-size: 2em; margin-bottom: 10px;">📊</div>
+                    <div style="font-weight: bold; margin-bottom: 5px;">No charts loaded</div>
+                    <div style="font-size: 0.9em;">Chart configurations may need adjustment</div>
+                </div>
+            `;
+        } else {
+            console.log('Successfully loaded', container.children.length, 'chart elements');
         }
 
     } catch (error) {
@@ -406,15 +446,29 @@ async function loadDashboardCharts(dashboardId, container) {
 // Render a single chart from configuration
 async function renderDashboardChart(chartConfig, container) {
     try {
-        // Skip charts with unsupported features
+        // Skip charts with unsupported features (but log them properly)
         if (chartConfig.metrics || chartConfig.calculation) {
-            console.log('Skipping unsupported chart type:', chartConfig.id);
+            console.log('Skipping advanced chart type (requires multi-metric support):', chartConfig.id);
+            // Don't return early, show an info card instead
+            const infoCard = document.createElement('div');
+            infoCard.style.cssText = 'background: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;';
+            infoCard.innerHTML = `
+                <div style="font-weight: bold; color: #92400e; margin-bottom: 5px;">⚠️ ${chartConfig.title}</div>
+                <div style="font-size: 0.85em; color: #78350f;">Advanced chart type - coming soon!</div>
+            `;
+            container.appendChild(infoCard);
             return;
         }
 
-        // Validate required fields
-        if (!chartConfig.model || (!chartConfig.x_axis && chartConfig.type !== 'metric') || (!chartConfig.y_axis && !chartConfig.metric)) {
-            console.warn('Skipping chart with missing config:', chartConfig.id);
+        // Validate required fields for standard charts
+        if (chartConfig.type !== 'metric' && (!chartConfig.model || !chartConfig.x_axis || !chartConfig.y_axis)) {
+            console.warn('Skipping chart with missing config:', chartConfig.id, chartConfig);
+            return;
+        }
+
+        // Validate metric charts
+        if (chartConfig.type === 'metric' && (!chartConfig.model || !chartConfig.metric)) {
+            console.warn('Skipping metric chart with missing config:', chartConfig.id);
             return;
         }
 
@@ -1160,7 +1214,7 @@ async function showChartModal(chart) {
                     maintainAspectRatio: true,
                     plugins: {
                         legend: {
-                            display: ['pie', 'doughnut'].includes(chart.type),
+                            display: true,  // Always show legend in modal
                             position: 'bottom'
                         },
                         title: {
@@ -1168,8 +1222,20 @@ async function showChartModal(chart) {
                         }
                     },
                     scales: ['line', 'bar'].includes(chart.type) ? {
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: chart.x_axis || 'X Axis'
+                            }
+                        },
                         y: {
-                            beginAtZero: true
+                            display: true,
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: `${chart.aggregation || 'sum'}(${chart.y_axis})`
+                            }
                         }
                     } : {}
                 }
@@ -1189,30 +1255,92 @@ async function showChartModal(chart) {
 
 // Go to dashboard from chart modal
 async function goToChartDashboard() {
-    if (!currentChartContext) return;
+    if (!currentChartContext) {
+        console.log('No current chart context');
+        return;
+    }
+
+    const dashboardId = currentChartContext.dashboardId;
+    console.log('=== goToChartDashboard START ===');
+    console.log('Dashboard ID:', dashboardId);
+
+    // Add a lock to prevent toggle while we're navigating
+    toggleLock.add(dashboardId);
+    console.log('Lock added for:', dashboardId);
 
     // Close modal
     closeModal('chartModal');
+    console.log('Modal closed');
 
     // Switch to dashboards tab
     switchTab('dashboards');
+    console.log('Switched to dashboards tab');
 
     // Wait for dashboards to load
     await new Promise(resolve => setTimeout(resolve, 300));
+    console.log('Waited for dashboards to load');
 
     // Find and scroll to the specific dashboard
-    const dashboardCard = document.getElementById('dashboard-' + currentChartContext.dashboardId);
+    const dashboardCard = document.getElementById('dashboard-' + dashboardId);
+    console.log('Found dashboard card:', dashboardCard ? 'YES' : 'NO');
+
     if (dashboardCard) {
         dashboardCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        console.log('Scrolling to dashboard');
 
-        // Wait a bit more, then expand
-        await new Promise(resolve => setTimeout(resolve, 400));
+        // Wait for scroll to complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+        console.log('Scroll complete');
 
-        // Expand the dashboard
-        const chartsContainer = document.getElementById('charts-' + currentChartContext.dashboardId);
-        if (chartsContainer && (chartsContainer.style.display === 'none' || chartsContainer.style.display === '')) {
-            await toggleDashboard(currentChartContext.dashboardId);
+        // Ensure the dashboard is expanded (don't toggle if already expanded)
+        const chartsContainer = document.getElementById('charts-' + dashboardId);
+        const expandIndicator = document.getElementById('expand-' + dashboardId);
+
+        console.log('Charts container found:', chartsContainer ? 'YES' : 'NO');
+        console.log('Expand indicator found:', expandIndicator ? 'YES' : 'NO');
+
+        if (dashboardCard && chartsContainer) {
+            // Only expand if currently collapsed
+            const isExpanded = dashboardCard.classList.contains('expanded');
+            console.log('Is currently expanded:', isExpanded);
+            console.log('Container children count:', chartsContainer.children.length);
+
+            if (!isExpanded) {
+                console.log('Expanding dashboard from modal navigation');
+                dashboardCard.classList.add('expanded');
+                console.log('Added expanded class to dashboard card');
+
+                if (expandIndicator) expandIndicator.textContent = '▲';
+
+                // Load charts if not already loaded
+                if (chartsContainer.children.length === 0) {
+                    console.log('Container empty, loading charts...');
+                    await loadDashboardCharts(dashboardId, chartsContainer);
+                    console.log('Charts loaded, container now has', chartsContainer.children.length, 'children');
+                } else {
+                    console.log('Container already has', chartsContainer.children.length, 'children');
+                }
+
+                // Verify state after loading
+                console.log('After loading - is expanded:', dashboardCard.classList.contains('expanded'));
+                console.log('After loading - container children:', chartsContainer.children.length);
+            } else {
+                console.log('Dashboard already expanded, keeping it open');
+            }
         }
+
+        // Keep lock for a bit longer to prevent accidental toggles
+        setTimeout(() => {
+            toggleLock.delete(dashboardId);
+            const stillExpanded = dashboardCard.classList.contains('expanded');
+            console.log('Released lock for dashboard:', dashboardId);
+            console.log('Dashboard still expanded after lock release:', stillExpanded);
+            console.log('=== goToChartDashboard END ===');
+        }, 1000);
+    } else {
+        // Release lock if dashboard not found
+        toggleLock.delete(dashboardId);
+        console.log('Dashboard not found, lock released');
     }
 }
 

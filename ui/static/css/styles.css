@@ -984,10 +984,12 @@ h2 {
     padding-top: 10px;
     border-top: 1px solid #e5e7eb;
     margin-top: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 20px;
 }
 
 .dashboard-card.expanded .dashboard-details {
-    display: block;
+    display: grid;
 }
 
 .dashboard-card.expanded .dashboard-summary {
