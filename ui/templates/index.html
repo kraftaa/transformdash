@@ -244,6 +244,25 @@
         </div>
     </div>
 
+    <!-- Chart Viewer Modal -->
+    <div id="chartModal" class="modal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h2 id="chartModalTitle">Chart</h2>
+                <span class="close" onclick="closeModal('chartModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="chartModalBody" style="min-height: 400px;"></div>
+                <div style="margin-top: 20px; text-align: center;">
+                    <button id="goToDashboardBtn" onclick="goToChartDashboard()"
+                            style="padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1em; font-weight: bold;">
+                        📊 Go to Dashboard
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Application JavaScript -->
     <script src="/static/js/app.js"></script>
 </body>

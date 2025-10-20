@@ -335,20 +335,33 @@ async function loadDashboards() {
 
 // Toggle dashboard expansion and load charts
 async function toggleDashboard(dashboardId) {
+    console.log('toggleDashboard called for:', dashboardId);
+
     const chartsContainer = document.getElementById('charts-' + dashboardId);
     const expandIndicator = document.getElementById('expand-' + dashboardId);
 
-    if (chartsContainer.style.display === 'none') {
+    console.log('chartsContainer:', chartsContainer);
+    console.log('expandIndicator:', expandIndicator);
+
+    if (!chartsContainer || !expandIndicator) {
+        console.error('Could not find elements for dashboard:', dashboardId);
+        return;
+    }
+
+    if (chartsContainer.style.display === 'none' || chartsContainer.style.display === '') {
         // Expand and load charts
+        console.log('Expanding dashboard:', dashboardId);
         chartsContainer.style.display = 'grid';
         expandIndicator.textContent = '▲';
 
         // Load charts if not already loaded
         if (chartsContainer.children.length === 0) {
+            console.log('Loading charts for:', dashboardId);
             await loadDashboardCharts(dashboardId, chartsContainer);
         }
     } else {
         // Collapse
+        console.log('Collapsing dashboard:', dashboardId);
         chartsContainer.style.display = 'none';
         expandIndicator.textContent = '▼';
     }
@@ -674,28 +687,9 @@ async function loadAllCharts() {
                 </div>
             `;
 
-            // Click to go to dashboard
-            card.onclick = async () => {
-                // Switch to dashboards tab
-                switchTab('dashboards');
-
-                // Wait for dashboards to load
-                await new Promise(resolve => setTimeout(resolve, 300));
-
-                // Find and scroll to the specific dashboard
-                const dashboardCard = document.getElementById('dashboard-' + chart.dashboardId);
-                if (dashboardCard) {
-                    dashboardCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-                    // Wait a bit more, then expand
-                    await new Promise(resolve => setTimeout(resolve, 400));
-
-                    // Check if already expanded
-                    const chartsContainer = document.getElementById('charts-' + chart.dashboardId);
-                    if (chartsContainer && chartsContainer.style.display === 'none') {
-                        await toggleDashboard(chart.dashboardId);
-                    }
-                }
+            // Click to show chart in modal
+            card.onclick = () => {
+                showChartModal(chart);
             };
 
             chartsList.appendChild(card);
@@ -1060,6 +1054,165 @@ async function runTransformations() {
         `;
     } finally {
         runBtn.disabled = false;
+    }
+}
+
+// Global variable to store current chart context
+let currentChartContext = null;
+
+// Show chart in modal
+async function showChartModal(chart) {
+    // Store chart context for "Go to Dashboard" button
+    currentChartContext = chart;
+
+    // Set modal title
+    document.getElementById('chartModalTitle').textContent = chart.title;
+
+    // Clear and show modal
+    const modalBody = document.getElementById('chartModalBody');
+    modalBody.innerHTML = '<p style="text-align: center; color: #888;">⏳ Loading chart...</p>';
+    document.getElementById('chartModal').style.display = 'block';
+
+    try {
+        // Create a temporary container for the chart
+        const chartWrapper = document.createElement('div');
+        chartWrapper.style.cssText = 'background: white; padding: 20px; border-radius: 12px;';
+
+        // Add chart description
+        if (chart.description) {
+            const desc = document.createElement('p');
+            desc.style.cssText = 'margin: 0 0 20px 0; color: #666; text-align: center;';
+            desc.textContent = chart.description;
+            chartWrapper.appendChild(desc);
+        }
+
+        // Add chart info badges
+        const infoBadges = document.createElement('div');
+        infoBadges.style.cssText = 'display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap;';
+        infoBadges.innerHTML = `
+            <span style="background: #e0e7ff; color: #667eea; padding: 6px 12px; border-radius: 6px; font-size: 0.9em;">📊 ${chart.type}</span>
+            <span style="background: #e0f2fe; color: #0284c7; padding: 6px 12px; border-radius: 6px; font-size: 0.9em;">📋 ${chart.model}</span>
+            <span style="background: #f0fdf4; color: #16a34a; padding: 6px 12px; border-radius: 6px; font-size: 0.9em;">🔢 ${chart.aggregation || 'sum'}</span>
+            <span style="background: #fef3c7; color: #d97706; padding: 6px 12px; border-radius: 6px; font-size: 0.9em;">📂 ${chart.dashboardName}</span>
+        `;
+        chartWrapper.appendChild(infoBadges);
+
+        // Canvas for chart
+        const canvas = document.createElement('canvas');
+        canvas.id = 'modal-chart-canvas';
+        canvas.style.cssText = 'max-height: 500px; width: 100%;';
+        chartWrapper.appendChild(canvas);
+
+        // Clear modal and add wrapper
+        modalBody.innerHTML = '';
+        modalBody.appendChild(chartWrapper);
+
+        // Render the chart based on type
+        if (chart.type === 'metric') {
+            await renderMetricChart(canvas, chart);
+        } else {
+            // Skip unsupported chart types
+            if (chart.metrics || chart.calculation) {
+                throw new Error('This chart type requires additional features not yet implemented');
+            }
+
+            // Fetch data
+            const queryResponse = await fetch('/api/query', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    table: chart.model,
+                    x_axis: chart.x_axis,
+                    y_axis: chart.y_axis,
+                    aggregation: chart.aggregation || 'sum'
+                })
+            });
+
+            if (!queryResponse.ok) {
+                throw new Error('Failed to fetch chart data');
+            }
+
+            const chartData = await queryResponse.json();
+
+            if (!chartData.labels || !chartData.values) {
+                throw new Error('Invalid chart data received');
+            }
+
+            // Get colors
+            const colors = getChartColors(chart, chartData.labels.length);
+
+            // Create Chart.js chart
+            new Chart(canvas, {
+                type: chart.type,
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        label: chart.title,
+                        data: chartData.values,
+                        backgroundColor: colors.background,
+                        borderColor: colors.border,
+                        borderWidth: 2,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: ['pie', 'doughnut'].includes(chart.type),
+                            position: 'bottom'
+                        },
+                        title: {
+                            display: false
+                        }
+                    },
+                    scales: ['line', 'bar'].includes(chart.type) ? {
+                        y: {
+                            beginAtZero: true
+                        }
+                    } : {}
+                }
+            });
+        }
+
+    } catch (error) {
+        console.error('Error loading chart in modal:', error);
+        modalBody.innerHTML = `
+            <div style="background: #fee; padding: 20px; border-radius: 8px; color: #c00; text-align: center;">
+                <strong>Error loading chart</strong><br>
+                ${error.message}
+            </div>
+        `;
+    }
+}
+
+// Go to dashboard from chart modal
+async function goToChartDashboard() {
+    if (!currentChartContext) return;
+
+    // Close modal
+    closeModal('chartModal');
+
+    // Switch to dashboards tab
+    switchTab('dashboards');
+
+    // Wait for dashboards to load
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // Find and scroll to the specific dashboard
+    const dashboardCard = document.getElementById('dashboard-' + currentChartContext.dashboardId);
+    if (dashboardCard) {
+        dashboardCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // Wait a bit more, then expand
+        await new Promise(resolve => setTimeout(resolve, 400));
+
+        // Expand the dashboard
+        const chartsContainer = document.getElementById('charts-' + currentChartContext.dashboardId);
+        if (chartsContainer && (chartsContainer.style.display === 'none' || chartsContainer.style.display === '')) {
+            await toggleDashboard(currentChartContext.dashboardId);
+        }
     }
 }
 
