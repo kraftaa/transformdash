@@ -1235,6 +1235,32 @@ body.dark-mode .dashboard-header:hover {
     flex: 1;
 }
 
+.dashboard-header .dashboard-left span {
+    color: #111827 !important;
+}
+
+body.dark-mode .dashboard-header .dashboard-left span {
+    color: #f1f5f9 !important;
+}
+
+.dashboard-left span {
+    color: #111827 !important;
+}
+
+body.dark-mode .dashboard-left span {
+    color: #f1f5f9 !important;
+}
+
+.dashboard-header .dashboard-name {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #111827 !important;
+}
+
+body.dark-mode .dashboard-header .dashboard-name {
+    color: #f1f5f9 !important;
+}
+
 .dashboard-name {
     font-size: 1.125rem;
     font-weight: 700;

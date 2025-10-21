@@ -1,429 +1,401 @@
 version: 2
-
-# Dashboard Chart Configurations
-# 3-5 charts per gold model for real visualizations
-
 dashboards:
-  # 1. Executive Dashboard - Overview across all models
-  - id: executive-dashboard
-    name: "Executive Dashboard"
-    description: "High-level KPIs across all business areas"
-    charts:
-      - id: total-revenue-ytd
-        title: "Total Revenue YTD"
-        model: fct_sales_performance
-        type: metric
-        metric: revenue
-        aggregation: sum
-        filters:
-          - field: sale_year
-            operator: "="
-            value: "CURRENT_YEAR"
-
-      - id: monthly-revenue-trend
-        title: "Monthly Revenue Trend"
-        model: fct_sales_performance
-        type: line
-        x_axis: sale_month
-        y_axis: revenue
-        aggregation: sum
-
-      - id: order-volume-by-tier
-        title: "Order Volume by Value Tier"
-        model: fct_orders
-        type: doughnut
-        x_axis: order_value_tier
-        y_axis: order_id
-        aggregation: count
-
-      - id: inventory-value-summary
-        title: "Total Inventory Value"
-        model: fct_inventory_metrics
-        type: metric
-        metric: total_inventory_value
-        aggregation: sum
-
-      - id: on-time-delivery-rate
-        title: "On-Time Delivery Rate"
-        model: fct_shipping_logistics
-        type: metric
-        metric: on_time_percentage
-        aggregation: avg
-
-  # 2. Orders Analytics Dashboard
-  - id: orders-analytics
-    name: "Orders Analytics Dashboard"
-    description: "Deep dive into order patterns and performance"
-    charts:
-      - id: orders-by-month
-        title: "Orders by Month"
-        model: fct_orders
-        type: line
-        x_axis: order_month
-        y_axis: order_id
-        aggregation: count
-        description: "Monthly order volume showing seasonality"
-        color_scheme: "blue"
-
-      - id: revenue-by-month
-        title: "Revenue by Month"
-        model: fct_orders
-        type: bar
-        x_axis: order_month
-        y_axis: total_amount
-        aggregation: sum
-        description: "Monthly revenue performance"
-        color_scheme: "green"
-
-      - id: orders-by-value-tier
-        title: "Orders Distribution by Value Tier"
-        model: fct_orders
-        type: doughnut
-        x_axis: order_value_tier
-        y_axis: order_id
-        aggregation: count
-        description: "High/Medium/Low value order distribution"
-        colors: ["#ffd700", "#c0c0c0", "#cd7f32"]
-
-      - id: avg-order-value-trend
-        title: "Average Order Value Trend"
-        model: fct_orders
-        type: line
-        x_axis: order_year
-        y_axis: total_amount
-        aggregation: avg
-        description: "AOV progression over years"
-        color_scheme: "purple"
-
-      - id: orders-by-status
-        title: "Order Status Distribution"
-        model: fct_orders
-        type: pie
-        x_axis: status
-        y_axis: order_id
-        aggregation: count
-        description: "Current status of all orders"
-
-  # 3. Sales Performance Dashboard
-  - id: sales-performance
-    name: "Sales Performance Dashboard"
-    description: "Revenue, profit, and sales metrics"
-    charts:
-      - id: daily-revenue
-        title: "Daily Revenue Trend"
-        model: fct_sales_performance
-        type: line
-        x_axis: sale_date
-        y_axis: revenue
-        aggregation: sum
-        description: "Daily revenue over time"
-        color_scheme: "green"
-
-      - id: profit-margin-by-category
-        title: "Profit Margin % by Category"
-        model: fct_sales_performance
-        type: bar
-        x_axis: product_category
-        y_axis: profit_margin_pct
-        aggregation: avg
-        description: "Average profit margins per category"
-        color_scheme: "teal"
-
-      - id: units-sold-by-quarter
-        title: "Units Sold by Quarter"
-        model: fct_sales_performance
-        type: bar
-        x_axis: sale_quarter
-        y_axis: units_sold
-        aggregation: sum
-        description: "Quarterly sales volume"
-        color_scheme: "blue"
-
-      - id: avg-order-value-by-dow
-        title: "AOV by Day of Week"
-        model: fct_sales_performance
-        type: bar
-        x_axis: day_of_week
-        y_axis: avg_order_value
-        aggregation: avg
-        description: "Shopping patterns across weekdays"
-        color_scheme: "orange"
-
-      - id: revenue-per-customer
-        title: "Revenue Per Customer Trend"
-        model: fct_sales_performance
-        type: line
-        x_axis: sale_month
-        y_axis: revenue_per_customer
-        aggregation: avg
-        description: "Monthly customer value"
-        color_scheme: "purple"
-
-  # 4. Inventory Management Dashboard
-  - id: inventory-management
-    name: "Inventory Management Dashboard"
-    description: "Stock levels, warehouse performance, and alerts"
-    charts:
-      - id: inventory-value-by-warehouse
-        title: "Inventory Value by Warehouse"
-        model: fct_inventory_metrics
-        type: bar
-        x_axis: warehouse_name
-        y_axis: total_inventory_value
-        aggregation: sum
-        description: "Total value across warehouses"
-        color_scheme: "blue"
-
-      - id: product-count-by-category
-        title: "Product Count by Category"
-        model: fct_inventory_metrics
-        type: doughnut
-        x_axis: product_category
-        y_axis: product_count
-        aggregation: sum
-        description: "Catalog distribution"
-        colors: ["#667eea", "#10b981", "#f59e0b", "#ef4444"]
-
-      - id: out-of-stock-by-warehouse
-        title: "Out of Stock Items"
-        model: fct_inventory_metrics
-        type: bar
-        x_axis: warehouse_name
-        y_axis: out_of_stock_count
-        aggregation: sum
-        description: "Stock-out situations per warehouse"
-        color_scheme: "red"
-
-      - id: low-stock-alerts
-        title: "Low Stock Alerts by Category"
-        model: fct_inventory_metrics
-        type: bar
-        x_axis: product_category
-        y_axis: low_stock_count
-        aggregation: sum
-        description: "Items below reorder threshold"
-        color_scheme: "orange"
-
-      - id: avg-stock-by-category
-        title: "Average Stock Level"
-        model: fct_inventory_metrics
-        type: bar
-        x_axis: product_category
-        y_axis: avg_stock
-        aggregation: avg
-        description: "Mean inventory levels"
-        color_scheme: "teal"
-
-  # 5. Shipping & Logistics Dashboard
-  - id: shipping-logistics
-    name: "Shipping & Logistics Dashboard"
-    description: "Carrier performance and delivery metrics"
-    charts:
-      - id: on-time-percentage-by-carrier
-        title: "On-Time Delivery % by Carrier"
-        model: fct_shipping_logistics
-        type: bar
-        x_axis: carrier_name
-        y_axis: on_time_percentage
-        aggregation: avg
-        description: "Carrier performance comparison"
-        color_scheme: "green"
-
-      - id: shipment-volume-by-month
-        title: "Shipment Volume Trend"
-        model: fct_shipping_logistics
-        type: line
-        x_axis: ship_month
-        y_axis: shipment_count
-        aggregation: sum
-        description: "Monthly shipment trends"
-        color_scheme: "blue"
-
-      - id: avg-delivery-days-by-carrier
-        title: "Average Delivery Time"
-        model: fct_shipping_logistics
-        type: bar
-        x_axis: carrier_name
-        y_axis: avg_delivery_days
-        aggregation: avg
-        description: "Shipping time per carrier"
-        color_scheme: "orange"
-
-      - id: delayed-deliveries-trend
-        title: "Delayed Deliveries Over Time"
-        model: fct_shipping_logistics
-        type: line
-        x_axis: ship_date
-        y_axis: delayed_deliveries
-        aggregation: sum
-        description: "Track delivery delays"
-        color_scheme: "red"
-
-      - id: shipments-by-warehouse
-        title: "Shipments by Warehouse"
-        model: fct_shipping_logistics
-        type: doughnut
-        x_axis: warehouse_name
-        y_axis: shipment_count
-        aggregation: sum
-        description: "Fulfillment center distribution"
-
-  # 6. Returns Analysis Dashboard
-  - id: returns-analysis
-    name: "Returns Analysis Dashboard"
-    description: "Return patterns, reasons, and processing"
-    charts:
-      - id: returns-by-reason
-        title: "Returns by Reason"
-        model: fct_customer_returns
-        type: doughnut
-        x_axis: return_reason
-        y_axis: return_count
-        aggregation: sum
-        description: "Why customers return products"
-        colors: ["#ef4444", "#f59e0b", "#3b82f6", "#10b981", "#8b5cf6"]
-
-      - id: return-volume-by-month
-        title: "Return Volume Trend"
-        model: fct_customer_returns
-        type: line
-        x_axis: return_month
-        y_axis: return_count
-        aggregation: sum
-        description: "Monthly return patterns"
-        color_scheme: "red"
-
-      - id: avg-days-to-return
-        title: "Average Days to Return"
-        model: fct_customer_returns
-        type: bar
-        x_axis: return_reason
-        y_axis: avg_days_to_return
-        aggregation: avg
-        description: "Return timing by reason"
-        color_scheme: "orange"
-
-      - id: returns-by-status
-        title: "Return Processing Status"
-        model: fct_customer_returns
-        type: pie
-        x_axis: return_status
-        y_axis: return_count
-        aggregation: sum
-        description: "Current processing state"
-
-      - id: affected-customers-trend
-        title: "Customers Making Returns"
-        model: fct_customer_returns
-        type: line
-        x_axis: return_date
-        y_axis: affected_customers
-        aggregation: sum
-        description: "Customer return behavior over time"
-        color_scheme: "purple"
-
-  # 7. Marketing ROI Dashboard
-  - id: marketing-roi
-    name: "Marketing ROI Dashboard"
-    description: "Campaign effectiveness and promotion performance"
-    charts:
-      - id: campaign-budget-by-channel
-        title: "Campaign Budget by Channel"
-        model: fct_marketing_roi
-        type: bar
-        x_axis: marketing_channel
-        y_axis: total_campaign_budget
-        aggregation: sum
-        description: "Budget allocation"
-        color_scheme: "purple"
-
-      - id: promo-utilization-trend
-        title: "Promotion Utilization %"
-        model: fct_marketing_roi
-        type: line
-        x_axis: activity_month
-        y_axis: avg_promo_utilization
-        aggregation: avg
-        description: "Promo effectiveness over time"
-        color_scheme: "teal"
-
-      - id: total-promo-uses-by-month
-        title: "Promo Redemptions by Month"
-        model: fct_marketing_roi
-        type: bar
-        x_axis: activity_month
-        y_axis: total_promo_uses
-        aggregation: sum
-        description: "Monthly redemption volume"
-        color_scheme: "green"
-
-      - id: campaign-count-by-channel
-        title: "Campaigns by Channel"
-        model: fct_marketing_roi
-        type: doughnut
-        x_axis: marketing_channel
-        y_axis: campaign_count
-        aggregation: sum
-        description: "Campaign distribution"
-
-      - id: discounts-given-trend
-        title: "Total Discounts Given"
-        model: fct_marketing_roi
-        type: line
-        x_axis: activity_date
-        y_axis: total_discounts_given
-        aggregation: sum
-        description: "Promotional spend tracking"
-        color_scheme: "orange"
-
-  # 8. Comprehensive BI Dashboard
-  - id: comprehensive-bi
-    name: "Comprehensive Business Intelligence"
-    description: "Master dashboard with cross-functional metrics"
-    charts:
-      - id: revenue-vs-profit
-        title: "Revenue vs Profit Trend"
-        model: fct_sales_performance
-        type: line
-        x_axis: sale_month
-        metrics:
-          - field: revenue
-            aggregation: sum
-            label: "Revenue"
-          - field: profit
-            aggregation: sum
-            label: "Profit"
-        description: "Revenue and profit comparison"
-
-      - id: operational-efficiency
-        title: "Operational Efficiency Score"
-        model: fct_shipping_logistics
-        type: metric
-        metric: on_time_percentage
-        aggregation: avg
-        description: "Overall delivery performance"
-
-      - id: customer-satisfaction-proxy
-        title: "Return Rate %"
-        model: fct_customer_returns
-        type: metric
-        calculation: "(return_count / total_orders) * 100"
-        description: "Proxy for customer satisfaction"
-
-      - id: inventory-turnover
-        title: "Inventory Health"
-        model: fct_inventory_metrics
-        type: bar
-        x_axis: product_category
-        y_axis: total_units
-        aggregation: sum
-        description: "Stock levels by category"
-
-      - id: marketing-efficiency
-        title: "Marketing Spend Trend"
-        model: fct_marketing_roi
-        type: line
-        x_axis: activity_month
-        y_axis: total_campaign_budget
-        aggregation: sum
-        description: "Monthly marketing investment"
+- id: executive-dashboard
+  name: Executive Dashboard
+  description: High-level KPIs across all business areas
+  charts:
+  - id: total-revenue-ytd
+    title: Total Revenue YTD
+    model: fct_sales_performance
+    type: metric
+    metric: revenue
+    aggregation: sum
+    filters:
+    - field: sale_year
+      operator: '='
+      value: CURRENT_YEAR
+  - id: monthly-revenue-trend
+    title: Monthly Revenue Trend
+    model: fct_sales_performance
+    type: line
+    x_axis: sale_month
+    y_axis: revenue
+    aggregation: sum
+  - id: order-volume-by-tier
+    title: Order Volume by Value Tier
+    model: fct_orders
+    type: doughnut
+    x_axis: order_value_tier
+    y_axis: order_id
+    aggregation: count
+  - id: inventory-value-summary
+    title: Total Inventory Value
+    model: fct_inventory_metrics
+    type: metric
+    metric: total_inventory_value
+    aggregation: sum
+  - id: on-time-delivery-rate
+    title: On-Time Delivery Rate
+    model: fct_shipping_logistics
+    type: metric
+    metric: on_time_percentage
+    aggregation: avg
+- id: orders-analytics
+  name: Orders Analytics Dashboard
+  description: Deep dive into order patterns and performance
+  charts:
+  - id: orders-by-month
+    title: Orders by Month
+    model: fct_orders
+    type: line
+    x_axis: order_month
+    y_axis: order_id
+    aggregation: count
+    description: Monthly order volume showing seasonality
+    color_scheme: blue
+  - id: revenue-by-month
+    title: Revenue by Month
+    model: fct_orders
+    type: bar
+    x_axis: order_month
+    y_axis: total_amount
+    aggregation: sum
+    description: Monthly revenue performance
+    color_scheme: green
+  - id: orders-by-value-tier
+    title: Orders Distribution by Value Tier
+    model: fct_orders
+    type: doughnut
+    x_axis: order_value_tier
+    y_axis: order_id
+    aggregation: count
+    description: High/Medium/Low value order distribution
+    colors:
+    - '#ffd700'
+    - '#c0c0c0'
+    - '#cd7f32'
+  - id: avg-order-value-trend
+    title: Average Order Value Trend
+    model: fct_orders
+    type: line
+    x_axis: order_year
+    y_axis: total_amount
+    aggregation: avg
+    description: AOV progression over years
+    color_scheme: purple
+  - id: orders-by-status
+    title: Order Status Distribution
+    model: fct_orders
+    type: pie
+    x_axis: status
+    y_axis: order_id
+    aggregation: count
+    description: Current status of all orders
+- id: sales-performance
+  name: Sales Performance Dashboard
+  description: Revenue, profit, and sales metrics
+  charts:
+  - id: daily-revenue
+    title: Daily Revenue Trend
+    model: fct_sales_performance
+    type: line
+    x_axis: sale_date
+    y_axis: revenue
+    aggregation: sum
+    description: Daily revenue over time
+    color_scheme: green
+  - id: profit-margin-by-category
+    title: Profit Margin % by Category
+    model: fct_sales_performance
+    type: bar
+    x_axis: product_category
+    y_axis: profit_margin_pct
+    aggregation: avg
+    description: Average profit margins per category
+    color_scheme: teal
+  - id: units-sold-by-quarter
+    title: Units Sold by Quarter
+    model: fct_sales_performance
+    type: bar
+    x_axis: sale_quarter
+    y_axis: units_sold
+    aggregation: sum
+    description: Quarterly sales volume
+    color_scheme: blue
+  - id: avg-order-value-by-dow
+    title: AOV by Day of Week
+    model: fct_sales_performance
+    type: bar
+    x_axis: day_of_week
+    y_axis: avg_order_value
+    aggregation: avg
+    description: Shopping patterns across weekdays
+    color_scheme: orange
+  - id: revenue-per-customer
+    title: Revenue Per Customer Trend
+    model: fct_sales_performance
+    type: line
+    x_axis: sale_month
+    y_axis: revenue_per_customer
+    aggregation: avg
+    description: Monthly customer value
+    color_scheme: purple
+- id: inventory-management
+  name: Inventory Management Dashboard
+  description: Stock levels, warehouse performance, and alerts
+  charts:
+  - id: inventory-value-by-warehouse
+    title: Inventory Value by Warehouse
+    model: fct_inventory_metrics
+    type: bar
+    x_axis: warehouse_name
+    y_axis: total_inventory_value
+    aggregation: sum
+    description: Total value across warehouses
+    color_scheme: blue
+  - id: product-count-by-category
+    title: Product Count by Category
+    model: fct_inventory_metrics
+    type: doughnut
+    x_axis: product_category
+    y_axis: product_count
+    aggregation: sum
+    description: Catalog distribution
+    colors:
+    - '#667eea'
+    - '#10b981'
+    - '#f59e0b'
+    - '#ef4444'
+  - id: out-of-stock-by-warehouse
+    title: Out of Stock Items
+    model: fct_inventory_metrics
+    type: bar
+    x_axis: warehouse_name
+    y_axis: out_of_stock_count
+    aggregation: sum
+    description: Stock-out situations per warehouse
+    color_scheme: red
+  - id: low-stock-alerts
+    title: Low Stock Alerts by Category
+    model: fct_inventory_metrics
+    type: bar
+    x_axis: product_category
+    y_axis: low_stock_count
+    aggregation: sum
+    description: Items below reorder threshold
+    color_scheme: orange
+  - id: avg-stock-by-category
+    title: Average Stock Level
+    model: fct_inventory_metrics
+    type: bar
+    x_axis: product_category
+    y_axis: avg_stock
+    aggregation: avg
+    description: Mean inventory levels
+    color_scheme: teal
+- id: shipping-logistics
+  name: Shipping & Logistics Dashboard
+  description: Carrier performance and delivery metrics
+  charts:
+  - id: on-time-percentage-by-carrier
+    title: On-Time Delivery % by Carrier
+    model: fct_shipping_logistics
+    type: bar
+    x_axis: carrier_name
+    y_axis: on_time_percentage
+    aggregation: avg
+    description: Carrier performance comparison
+    color_scheme: green
+  - id: shipment-volume-by-month
+    title: Shipment Volume Trend
+    model: fct_shipping_logistics
+    type: line
+    x_axis: ship_month
+    y_axis: shipment_count
+    aggregation: sum
+    description: Monthly shipment trends
+    color_scheme: blue
+  - id: avg-delivery-days-by-carrier
+    title: Average Delivery Time
+    model: fct_shipping_logistics
+    type: bar
+    x_axis: carrier_name
+    y_axis: avg_delivery_days
+    aggregation: avg
+    description: Shipping time per carrier
+    color_scheme: orange
+  - id: delayed-deliveries-trend
+    title: Delayed Deliveries Over Time
+    model: fct_shipping_logistics
+    type: line
+    x_axis: ship_date
+    y_axis: delayed_deliveries
+    aggregation: sum
+    description: Track delivery delays
+    color_scheme: red
+  - id: shipments-by-warehouse
+    title: Shipments by Warehouse
+    model: fct_shipping_logistics
+    type: doughnut
+    x_axis: warehouse_name
+    y_axis: shipment_count
+    aggregation: sum
+    description: Fulfillment center distribution
+- id: returns-analysis
+  name: Returns Analysis Dashboard
+  description: Return patterns, reasons, and processing
+  charts:
+  - id: returns-by-reason
+    title: Returns by Reason
+    model: fct_customer_returns
+    type: doughnut
+    x_axis: return_reason
+    y_axis: return_count
+    aggregation: sum
+    description: Why customers return products
+    colors:
+    - '#ef4444'
+    - '#f59e0b'
+    - '#3b82f6'
+    - '#10b981'
+    - '#8b5cf6'
+  - id: return-volume-by-month
+    title: Return Volume Trend
+    model: fct_customer_returns
+    type: line
+    x_axis: return_month
+    y_axis: return_count
+    aggregation: sum
+    description: Monthly return patterns
+    color_scheme: red
+  - id: avg-days-to-return
+    title: Average Days to Return
+    model: fct_customer_returns
+    type: bar
+    x_axis: return_reason
+    y_axis: avg_days_to_return
+    aggregation: avg
+    description: Return timing by reason
+    color_scheme: orange
+  - id: returns-by-status
+    title: Return Processing Status
+    model: fct_customer_returns
+    type: pie
+    x_axis: return_status
+    y_axis: return_count
+    aggregation: sum
+    description: Current processing state
+  - id: affected-customers-trend
+    title: Customers Making Returns
+    model: fct_customer_returns
+    type: line
+    x_axis: return_date
+    y_axis: affected_customers
+    aggregation: sum
+    description: Customer return behavior over time
+    color_scheme: purple
+- id: marketing-roi
+  name: Marketing ROI Dashboard
+  description: Campaign effectiveness and promotion performance
+  charts:
+  - id: campaign-budget-by-channel
+    title: Campaign Budget by Channel
+    model: fct_marketing_roi
+    type: bar
+    x_axis: marketing_channel
+    y_axis: total_campaign_budget
+    aggregation: sum
+    description: Budget allocation
+    color_scheme: purple
+  - id: promo-utilization-trend
+    title: Promotion Utilization %
+    model: fct_marketing_roi
+    type: line
+    x_axis: activity_month
+    y_axis: avg_promo_utilization
+    aggregation: avg
+    description: Promo effectiveness over time
+    color_scheme: teal
+  - id: total-promo-uses-by-month
+    title: Promo Redemptions by Month
+    model: fct_marketing_roi
+    type: bar
+    x_axis: activity_month
+    y_axis: total_promo_uses
+    aggregation: sum
+    description: Monthly redemption volume
+    color_scheme: green
+  - id: campaign-count-by-channel
+    title: Campaigns by Channel
+    model: fct_marketing_roi
+    type: doughnut
+    x_axis: marketing_channel
+    y_axis: campaign_count
+    aggregation: sum
+    description: Campaign distribution
+  - id: discounts-given-trend
+    title: Total Discounts Given
+    model: fct_marketing_roi
+    type: line
+    x_axis: activity_date
+    y_axis: total_discounts_given
+    aggregation: sum
+    description: Promotional spend tracking
+    color_scheme: orange
+- id: comprehensive-bi
+  name: Comprehensive Business Intelligence
+  description: Master dashboard with cross-functional metrics
+  charts:
+  - id: revenue-vs-profit
+    title: Revenue vs Profit Trend
+    model: fct_sales_performance
+    type: line
+    x_axis: sale_month
+    metrics:
+    - field: revenue
+      aggregation: sum
+      label: Revenue
+    - field: profit
+      aggregation: sum
+      label: Profit
+    description: Revenue and profit comparison
+  - id: operational-efficiency
+    title: Operational Efficiency Score
+    model: fct_shipping_logistics
+    type: metric
+    metric: on_time_percentage
+    aggregation: avg
+    description: Overall delivery performance
+  - id: customer-satisfaction-proxy
+    title: Return Rate %
+    model: fct_customer_returns
+    type: metric
+    calculation: (return_count / total_orders) * 100
+    description: Proxy for customer satisfaction
+  - id: inventory-turnover
+    title: Inventory Health
+    model: fct_inventory_metrics
+    type: bar
+    x_axis: product_category
+    y_axis: total_units
+    aggregation: sum
+    description: Stock levels by category
+  - id: marketing-efficiency
+    title: Marketing Spend Trend
+    model: fct_marketing_roi
+    type: line
+    x_axis: activity_month
+    y_axis: total_campaign_budget
+    aggregation: sum
+    description: Monthly marketing investment
+- id: custom_charts
+  name: Custom Charts
+  description: User-created charts
+  charts:
+  - id: test
+    title: Test
+    type: bar
+    model: test
+    x_axis: x
+    y_axis: y
+    aggregation: sum

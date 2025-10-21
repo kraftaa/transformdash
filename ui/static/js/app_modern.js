@@ -802,7 +802,7 @@ async function loadDashboards() {
             headerLeft.onclick = () => toggleDashboard(dashboard.id);
             headerLeft.innerHTML = `
                 <span>📊</span>
-                <span class="dashboard-name">${dashboard.name}</span>
+                <span class="dashboard-name" style="color: #111827 !important;">${dashboard.name}</span>
                 <span class="dashboard-id">${dashboard.charts?.length || 0} charts</span>
             `;
 
@@ -2563,6 +2563,21 @@ async function exportDashboardPDF(dashboardId) {
         const headerRight = clone.querySelector('.dashboard-header > div:last-child');
         if (headerRight) headerRight.remove();
 
+        // Convert canvas charts to images
+        const originalCanvases = dashboardCard.querySelectorAll('canvas');
+        const clonedCanvases = clone.querySelectorAll('canvas');
+
+        originalCanvases.forEach((originalCanvas, index) => {
+            if (clonedCanvases[index]) {
+                const clonedCanvas = clonedCanvases[index];
+                const image = document.createElement('img');
+                image.src = originalCanvas.toDataURL('image/png');
+                image.style.maxWidth = '100%';
+                image.style.height = 'auto';
+                clonedCanvas.parentNode.replaceChild(image, clonedCanvas);
+            }
+        });
+
         printContainer.appendChild(clone);
         document.body.appendChild(printContainer);
 
@@ -2592,6 +2607,26 @@ async function exportDashboardPDF(dashboardId) {
                 }
                 .dashboard-filters {
                     display: none !important;
+                }
+                .chart-container img {
+                    max-width: 100% !important;
+                    height: auto !important;
+                    page-break-inside: avoid;
+                }
+                .chart-card {
+                    page-break-inside: avoid;
+                    margin-bottom: 20px;
+                }
+                .metric-card {
+                    page-break-inside: avoid;
+                }
+                .metric-value {
+                    color: #000 !important;
+                    font-size: 2rem !important;
+                    font-weight: bold !important;
+                }
+                .metric-label {
+                    color: #333 !important;
                 }
             }
         `;

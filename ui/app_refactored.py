@@ -200,6 +200,34 @@ async def get_dashboards():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/charts")
+async def get_all_charts():
+    """Get all charts from all dashboards"""
+    try:
+        import yaml
+
+        dashboards_file = models_dir / "dashboards.yml"
+
+        if not dashboards_file.exists():
+            return {"charts": []}
+
+        with open(dashboards_file, 'r') as f:
+            data = yaml.safe_load(f) or {}
+
+        all_charts = []
+        for dashboard in data.get('dashboards', []):
+            dashboard_name = dashboard.get('name', '')
+            for chart in dashboard.get('charts', []):
+                chart_copy = chart.copy()
+                chart_copy['dashboardName'] = dashboard_name
+                chart_copy['dashboardId'] = dashboard.get('id', '')
+                all_charts.append(chart_copy)
+
+        return {"charts": all_charts}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/charts/save")
 async def save_chart(request: Request):
     """Save a chart configuration to dashboards.yml"""
@@ -551,7 +579,7 @@ async def get_dashboard_filters(dashboard_id: str):
 if __name__ == "__main__":
     import uvicorn
     print("\n🚀 Starting TransformDash Web UI...")
-    print("📊 Dashboard: http://localhost:8000")
-    print("📖 API Docs: http://localhost:8000/docs")
+    print("📊 Dashboard: http://localhost:8080")
+    print("📖 API Docs: http://localhost:8080/docs")
     print("\n")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8080)
