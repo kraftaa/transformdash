@@ -888,6 +888,8 @@ async function toggleDashboard(dashboardId) {
 
         if (!dashboardCard || !chartsContainer || !expandIndicator) {
             console.error('>>> Could not find elements for dashboard:', dashboardId);
+            console.error('>>> Missing elements: card=', !!dashboardCard, 'charts=', !!chartsContainer, 'indicator=', !!expandIndicator);
+            toggleLock.delete(dashboardId);
             return;
         }
 
@@ -1414,6 +1416,25 @@ async function loadTableColumns() {
         });
     } catch (error) {
         console.error('Error loading columns:', error);
+    }
+}
+
+function toggleChartBuilder() {
+    const builderSection = document.getElementById('chart-builder-section');
+    const btn = document.getElementById('toggleChartBuilderBtn');
+
+    if (builderSection.style.display === 'none') {
+        builderSection.style.display = 'block';
+        btn.textContent = '✖ Close Chart Builder';
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-secondary');
+        // Scroll to chart builder
+        builderSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+        builderSection.style.display = 'none';
+        btn.textContent = '✨ Create New Chart';
+        btn.classList.remove('btn-secondary');
+        btn.classList.add('btn-primary');
     }
 }
 

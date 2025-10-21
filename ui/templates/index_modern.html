@@ -334,11 +334,19 @@
                         <h1 class="page-title">Charts</h1>
                         <p class="page-subtitle">Create and manage visualizations</p>
                     </div>
+                    <button onclick="toggleChartBuilder()" class="btn btn-primary" id="toggleChartBuilderBtn">
+                        ✨ Create New Chart
+                    </button>
                 </div>
 
-                <!-- Chart Builder Section -->
-                <div class="section-title" style="margin-top: 2rem;">✨ Create New Chart</div>
-                <div style="display: grid; grid-template-columns: 350px 1fr; gap: 1.5rem; margin-bottom: 3rem;">
+                <!-- All Charts List -->
+                <div class="section-title">📊 All Charts</div>
+                <div id="all-charts-list" class="charts-grid" style="margin-bottom: 3rem;"></div>
+
+                <!-- Chart Builder Section (Initially Hidden) -->
+                <div id="chart-builder-section" style="display: none; margin-top: 3rem;">
+                    <div class="section-title">✨ Create New Chart</div>
+                    <div style="display: grid; grid-template-columns: 350px 1fr; gap: 1.5rem; margin-bottom: 3rem;">
                     <!-- Chart Builder Panel -->
                     <div style="background: var(--color-bg-surface); border: 1px solid var(--color-border); padding: 1.5rem; border-radius: var(--radius-lg); overflow-y: auto; max-height: 600px;">
                         <h3 style="margin-bottom: 1.25rem; color: var(--color-text-primary);">📈 Chart Builder</h3>
@@ -417,10 +425,7 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- All Charts List -->
-                <div class="section-title">📊 All Charts</div>
-                <div id="all-charts-list" class="charts-grid"></div>
+                </div>
             </div>
 
             <!-- Runs View -->
