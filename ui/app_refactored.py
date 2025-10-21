@@ -411,6 +411,67 @@ async def query_data(request: Request):
                     "values": []
                 }
 
+            # Handle multi-metric charts (multiple series on same chart)
+            metrics = body.get('metrics')
+            if metrics and isinstance(metrics, list):
+                if not x_axis:
+                    raise HTTPException(status_code=400, detail="Missing x_axis for multi-metric chart")
+
+                # Build WHERE clauses from filters
+                where_clauses = [f"{x_axis} IS NOT NULL"]
+                params = []
+
+                if filters:
+                    for field, value in filters.items():
+                        if value and field in available_columns:
+                            where_clauses.append(f"{field} = %s")
+                            params.append(value)
+
+                where_sql = "WHERE " + " AND ".join(where_clauses)
+
+                # Build query with multiple aggregations
+                metric_selects = []
+                for metric in metrics:
+                    field = metric.get('field')
+                    agg = metric.get('aggregation', 'sum').upper()
+                    label = metric.get('label', field)
+                    metric_selects.append(f"{agg}({field}) as {field}")
+
+                query = f"""
+                    SELECT
+                        {x_axis} as label,
+                        {', '.join(metric_selects)}
+                    FROM public.{table}
+                    {where_sql}
+                    GROUP BY {x_axis}
+                    ORDER BY {x_axis}
+                    LIMIT 50
+                """
+
+                df = pg.query_to_dataframe(query, tuple(params) if params else None)
+
+                # Convert to multi-series format
+                import math
+                labels = df['label'].astype(str).tolist()
+                datasets = []
+
+                for metric in metrics:
+                    field = metric.get('field')
+                    label = metric.get('label', field)
+                    values = [
+                        None if (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) else v
+                        for v in df[field].tolist()
+                    ]
+                    datasets.append({
+                        'label': label,
+                        'data': values
+                    })
+
+                return {
+                    "labels": labels,
+                    "datasets": datasets
+                }
+
             # Handle regular charts with x_axis and y_axis
             if not all([x_axis, y_axis]):
                 raise HTTPException(status_code=400, detail="Missing x_axis or y_axis for chart")

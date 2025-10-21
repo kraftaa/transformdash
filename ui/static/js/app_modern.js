@@ -749,7 +749,10 @@ function switchTab(tabName) {
 
     // Update tab content
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-    document.getElementById(`${tabName}-tab`).classList.add('active');
+    const tabContent = document.getElementById(`${tabName}-tab`);
+    if (tabContent) {
+        tabContent.classList.add('active');
+    }
 
     // Load data if needed
     if (tabName === 'runs') {
@@ -1007,22 +1010,27 @@ async function loadDashboardCharts(dashboardId, container, filters = {}) {
 // Render a single chart from configuration
 async function renderDashboardChart(chartConfig, container, filters = {}) {
     try {
-        // Skip charts with unsupported features (but log them properly)
-        if (chartConfig.metrics || chartConfig.calculation) {
-            console.log('Skipping advanced chart type (requires multi-metric support):', chartConfig.id);
-            // Don't return early, show an info card instead
+        // Skip only calculation-based charts (not multi-metric)
+        if (chartConfig.calculation) {
+            console.log('Skipping calculation chart type:', chartConfig.id);
             const infoCard = document.createElement('div');
             infoCard.style.cssText = 'background: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;';
             infoCard.innerHTML = `
                 <div style="font-weight: bold; color: #92400e; margin-bottom: 5px;">⚠️ ${chartConfig.title}</div>
-                <div style="font-size: 0.85em; color: #78350f;">Advanced chart type - coming soon!</div>
+                <div style="font-size: 0.85em; color: #78350f;">Calculation-based chart - coming soon!</div>
             `;
             container.appendChild(infoCard);
             return;
         }
 
+        // Validate required fields for multi-metric charts
+        if (chartConfig.metrics && (!chartConfig.model || !chartConfig.x_axis)) {
+            console.warn('Skipping multi-metric chart with missing config:', chartConfig.id, chartConfig);
+            return;
+        }
+
         // Validate required fields for standard charts
-        if (chartConfig.type !== 'metric' && (!chartConfig.model || !chartConfig.x_axis || !chartConfig.y_axis)) {
+        if (!chartConfig.metrics && chartConfig.type !== 'metric' && (!chartConfig.model || !chartConfig.x_axis || !chartConfig.y_axis)) {
             console.warn('Skipping chart with missing config:', chartConfig.id, chartConfig);
             return;
         }
@@ -1066,17 +1074,27 @@ async function renderDashboardChart(chartConfig, container, filters = {}) {
             return;
         }
 
-        // Fetch data from API for other chart types
+        // Build query payload
+        const queryPayload = {
+            table: chartConfig.model,
+            type: chartConfig.type,
+            x_axis: chartConfig.x_axis,
+            filters: filters
+        };
+
+        // Handle multi-metric charts
+        if (chartConfig.metrics) {
+            queryPayload.metrics = chartConfig.metrics;
+        } else {
+            queryPayload.y_axis = chartConfig.y_axis;
+            queryPayload.aggregation = chartConfig.aggregation || 'sum';
+        }
+
+        // Fetch data from API
         const queryResponse = await fetch('/api/query', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                table: chartConfig.model,
-                x_axis: chartConfig.x_axis,
-                y_axis: chartConfig.y_axis,
-                aggregation: chartConfig.aggregation || 'sum',
-                filters: filters  // Pass filters to backend
-            })
+            body: JSON.stringify(queryPayload)
         });
 
         if (!queryResponse.ok) {
@@ -1086,36 +1104,62 @@ async function renderDashboardChart(chartConfig, container, filters = {}) {
         const chartData = await queryResponse.json();
 
         // Validate response
-        if (!chartData.labels || !chartData.values) {
+        if (!chartData.labels) {
             throw new Error('Invalid chart data received');
         }
 
-        // Check if data is empty
-        const hasData = chartData.labels.length > 0 && chartData.values.length > 0;
+        // Prepare datasets
+        let datasets;
+        if (chartData.datasets) {
+            // Multi-series chart
+            const colorPalette = [
+                { bg: 'rgba(102, 126, 234, 0.2)', border: 'rgba(102, 126, 234, 1)' },
+                { bg: 'rgba(16, 185, 129, 0.2)', border: 'rgba(16, 185, 129, 1)' },
+                { bg: 'rgba(245, 158, 11, 0.2)', border: 'rgba(245, 158, 11, 1)' },
+                { bg: 'rgba(239, 68, 68, 0.2)', border: 'rgba(239, 68, 68, 1)' },
+                { bg: 'rgba(139, 92, 246, 0.2)', border: 'rgba(139, 92, 246, 1)' }
+            ];
 
-        // Get colors
-        const colors = getChartColors(chartConfig, chartData.labels.length || 1);
+            datasets = chartData.datasets.map((dataset, index) => {
+                const color = colorPalette[index % colorPalette.length];
+                return {
+                    label: dataset.label,
+                    data: dataset.data,
+                    backgroundColor: color.bg,
+                    borderColor: color.border,
+                    borderWidth: 2,
+                    tension: 0.4
+                };
+            });
+        } else {
+            // Single-series chart
+            const colors = getChartColors(chartConfig, chartData.labels.length || 1);
+            datasets = [{
+                label: chartConfig.title,
+                data: chartData.values,
+                backgroundColor: colors.background,
+                borderColor: colors.border,
+                borderWidth: 2,
+                tension: 0.4
+            }];
+        }
 
-        // Create Chart.js chart with empty state handling
+        // Check if there's any data
+        const hasData = chartData.labels.length > 0 && datasets.some(ds => ds.data && ds.data.length > 0);
+
+        // Create Chart.js chart
         new Chart(canvas, {
             type: chartConfig.type,
             data: {
                 labels: chartData.labels,
-                datasets: [{
-                    label: chartConfig.title,
-                    data: chartData.values,
-                    backgroundColor: colors.background,
-                    borderColor: colors.border,
-                    borderWidth: 2,
-                    tension: 0.4
-                }]
+                datasets: datasets
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
                     legend: {
-                        display: ['pie', 'doughnut'].includes(chartConfig.type),
+                        display: ['pie', 'doughnut'].includes(chartConfig.type) || (chartData.datasets && chartData.datasets.length > 1),
                         labels: {
                             color: '#374151',  // Darker gray for better contrast
                             font: {
@@ -2055,21 +2099,31 @@ async function showChartModal(chart) {
         if (chart.type === 'metric') {
             await renderMetricChart(canvas, chart);
         } else {
-            // Skip unsupported chart types
-            if (chart.metrics || chart.calculation) {
-                throw new Error('This chart type requires additional features not yet implemented');
+            // Skip only calculation-based charts
+            if (chart.calculation) {
+                throw new Error('Calculation-based charts not yet implemented');
+            }
+
+            // Build query payload
+            const queryPayload = {
+                table: chart.model,
+                type: chart.type,
+                x_axis: chart.x_axis
+            };
+
+            // Handle multi-metric charts
+            if (chart.metrics) {
+                queryPayload.metrics = chart.metrics;
+            } else {
+                queryPayload.y_axis = chart.y_axis;
+                queryPayload.aggregation = chart.aggregation || 'sum';
             }
 
             // Fetch data
             const queryResponse = await fetch('/api/query', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    table: chart.model,
-                    x_axis: chart.x_axis,
-                    y_axis: chart.y_axis,
-                    aggregation: chart.aggregation || 'sum'
-                })
+                body: JSON.stringify(queryPayload)
             });
 
             if (!queryResponse.ok) {
@@ -2078,26 +2132,52 @@ async function showChartModal(chart) {
 
             const chartData = await queryResponse.json();
 
-            if (!chartData.labels || !chartData.values) {
+            if (!chartData.labels) {
                 throw new Error('Invalid chart data received');
             }
 
-            // Get colors
-            const colors = getChartColors(chart, chartData.labels.length);
+            // Prepare datasets
+            let datasets;
+            if (chartData.datasets) {
+                // Multi-series chart
+                const colorPalette = [
+                    { bg: 'rgba(102, 126, 234, 0.2)', border: 'rgba(102, 126, 234, 1)' },
+                    { bg: 'rgba(16, 185, 129, 0.2)', border: 'rgba(16, 185, 129, 1)' },
+                    { bg: 'rgba(245, 158, 11, 0.2)', border: 'rgba(245, 158, 11, 1)' },
+                    { bg: 'rgba(239, 68, 68, 0.2)', border: 'rgba(239, 68, 68, 1)' },
+                    { bg: 'rgba(139, 92, 246, 0.2)', border: 'rgba(139, 92, 246, 1)' }
+                ];
+
+                datasets = chartData.datasets.map((dataset, index) => {
+                    const color = colorPalette[index % colorPalette.length];
+                    return {
+                        label: dataset.label,
+                        data: dataset.data,
+                        backgroundColor: color.bg,
+                        borderColor: color.border,
+                        borderWidth: 2,
+                        tension: 0.4
+                    };
+                });
+            } else {
+                // Single-series chart
+                const colors = getChartColors(chart, chartData.labels.length);
+                datasets = [{
+                    label: chart.title,
+                    data: chartData.values,
+                    backgroundColor: colors.background,
+                    borderColor: colors.border,
+                    borderWidth: 2,
+                    tension: 0.4
+                }];
+            }
 
             // Create Chart.js chart
             new Chart(canvas, {
                 type: chart.type,
                 data: {
                     labels: chartData.labels,
-                    datasets: [{
-                        label: chart.title,
-                        data: chartData.values,
-                        backgroundColor: colors.background,
-                        borderColor: colors.border,
-                        borderWidth: 2,
-                        tension: 0.4
-                    }]
+                    datasets: datasets
                 },
                 options: {
                     responsive: true,
@@ -2154,84 +2234,14 @@ async function goToChartDashboard() {
     console.log('=== goToChartDashboard START ===');
     console.log('Dashboard ID:', dashboardId);
 
-    // Add a lock to prevent toggle while we're navigating
-    toggleLock.add(dashboardId);
-    console.log('Lock added for:', dashboardId);
-
     // Close modal
     closeModal('chartModal');
     console.log('Modal closed');
 
-    // Switch to dashboards tab
-    switchTab('dashboards');
-    console.log('Switched to dashboards tab');
-
-    // Wait for dashboards to load
-    await new Promise(resolve => setTimeout(resolve, 300));
-    console.log('Waited for dashboards to load');
-
-    // Find and scroll to the specific dashboard
-    const dashboardCard = document.getElementById('dashboard-' + dashboardId);
-    console.log('Found dashboard card:', dashboardCard ? 'YES' : 'NO');
-
-    if (dashboardCard) {
-        dashboardCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        console.log('Scrolling to dashboard');
-
-        // Wait for scroll to complete
-        await new Promise(resolve => setTimeout(resolve, 500));
-        console.log('Scroll complete');
-
-        // Ensure the dashboard is expanded (don't toggle if already expanded)
-        const chartsContainer = document.getElementById('charts-' + dashboardId);
-        const expandIndicator = document.getElementById('expand-' + dashboardId);
-
-        console.log('Charts container found:', chartsContainer ? 'YES' : 'NO');
-        console.log('Expand indicator found:', expandIndicator ? 'YES' : 'NO');
-
-        if (dashboardCard && chartsContainer) {
-            // Only expand if currently collapsed
-            const isExpanded = dashboardCard.classList.contains('expanded');
-            console.log('Is currently expanded:', isExpanded);
-            console.log('Container children count:', chartsContainer.children.length);
-
-            if (!isExpanded) {
-                console.log('Expanding dashboard from modal navigation');
-                dashboardCard.classList.add('expanded');
-                console.log('Added expanded class to dashboard card');
-
-                if (expandIndicator) expandIndicator.textContent = '▲';
-
-                // Load charts if not already loaded
-                if (chartsContainer.children.length === 0) {
-                    console.log('Container empty, loading charts...');
-                    await loadDashboardCharts(dashboardId, chartsContainer);
-                    console.log('Charts loaded, container now has', chartsContainer.children.length, 'children');
-                } else {
-                    console.log('Container already has', chartsContainer.children.length, 'children');
-                }
-
-                // Verify state after loading
-                console.log('After loading - is expanded:', dashboardCard.classList.contains('expanded'));
-                console.log('After loading - container children:', chartsContainer.children.length);
-            } else {
-                console.log('Dashboard already expanded, keeping it open');
-            }
-        }
-
-        // Keep lock for a bit longer to prevent accidental toggles
-        setTimeout(() => {
-            toggleLock.delete(dashboardId);
-            const stillExpanded = dashboardCard.classList.contains('expanded');
-            console.log('Released lock for dashboard:', dashboardId);
-            console.log('Dashboard still expanded after lock release:', stillExpanded);
-            console.log('=== goToChartDashboard END ===');
-        }, 1000);
-    } else {
-        // Release lock if dashboard not found
-        toggleLock.delete(dashboardId);
-        console.log('Dashboard not found, lock released');
-    }
+    // Navigate to the dashboard detail page
+    window.location.href = `/dashboard/${dashboardId}`;
+    console.log('Navigating to dashboard detail page:', dashboardId);
+    console.log('=== goToChartDashboard END ===');
 }
 
 // Close modal when clicking outside
