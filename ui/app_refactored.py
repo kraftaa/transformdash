@@ -343,19 +343,29 @@ async def get_table_columns(table_name: str):
 
 
 @app.post("/api/query")
-async def query_data(request: dict):
+async def query_data(request: Request):
     """Execute a query and return aggregated data for charting"""
     try:
         from postgres import PostgresConnector
+        import logging
 
-        table = request.get('table')
-        x_axis = request.get('x_axis')
-        y_axis = request.get('y_axis')
-        aggregation = request.get('aggregation', 'sum')
-        filters = request.get('filters', {})
+        body = await request.json()
+        logging.info(f"Query request body: {body}")
+        logging.info(f"Body keys: {body.keys()}")
 
-        if not all([table, x_axis, y_axis]):
-            raise HTTPException(status_code=400, detail="Missing required parameters")
+        table = body.get('table') or body.get('model')
+        chart_type = body.get('type', 'bar')
+        metric = body.get('metric')
+        x_axis = body.get('x_axis')
+        y_axis = body.get('y_axis')
+        aggregation = body.get('aggregation', 'sum')
+        filters = body.get('filters', {})
+
+        logging.info(f"Extracted table/model: {table}")
+
+        if not table:
+            logging.error(f"No table found! Body was: {body}")
+            raise HTTPException(status_code=400, detail="Missing table/model parameter")
 
         with PostgresConnector() as pg:
             # First, get available columns for this table
@@ -367,13 +377,46 @@ async def query_data(request: dict):
             col_result = pg.execute(col_query, (table,), fetch=True)
             available_columns = {row['column_name'] for row in col_result}
 
+            # Handle metric type charts (single value)
+            if chart_type == 'metric' and metric:
+                where_clauses = []
+                params = []
+
+                if filters:
+                    for field, value in filters.items():
+                        if value and field in available_columns:
+                            where_clauses.append(f"{field} = %s")
+                            params.append(value)
+
+                where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+                agg_func = aggregation.upper()
+                query = f"""
+                    SELECT {agg_func}({metric}) as value
+                    FROM public.{table}
+                    {where_sql}
+                """
+
+                df = pg.query_to_dataframe(query, tuple(params) if params else None)
+                value = df['value'].iloc[0] if len(df) > 0 else 0
+
+                return {
+                    "value": float(value) if value is not None else 0,
+                    "labels": [],
+                    "values": []
+                }
+
+            # Handle regular charts with x_axis and y_axis
+            if not all([x_axis, y_axis]):
+                raise HTTPException(status_code=400, detail="Missing x_axis or y_axis for chart")
+
             # Build WHERE clauses from filters - only use filters that exist in this table
             where_clauses = [f"{x_axis} IS NOT NULL"]
             params = []
 
             if filters:
                 for field, value in filters.items():
-                    if value and field in available_columns:  # Check if column exists
+                    if value and field in available_columns:
                         where_clauses.append(f"{field} = %s")
                         params.append(value)
 
@@ -403,6 +446,8 @@ async def query_data(request: dict):
                 "values": values
             }
     except Exception as e:
+        import traceback
+        logging.error(f"Query error: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -413,13 +458,15 @@ async def health_check():
 
 
 @app.post("/api/dashboard/{dashboard_id}/export")
-async def export_dashboard_data(dashboard_id: str, request: dict):
+async def export_dashboard_data(dashboard_id: str, request: Request):
     """Export all dashboard data as CSV or Excel"""
     try:
         from postgres import PostgresConnector
         import yaml
         import io
         from fastapi.responses import StreamingResponse
+
+        body = await request.json()
 
         dashboards_file = models_dir / "dashboards.yml"
         with open(dashboards_file, 'r') as f:
@@ -429,8 +476,8 @@ async def export_dashboard_data(dashboard_id: str, request: dict):
         if not dashboard:
             raise HTTPException(status_code=404, detail="Dashboard not found")
 
-        export_format = request.get('format', 'csv')  # csv or excel
-        filters = request.get('filters', {})
+        export_format = body.get('format', 'csv')  # csv or excel
+        filters = body.get('filters', {})
 
         # Collect all data from all charts
         all_data = {}

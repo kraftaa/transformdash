@@ -149,6 +149,36 @@
             color: #718096;
         }
 
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+            }
+
+            .dashboard-actions {
+                display: none !important;
+            }
+
+            .dashboard-filters {
+                display: none !important;
+            }
+
+            .back-btn {
+                display: none !important;
+            }
+
+            .chart-container {
+                page-break-inside: avoid;
+                box-shadow: none;
+                border: 1px solid #e2e8f0;
+            }
+
+            canvas {
+                max-width: 100% !important;
+                height: auto !important;
+            }
+        }
+
         .error {
             display: flex;
             flex-direction: column;
@@ -313,8 +343,12 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        table: chartConfig.table,
-                        columns: chartConfig.columns,
+                        model: chartConfig.model,
+                        type: chartConfig.type,
+                        metric: chartConfig.metric,
+                        x_axis: chartConfig.x_axis,
+                        y_axis: chartConfig.y_axis,
+                        aggregation: chartConfig.aggregation || 'sum',
                         filters: currentFilters
                     })
                 });
@@ -325,7 +359,7 @@
                     // Render metric
                     const canvas = document.getElementById(`chart-${chartConfig.id}`);
                     const ctx = canvas.getContext('2d');
-                    const value = data.data[0]?.[chartConfig.value_column] || 0;
+                    const value = data.value || 0;
 
                     canvas.style.display = 'none';
                     canvas.parentElement.innerHTML += `
@@ -341,10 +375,10 @@
                     new Chart(ctx, {
                         type: chartConfig.type,
                         data: {
-                            labels: data.data.map(row => row[chartConfig.x_axis]),
+                            labels: data.labels || [],
                             datasets: [{
                                 label: chartConfig.title,
-                                data: data.data.map(row => row[chartConfig.y_axis]),
+                                data: data.values || [],
                                 backgroundColor: 'rgba(102, 126, 234, 0.2)',
                                 borderColor: 'rgba(102, 126, 234, 1)',
                                 borderWidth: 2
@@ -375,12 +409,49 @@
             loadDashboard();
         }
 
-        function exportPDF() {
-            alert('PDF export functionality would generate a PDF of this dashboard');
+        async function exportPDF() {
+            // Use browser's print functionality
+            window.print();
         }
 
-        function exportData(format) {
-            alert(`${format.toUpperCase()} export functionality would export all data from this dashboard`);
+        async function exportData(format) {
+            try {
+                const dashboardId = new URLSearchParams(window.location.search).get('id') ||
+                                   window.location.pathname.split('/').pop();
+
+                const response = await fetch(`/api/dashboard/${dashboardId}/export`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ format: format })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Export failed: ${response.statusText}`);
+                }
+
+                // Get the filename from the response headers or use a default
+                const contentDisposition = response.headers.get('content-disposition');
+                let filename = `dashboard_${dashboardId}.${format === 'excel' ? 'xlsx' : 'csv'}`;
+                if (contentDisposition) {
+                    const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+                    if (filenameMatch) filename = filenameMatch[1];
+                }
+
+                // Download the file
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+            } catch (error) {
+                console.error('Export error:', error);
+                alert('Failed to export data: ' + error.message);
+            }
         }
     </script>
 </body>
