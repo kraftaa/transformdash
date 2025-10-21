@@ -400,8 +400,13 @@ async def query_data(request: Request):
                 df = pg.query_to_dataframe(query, tuple(params) if params else None)
                 value = df['value'].iloc[0] if len(df) > 0 else 0
 
+                # Handle NaN values
+                import math
+                if value is None or (isinstance(value, float) and math.isnan(value)):
+                    value = 0
+
                 return {
-                    "value": float(value) if value is not None else 0,
+                    "value": float(value),
                     "labels": [],
                     "values": []
                 }
@@ -438,8 +443,13 @@ async def query_data(request: Request):
             df = pg.query_to_dataframe(query, tuple(params) if params else None)
 
             # Convert to chart-friendly format
+            # Replace NaN with None for JSON compatibility
+            import math
             labels = df['label'].astype(str).tolist()
-            values = df['value'].tolist()
+            values = [
+                None if (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) else v
+                for v in df['value'].tolist()
+            ]
 
             return {
                 "labels": labels,
