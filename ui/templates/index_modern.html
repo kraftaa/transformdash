@@ -334,7 +334,7 @@
                         <h1 class="page-title">Charts</h1>
                         <p class="page-subtitle">Create and manage visualizations</p>
                     </div>
-                    <button onclick="toggleChartBuilder()" class="btn btn-primary" id="toggleChartBuilderBtn">
+                    <button onclick="switchView('chart-builder')" class="btn btn-primary" id="toggleChartBuilderBtn">
                         ✨ Create New Chart
                     </button>
                 </div>
@@ -342,11 +342,22 @@
                 <!-- All Charts List -->
                 <div class="section-title">📊 All Charts</div>
                 <div id="all-charts-list" class="charts-grid" style="margin-bottom: 3rem;"></div>
+            </div>
 
-                <!-- Chart Builder Section (Initially Hidden) -->
-                <div id="chart-builder-section" style="display: none; margin-top: 3rem;">
-                    <div class="section-title">✨ Create New Chart</div>
-                    <div style="display: grid; grid-template-columns: 350px 1fr; gap: 1.5rem; margin-bottom: 3rem;">
+            <!-- Chart Builder View (New Full Page View) -->
+            <div id="chart-builder-view" class="view-content">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">✨ Create New Chart</h1>
+                        <p class="page-subtitle">Build custom visualizations from your data</p>
+                    </div>
+                    <button onclick="switchView('charts')" class="btn btn-secondary">
+                        ← Back to Charts
+                    </button>
+                </div>
+
+                <!-- Chart Builder Section -->
+                <div style="display: grid; grid-template-columns: 350px 1fr; gap: 1.5rem; margin-bottom: 3rem;">
                     <!-- Chart Builder Panel -->
                     <div style="background: var(--color-bg-surface); border: 1px solid var(--color-border); padding: 1.5rem; border-radius: var(--radius-lg); overflow-y: auto; max-height: 600px;">
                         <h3 style="margin-bottom: 1.25rem; color: var(--color-text-primary);">📈 Chart Builder</h3>
@@ -372,8 +383,10 @@
                             <select id="chartType" class="input">
                                 <option value="bar">📊 Bar Chart</option>
                                 <option value="line">📈 Line Chart</option>
+                                <option value="bar-stacked">📊 Stacked Bar Chart</option>
                                 <option value="pie">🥧 Pie Chart</option>
                                 <option value="doughnut">🍩 Doughnut Chart</option>
+                                <option value="table">📋 Table</option>
                             </select>
                         </div>
 
@@ -419,12 +432,12 @@
                         </div>
                         <div style="flex: 1; position: relative;">
                             <canvas id="chartCanvas" style="display: none; max-height: 480px;"></canvas>
+                            <div id="chartTableContainer" style="display: none; max-height: 480px; overflow: auto;"></div>
                             <div id="chartPlaceholder" style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--color-text-muted); text-align: center;">
                                 Select options and click "Create Chart" to see preview
                             </div>
                         </div>
                     </div>
-                </div>
                 </div>
             </div>
 

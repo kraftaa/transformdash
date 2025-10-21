@@ -53,6 +53,9 @@ function switchView(viewName) {
         case 'charts':
             loadAllCharts();
             break;
+        case 'chart-builder':
+            // Chart builder view is ready to use
+            break;
         case 'runs':
             loadRuns();
             break;
@@ -1030,7 +1033,7 @@ async function renderDashboardChart(chartConfig, container, filters = {}) {
         }
 
         // Validate required fields for standard charts
-        if (!chartConfig.metrics && chartConfig.type !== 'metric' && (!chartConfig.model || !chartConfig.x_axis || !chartConfig.y_axis)) {
+        if (!chartConfig.metrics && chartConfig.type !== 'metric' && chartConfig.type !== 'table' && (!chartConfig.model || !chartConfig.x_axis || !chartConfig.y_axis)) {
             console.warn('Skipping chart with missing config:', chartConfig.id, chartConfig);
             return;
         }
@@ -1057,6 +1060,16 @@ async function renderDashboardChart(chartConfig, container, filters = {}) {
             desc.style.cssText = 'margin: 0 0 15px 0; color: #666; font-size: 0.85em;';
             desc.textContent = chartConfig.description;
             chartWrapper.appendChild(desc);
+        }
+
+        // Handle table type differently - no canvas needed
+        if (chartConfig.type === 'table') {
+            const tableContainer = document.createElement('div');
+            tableContainer.style.cssText = 'max-height: 400px; overflow: auto;';
+            chartWrapper.appendChild(tableContainer);
+            container.appendChild(chartWrapper);
+            await renderTableChart(tableContainer, chartConfig, filters);
+            return;
         }
 
         // Canvas for chart
@@ -1147,61 +1160,99 @@ async function renderDashboardChart(chartConfig, container, filters = {}) {
         // Check if there's any data
         const hasData = chartData.labels.length > 0 && datasets.some(ds => ds.data && ds.data.length > 0);
 
+        // Determine actual chart type and options
+        let actualChartType = chartConfig.type;
+        let chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: ['pie', 'doughnut'].includes(chartConfig.type) || (chartData.datasets && chartData.datasets.length > 1),
+                    labels: {
+                        color: '#374151',  // Darker gray for better contrast
+                        font: {
+                            size: 12,
+                            weight: '500'
+                        }
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: '#667eea',
+                    borderWidth: 1
+                }
+            },
+            scales: {}
+        };
+
+        // Handle stacked bar chart
+        if (chartConfig.type === 'bar-stacked') {
+            actualChartType = 'bar';
+            chartOptions.scales = {
+                x: {
+                    stacked: true,
+                    ticks: {
+                        color: '#374151',
+                        font: {
+                            size: 11
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#374151',
+                        font: {
+                            size: 11
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                }
+            };
+        } else if (['line', 'bar'].includes(chartConfig.type)) {
+            chartOptions.scales = {
+                x: {
+                    ticks: {
+                        color: '#374151',  // Darker text
+                        font: {
+                            size: 11
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#374151',  // Darker text
+                        font: {
+                            size: 11
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                }
+            };
+        }
+
         // Create Chart.js chart
         new Chart(canvas, {
-            type: chartConfig.type,
+            type: actualChartType,
             data: {
                 labels: chartData.labels,
                 datasets: datasets
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: ['pie', 'doughnut'].includes(chartConfig.type) || (chartData.datasets && chartData.datasets.length > 1),
-                        labels: {
-                            color: '#374151',  // Darker gray for better contrast
-                            font: {
-                                size: 12,
-                                weight: '500'
-                            }
-                        }
-                    },
-                    tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                        titleColor: '#fff',
-                        bodyColor: '#fff',
-                        borderColor: '#667eea',
-                        borderWidth: 1
-                    }
-                },
-                scales: ['line', 'bar'].includes(chartConfig.type) ? {
-                    x: {
-                        ticks: {
-                            color: '#374151',  // Darker text
-                            font: {
-                                size: 11
-                            }
-                        },
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.05)'
-                        }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            color: '#374151',  // Darker text
-                            font: {
-                                size: 11
-                            }
-                        },
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.05)'
-                        }
-                    }
-                } : {}
-            }
+            options: chartOptions
         });
 
         // Add "No data" overlay if chart is empty
@@ -1286,6 +1337,60 @@ async function renderMetricChart(canvas, chartConfig, filters = {}) {
         errorDiv.style.cssText = 'text-align: center; padding: 20px; color: #ef4444;';
         errorDiv.textContent = `Error loading metric: ${error.message}`;
         canvas.parentElement.appendChild(errorDiv);
+    }
+}
+
+// Render table chart type
+async function renderTableChart(container, chartConfig, filters = {}) {
+    try {
+        // Fetch data from API
+        const queryResponse = await fetch('/api/query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                table: chartConfig.model,
+                x_axis: chartConfig.x_axis,
+                y_axis: chartConfig.y_axis,
+                aggregation: chartConfig.aggregation || 'sum',
+                filters: filters
+            })
+        });
+
+        if (!queryResponse.ok) {
+            throw new Error('Failed to fetch table data');
+        }
+
+        const chartData = await queryResponse.json();
+
+        // Check if we have data
+        const hasData = chartData.labels && chartData.labels.length > 0;
+
+        if (!hasData) {
+            container.innerHTML = '<div style="padding: 30px; text-align: center; color: #888;">No data available</div>';
+            return;
+        }
+
+        // Create HTML table
+        let tableHTML = '<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">';
+        tableHTML += '<thead><tr>';
+        tableHTML += `<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--color-border); background: var(--color-bg-secondary); font-weight: 600;">${chartConfig.x_axis}</th>`;
+        tableHTML += `<th style="padding: 0.75rem; text-align: right; border-bottom: 2px solid var(--color-border); background: var(--color-bg-secondary); font-weight: 600;">${chartConfig.aggregation?.toUpperCase() || 'SUM'}(${chartConfig.y_axis})</th>`;
+        tableHTML += '</tr></thead><tbody>';
+
+        for (let i = 0; i < chartData.labels.length; i++) {
+            const rowStyle = i % 2 === 0 ? 'background: #f9fafb;' : '';
+            tableHTML += `<tr style="${rowStyle}">`;
+            tableHTML += `<td style="padding: 0.75rem; border-bottom: 1px solid var(--color-border);">${chartData.labels[i]}</td>`;
+            tableHTML += `<td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid var(--color-border); font-weight: 500;">${chartData.values[i]}</td>`;
+            tableHTML += '</tr>';
+        }
+
+        tableHTML += '</tbody></table>';
+        container.innerHTML = tableHTML;
+
+    } catch (error) {
+        console.error('Error rendering table:', error);
+        container.innerHTML = `<div style="padding: 20px; color: #ef4444; text-align: center;">Error loading table: ${error.message}</div>`;
     }
 }
 
@@ -1509,37 +1614,44 @@ async function createChart() {
 
         const data = await response.json();
 
-        // Hide placeholder, show canvas
+        // Hide all preview containers
         document.getElementById('chartPlaceholder').style.display = 'none';
-        document.getElementById('chartCanvas').style.display = 'block';
+        document.getElementById('chartCanvas').style.display = 'none';
+        document.getElementById('chartTableContainer').style.display = 'none';
 
-        // Destroy existing chart if any
-        if (currentChart) {
-            currentChart.destroy();
-        }
+        // Handle table chart type
+        if (chartType === 'table') {
+            const tableContainer = document.getElementById('chartTableContainer');
+            tableContainer.style.display = 'block';
 
-        // Create new chart
-        const ctx = document.getElementById('chartCanvas').getContext('2d');
-        currentChart = new Chart(ctx, {
-            type: chartType,
-            data: {
-                labels: data.labels,
-                datasets: [{
-                    label: `${aggregation.toUpperCase()}(${yAxis})`,
-                    data: data.values,
-                    backgroundColor: [
-                        'rgba(102, 126, 234, 0.8)',
-                        'rgba(16, 185, 129, 0.8)',
-                        'rgba(245, 158, 11, 0.8)',
-                        'rgba(239, 68, 68, 0.8)',
-                        'rgba(139, 92, 246, 0.8)',
-                        'rgba(236, 72, 153, 0.8)',
-                    ],
-                    borderColor: 'rgba(102, 126, 234, 1)',
-                    borderWidth: 2
-                }]
-            },
-            options: {
+            // Create HTML table
+            let tableHTML = '<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">';
+            tableHTML += '<thead><tr>';
+            tableHTML += `<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--color-border); background: var(--color-bg-secondary); font-weight: 600;">${xAxis}</th>`;
+            tableHTML += `<th style="padding: 0.75rem; text-align: right; border-bottom: 2px solid var(--color-border); background: var(--color-bg-secondary); font-weight: 600;">${aggregation.toUpperCase()}(${yAxis})</th>`;
+            tableHTML += '</tr></thead><tbody>';
+
+            for (let i = 0; i < data.labels.length; i++) {
+                tableHTML += '<tr>';
+                tableHTML += `<td style="padding: 0.75rem; border-bottom: 1px solid var(--color-border);">${data.labels[i]}</td>`;
+                tableHTML += `<td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid var(--color-border); font-weight: 500;">${data.values[i]}</td>`;
+                tableHTML += '</tr>';
+            }
+
+            tableHTML += '</tbody></table>';
+            tableContainer.innerHTML = tableHTML;
+        } else {
+            // Show canvas for chart types
+            document.getElementById('chartCanvas').style.display = 'block';
+
+            // Destroy existing chart if any
+            if (currentChart) {
+                currentChart.destroy();
+            }
+
+            // Determine actual Chart.js type and options
+            let actualChartType = chartType;
+            let chartOptions = {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
@@ -1552,11 +1664,46 @@ async function createChart() {
                         display: chartType === 'pie' || chartType === 'doughnut'
                     }
                 },
-                scales: chartType !== 'pie' && chartType !== 'doughnut' ? {
+                scales: {}
+            };
+
+            // Handle stacked bar chart
+            if (chartType === 'bar-stacked') {
+                actualChartType = 'bar';
+                chartOptions.scales = {
+                    x: { stacked: true },
+                    y: { stacked: true, beginAtZero: true }
+                };
+            } else if (chartType !== 'pie' && chartType !== 'doughnut') {
+                chartOptions.scales = {
                     y: { beginAtZero: true }
-                } : {}
+                };
             }
-        });
+
+            // Create new chart
+            const ctx = document.getElementById('chartCanvas').getContext('2d');
+            currentChart = new Chart(ctx, {
+                type: actualChartType,
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: `${aggregation.toUpperCase()}(${yAxis})`,
+                        data: data.values,
+                        backgroundColor: [
+                            'rgba(102, 126, 234, 0.8)',
+                            'rgba(16, 185, 129, 0.8)',
+                            'rgba(245, 158, 11, 0.8)',
+                            'rgba(239, 68, 68, 0.8)',
+                            'rgba(139, 92, 246, 0.8)',
+                            'rgba(236, 72, 153, 0.8)',
+                        ],
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: chartOptions
+            });
+        }
 
         // Enable save button
         document.getElementById('saveChartBtn').disabled = false;
@@ -1571,7 +1718,7 @@ async function createChart() {
 async function saveChart() {
     const title = document.getElementById('chartTitle').value || 'Chart';
     const table = document.getElementById('chartTable').value;
-    const chartType = document.getElementById('chartType').value;
+    let chartType = document.getElementById('chartType').value;
     const xAxis = document.getElementById('chartXAxis').value;
     const yAxis = document.getElementById('chartYAxis').value;
     const aggregation = document.getElementById('chartAggregation').value;
@@ -1591,6 +1738,12 @@ async function saveChart() {
         // Generate chart ID
         const chartId = `chart_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+        // Convert bar-stacked to bar for storage (with metadata to indicate stacking)
+        let actualType = chartType;
+        if (chartType === 'bar-stacked') {
+            actualType = 'bar';
+        }
+
         // Save chart configuration
         const response = await fetch('/api/charts/save', {
             method: 'POST',
@@ -1598,7 +1751,7 @@ async function saveChart() {
             body: JSON.stringify({
                 id: chartId,
                 title: title,
-                type: chartType,
+                type: chartType,  // Save the original type
                 model: table,
                 x_axis: xAxis,
                 y_axis: yAxis,
