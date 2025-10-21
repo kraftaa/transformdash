@@ -380,7 +380,7 @@
 
                         <div style="margin-bottom: 1rem;">
                             <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Chart Type</label>
-                            <select id="chartType" class="input">
+                            <select id="chartType" onchange="handleChartTypeChange()" class="input">
                                 <option value="bar">📊 Bar Chart</option>
                                 <option value="line">📈 Line Chart</option>
                                 <option value="bar-stacked">📊 Stacked Bar Chart</option>
@@ -390,29 +390,45 @@
                             </select>
                         </div>
 
-                        <div style="margin-bottom: 1rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">X-Axis (Labels)</label>
-                            <select id="chartXAxis" class="input">
-                                <option value="">Select column...</option>
-                            </select>
+                        <!-- Regular Chart Fields (hidden for table type) -->
+                        <div id="regularChartFields">
+                            <div style="margin-bottom: 1rem;">
+                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">X-Axis (Labels)</label>
+                                <select id="chartXAxis" class="input">
+                                    <option value="">Select column...</option>
+                                </select>
+                            </div>
+
+                            <div style="margin-bottom: 1rem;">
+                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Y-Axis (Values)</label>
+                                <select id="chartYAxis" class="input">
+                                    <option value="">Select column...</option>
+                                </select>
+                            </div>
+
+                            <div style="margin-bottom: 1rem;">
+                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Aggregation</label>
+                                <select id="chartAggregation" class="input">
+                                    <option value="sum">SUM</option>
+                                    <option value="avg">AVG</option>
+                                    <option value="count">COUNT</option>
+                                    <option value="min">MIN</option>
+                                    <option value="max">MAX</option>
+                                </select>
+                            </div>
                         </div>
 
-                        <div style="margin-bottom: 1rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Y-Axis (Values)</label>
-                            <select id="chartYAxis" class="input">
-                                <option value="">Select column...</option>
-                            </select>
-                        </div>
-
-                        <div style="margin-bottom: 1rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Aggregation</label>
-                            <select id="chartAggregation" class="input">
-                                <option value="sum">SUM</option>
-                                <option value="avg">AVG</option>
-                                <option value="count">COUNT</option>
-                                <option value="min">MIN</option>
-                                <option value="max">MAX</option>
-                            </select>
+                        <!-- Table Chart Fields (hidden by default) -->
+                        <div id="tableChartFields" style="display: none;">
+                            <div style="margin-bottom: 1rem;">
+                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Select Columns</label>
+                                <div id="tableColumnsContainer" style="max-height: 300px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0.5rem;">
+                                    <p style="color: var(--color-text-muted); font-size: 0.875rem; padding: 1rem;">Select a data source first</p>
+                                </div>
+                            </div>
+                            <button type="button" onclick="addTableColumn()" class="btn btn-secondary" style="width: 100%; margin-bottom: 1rem;">
+                                + Add Column
+                            </button>
                         </div>
 
                         <button onclick="createChart()" class="btn btn-primary" style="width: 100%;">

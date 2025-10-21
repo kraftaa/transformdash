@@ -1538,11 +1538,18 @@ let currentChart = null;
 
 async function loadTableColumns() {
     const table = document.getElementById('chartTable').value;
+    const chartType = document.getElementById('chartType').value;
     if (!table) return;
 
     try {
         const response = await fetch(`/api/tables/${table}/columns`);
         const data = await response.json();
+
+        // Handle table type separately
+        if (chartType === 'table') {
+            loadTableColumnsForBuilder();
+            return;
+        }
 
         const xAxis = document.getElementById('chartXAxis');
         const yAxis = document.getElementById('chartYAxis');
@@ -1568,6 +1575,9 @@ async function loadTableColumns() {
     }
 }
 
+// Global variable to store table columns configuration
+let tableColumns = [];
+
 function toggleChartBuilder() {
     const builderSection = document.getElementById('chart-builder-section');
     const btn = document.getElementById('toggleChartBuilderBtn');
@@ -1585,6 +1595,157 @@ function toggleChartBuilder() {
         btn.classList.remove('btn-secondary');
         btn.classList.add('btn-primary');
     }
+}
+
+// Handle chart type change to show/hide appropriate fields
+function handleChartTypeChange() {
+    const chartType = document.getElementById('chartType').value;
+    const regularFields = document.getElementById('regularChartFields');
+    const tableFields = document.getElementById('tableChartFields');
+
+    if (chartType === 'table') {
+        regularFields.style.display = 'none';
+        tableFields.style.display = 'block';
+        // Load table columns if table is selected
+        const table = document.getElementById('chartTable').value;
+        if (table) {
+            loadTableColumnsForBuilder();
+        }
+    } else {
+        regularFields.style.display = 'block';
+        tableFields.style.display = 'none';
+    }
+}
+
+// Load available columns for table builder
+async function loadTableColumnsForBuilder() {
+    const table = document.getElementById('chartTable').value;
+    if (!table) return;
+
+    try {
+        const response = await fetch(`/api/tables/${table}/columns`);
+        const data = await response.json();
+        const container = document.getElementById('tableColumnsContainer');
+
+        // Clear and reset
+        tableColumns = [];
+        container.innerHTML = '<p style="color: var(--color-text-muted); font-size: 0.875rem; padding: 1rem;">Click "+ Add Column" to add columns to your table</p>';
+    } catch (error) {
+        console.error('Error loading columns:', error);
+    }
+}
+
+// Add a column configuration to the table
+function addTableColumn() {
+    const table = document.getElementById('chartTable').value;
+    if (!table) {
+        document.getElementById('chartError').style.display = 'block';
+        document.getElementById('chartError').textContent = 'Please select a data source first';
+        return;
+    }
+
+    // Fetch columns and show modal
+    fetch(`/api/tables/${table}/columns`)
+        .then(response => response.json())
+        .then(data => {
+            const columnId = 'col_' + Date.now();
+            const column = {
+                id: columnId,
+                field: '',
+                function: 'none',
+                label: ''
+            };
+
+            tableColumns.push(column);
+            renderTableColumns(data.columns);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('chartError').style.display = 'block';
+            document.getElementById('chartError').textContent = 'Error loading columns';
+        });
+}
+
+// Render table columns configuration UI
+function renderTableColumns(availableColumns) {
+    const container = document.getElementById('tableColumnsContainer');
+
+    if (tableColumns.length === 0) {
+        container.innerHTML = '<p style="color: var(--color-text-muted); font-size: 0.875rem; padding: 1rem;">Click "+ Add Column" to add columns to your table</p>';
+        return;
+    }
+
+    let html = '';
+    tableColumns.forEach((col, index) => {
+        html += `
+            <div style="background: var(--color-bg-primary); padding: 0.75rem; margin-bottom: 0.5rem; border-radius: var(--radius-md); border: 1px solid var(--color-border);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <strong style="font-size: 0.875rem; color: var(--color-text-primary);">Column ${index + 1}</strong>
+                    <button onclick="removeTableColumn('${col.id}')" style="background: none; border: none; color: var(--color-error); cursor: pointer; font-size: 1.2rem; padding: 0; margin-left: auto;">×</button>
+                </div>
+                <div style="margin-bottom: 0.5rem;">
+                    <label style="display: block; font-size: 0.75rem; margin-bottom: 0.25rem; color: var(--color-text-muted);">Field</label>
+                    <select onchange="updateTableColumn('${col.id}', 'field', this.value)" class="input" style="font-size: 0.875rem; padding: 0.5rem;">
+                        <option value="">Select field...</option>
+                        <option value="__custom__" ${col.field === '__custom__' ? 'selected' : ''}>Custom SQL Expression</option>
+                        ${availableColumns.map(c => `<option value="${c}" ${col.field === c ? 'selected' : ''}>${c}</option>`).join('')}
+                    </select>
+                </div>
+                ${col.field === '__custom__' ? `
+                <div style="margin-bottom: 0.5rem;">
+                    <label style="display: block; font-size: 0.75rem; margin-bottom: 0.25rem; color: var(--color-text-muted);">SQL Expression</label>
+                    <input type="text" value="${col.sqlExpression || ''}" onchange="updateTableColumn('${col.id}', 'sqlExpression', this.value)" placeholder="e.g., quantity * price" class="input" style="font-size: 0.875rem; padding: 0.5rem; font-family: monospace;">
+                    <div style="font-size: 0.7rem; color: var(--color-text-muted); margin-top: 0.25rem;">Use field names and SQL operators (+, -, *, /, CASE, etc.)</div>
+                </div>
+                ` : ''}
+                ${col.field !== '__custom__' ? `
+                <div style="margin-bottom: 0.5rem;">
+                    <label style="display: block; font-size: 0.75rem; margin-bottom: 0.25rem; color: var(--color-text-muted);">Aggregation Function</label>
+                    <select onchange="updateTableColumn('${col.id}', 'function', this.value)" class="input" style="font-size: 0.875rem; padding: 0.5rem;">
+                        <option value="none" ${col.function === 'none' ? 'selected' : ''}>None (Show values)</option>
+                        <option value="sum" ${col.function === 'sum' ? 'selected' : ''}>SUM</option>
+                        <option value="avg" ${col.function === 'avg' ? 'selected' : ''}>AVG</option>
+                        <option value="count" ${col.function === 'count' ? 'selected' : ''}>COUNT</option>
+                        <option value="min" ${col.function === 'min' ? 'selected' : ''}>MIN</option>
+                        <option value="max" ${col.function === 'max' ? 'selected' : ''}>MAX</option>
+                    </select>
+                </div>
+                ` : ''}
+                <div>
+                    <label style="display: block; font-size: 0.75rem; margin-bottom: 0.25rem; color: var(--color-text-muted);">Column Label</label>
+                    <input type="text" value="${col.label}" onchange="updateTableColumn('${col.id}', 'label', this.value)" placeholder="Auto-generated" class="input" style="font-size: 0.875rem; padding: 0.5rem;">
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+// Update a table column configuration
+function updateTableColumn(columnId, field, value) {
+    const column = tableColumns.find(c => c.id === columnId);
+    if (column) {
+        column[field] = value;
+        // If field selection changes, re-render to show/hide custom SQL or aggregation
+        if (field === 'field') {
+            const table = document.getElementById('chartTable').value;
+            fetch(`/api/tables/${table}/columns`)
+                .then(response => response.json())
+                .then(data => renderTableColumns(data.columns))
+                .catch(error => console.error('Error:', error));
+        }
+    }
+}
+
+// Remove a table column
+function removeTableColumn(columnId) {
+    tableColumns = tableColumns.filter(c => c.id !== columnId);
+    const table = document.getElementById('chartTable').value;
+    fetch(`/api/tables/${table}/columns`)
+        .then(response => response.json())
+        .then(data => renderTableColumns(data.columns))
+        .catch(error => console.error('Error:', error));
 }
 
 async function createChart() {
