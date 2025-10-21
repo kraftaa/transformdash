@@ -3,148 +3,373 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>✨ TransformDash</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>">
+    <title>TransformDash - Data Transformation Platform</title>
+
+    <!-- Modern Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
     <!-- External Libraries -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
     <!-- Styles -->
     <link rel="stylesheet" href="/static/css/styles.css">
-    <link rel="stylesheet" href="/static/css/enhancements.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="header-left">
-                <h1>✨ TransformDash</h1>
-                <p class="subtitle">Hybrid Data Transformation & Dashboard Platform</p>
-                <div class="status-indicator">
-                    <span class="status-dot"></span>
-                    <span id="last-sync">Last synced: <span id="sync-time">Never</span></span>
-                </div>
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <span class="logo-icon">📊</span>
+                <span class="logo-text">TransformDash</span>
             </div>
-            <div class="header-right">
-                <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Toggle Dark Mode">
-                    <span id="theme-icon">🌙</span>
-                </button>
-            </div>
-        </header>
+            <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle Sidebar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 12h18M3 6h18M3 18h18"/>
+                </svg>
+            </button>
+        </div>
 
-        <div class="stats" id="stats">
-            <div class="stat-card">
-                <div class="stat-header">
-                    <div class="stat-label">Total Models</div>
-                    <div class="stat-icon">📦</div>
-                </div>
-                <div class="stat-value" id="total-models">-</div>
-                <div class="stat-delta neutral" id="total-delta">
-                    <span>—</span>
-                </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section">
+                <div class="nav-section-title">Main</div>
+                <a href="#" class="nav-item active" data-view="overview" onclick="switchView('overview')">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                    </svg>
+                    <span class="nav-text">Overview</span>
+                </a>
+                <a href="#" class="nav-item" data-view="dashboards" onclick="switchView('dashboards')">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+                    </svg>
+                    <span class="nav-text">Dashboards</span>
+                    <span class="badge badge-primary">8</span>
+                </a>
+                <a href="#" class="nav-item" data-view="models" onclick="switchView('models')">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                    </svg>
+                    <span class="nav-text">Models</span>
+                </a>
+                <a href="#" class="nav-item" data-view="lineage" onclick="switchView('lineage')">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                        <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"/>
+                    </svg>
+                    <span class="nav-text">Lineage</span>
+                </a>
             </div>
-            <div class="stat-card">
-                <div class="stat-header">
-                    <div class="stat-label">Bronze Layer</div>
-                    <div class="stat-icon">🥉</div>
-                </div>
-                <div class="stat-value" id="bronze-count">-</div>
-                <div class="stat-delta neutral">
-                    <span>Staging</span>
-                </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Analytics</div>
+                <a href="#" class="nav-item" data-view="charts" onclick="switchView('charts')">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
+                    </svg>
+                    <span class="nav-text">Charts</span>
+                </a>
+                <a href="#" class="nav-item" data-view="runs" onclick="switchView('runs')">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                    <span class="nav-text">Run History</span>
+                </a>
             </div>
-            <div class="stat-card">
-                <div class="stat-header">
-                    <div class="stat-label">Silver Layer</div>
-                    <div class="stat-icon">🥈</div>
-                </div>
-                <div class="stat-value" id="silver-count">-</div>
-                <div class="stat-delta neutral">
-                    <span>Intermediate</span>
-                </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Configuration</div>
+                <a href="#" class="nav-item" data-view="settings" onclick="switchView('settings')">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"/>
+                    </svg>
+                    <span class="nav-text">Settings</span>
+                </a>
             </div>
-            <div class="stat-card">
-                <div class="stat-header">
-                    <div class="stat-label">Gold Layer</div>
-                    <div class="stat-icon">🥇</div>
-                </div>
-                <div class="stat-value" id="gold-count">-</div>
-                <div class="stat-delta neutral">
-                    <span>Analytics</span>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-profile">
+                <div class="user-avatar">👤</div>
+                <div class="user-info">
+                    <div class="user-name">Admin User</div>
+                    <div class="user-role">Administrator</div>
                 </div>
             </div>
         </div>
+    </aside>
 
-        <div class="panel" style="grid-column: 1 / -1;">
-            <div class="tabs">
-                <button class="tab active" onclick="switchTab('models')">📋 Models</button>
-                <button class="tab" onclick="switchTab('runs')">📊 Runs</button>
-                <button class="tab" onclick="switchTab('lineage')">🔗 Lineage</button>
-                <button class="tab" onclick="switchTab('dashboards')">✨ Dashboards</button>
-                <button class="tab" onclick="switchTab('charts')">📈 Charts</button>
-            </div>
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Top Bar -->
+        <div class="topbar">
+            <div class="topbar-left">
+                <button class="mobile-menu-btn" onclick="toggleSidebar()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12h18M3 6h18M3 18h18"/>
+                    </svg>
+                </button>
 
-            <!-- Models Tab -->
-            <div id="models-tab" class="tab-content active">
-                <div class="btn-group">
-                    <button class="refresh-btn" onclick="loadModels()">🔄 Refresh</button>
-                    <button class="run-btn" id="runBtn" onclick="runTransformations()">▶️ Run Transformations</button>
+                <!-- Global Search -->
+                <div class="search-container">
+                    <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                    </svg>
+                    <input type="text" id="globalSearch" class="search-input" placeholder="Search models, dashboards, charts..." onkeyup="handleGlobalSearch(event)">
+                    <div class="search-results" id="searchResults"></div>
                 </div>
-                <div id="execution-status" class="execution-status"></div>
-                <div id="models-list" style="margin-top: 20px;"></div>
             </div>
 
-            <!-- Runs Tab -->
-            <div id="runs-tab" class="tab-content">
-                <div class="btn-group">
-                    <button class="refresh-btn" onclick="loadRuns()">🔄 Refresh</button>
+            <div class="topbar-right">
+                <!-- Status Indicator -->
+                <div class="status-widget">
+                    <div class="status-dot pulsing"></div>
+                    <span class="status-text">System Active</span>
                 </div>
-                <div class="runs-filter">
-                    <button class="filter-btn active" onclick="filterRuns('all')">All Runs</button>
-                    <button class="filter-btn" onclick="filterRuns('success')">✅ Success</button>
-                    <button class="filter-btn" onclick="filterRuns('failed')">❌ Failed</button>
-                    <button class="filter-btn" onclick="filterRuns('partial')">⚠️ Partial</button>
+
+                <!-- Theme Toggle -->
+                <button class="icon-button" onclick="toggleDarkMode()" title="Toggle Theme">
+                    <svg id="theme-icon-light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                    </svg>
+                    <svg id="theme-icon-dark" class="hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                </button>
+
+                <!-- Notifications -->
+                <button class="icon-button" onclick="toggleNotifications()" title="Notifications">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                    </svg>
+                    <span class="notification-badge">3</span>
+                </button>
+
+                <!-- Settings -->
+                <button class="icon-button" onclick="openSettings()" title="Settings">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="content-wrapper">
+            <!-- Overview View -->
+            <div id="overview-view" class="view-content active">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">Overview</h1>
+                        <p class="page-subtitle">Monitor your data transformation pipeline</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="runTransformations()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        Run Pipeline
+                    </button>
                 </div>
-                <div id="runs-list" style="margin-top: 20px;"></div>
-            </div>
 
-            <!-- Lineage Tab -->
-            <div id="lineage-tab" class="tab-content">
-                <div id="lineage-graph" style="min-height: 600px;"></div>
-            </div>
+                <!-- Metrics Cards -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <div class="metric-icon bg-blue">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                                </svg>
+                            </div>
+                            <span class="metric-badge badge-success">Active</span>
+                        </div>
+                        <div class="metric-value" id="total-models">—</div>
+                        <div class="metric-label">Total Models</div>
+                        <div class="metric-change positive">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="18 15 12 9 6 15"/>
+                            </svg>
+                            <span>12%</span>
+                        </div>
+                    </div>
 
-            <!-- Dashboards Tab -->
-            <div id="dashboards-tab" class="tab-content">
-                <div id="dashboards-list"></div>
-            </div>
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <div class="metric-icon bg-bronze">
+                                <span style="font-size: 24px;">🥉</span>
+                            </div>
+                        </div>
+                        <div class="metric-value" id="bronze-count">—</div>
+                        <div class="metric-label">Bronze Layer</div>
+                        <div class="metric-sublabel">Staging</div>
+                    </div>
 
-            <!-- Charts Tab -->
-            <div id="charts-tab" class="tab-content">
-                <!-- Existing Charts Section -->
-                <div style="background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
-                    <h3 style="margin-bottom: 15px;">📊 All Charts</h3>
-                    <div id="all-charts-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px;">
-                        <!-- Charts will be loaded here -->
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <div class="metric-icon bg-silver">
+                                <span style="font-size: 24px;">🥈</span>
+                            </div>
+                        </div>
+                        <div class="metric-value" id="silver-count">—</div>
+                        <div class="metric-label">Silver Layer</div>
+                        <div class="metric-sublabel">Intermediate</div>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <div class="metric-icon bg-gold">
+                                <span style="font-size: 24px;">🥇</span>
+                            </div>
+                        </div>
+                        <div class="metric-value" id="gold-count">—</div>
+                        <div class="metric-label">Gold Layer</div>
+                        <div class="metric-sublabel">Analytics Ready</div>
                     </div>
                 </div>
 
-                <!-- Chart Builder Section -->
-                <h3 style="margin: 20px 0 10px 0;">✨ Create New Chart</h3>
-                <div style="display: grid; grid-template-columns: 350px 1fr; gap: 20px; height: 600px;">
-                    <!-- Chart Builder Panel -->
-                    <div style="background: white; padding: 20px; border-radius: 12px; overflow-y: auto;">
-                        <h3 style="margin-bottom: 15px;">📈 Chart Builder</h3>
+                <!-- Quick Actions -->
+                <div class="quick-actions">
+                    <h3 class="section-title">Quick Actions</h3>
+                    <div class="action-cards">
+                        <div class="action-card" onclick="switchView('models')">
+                            <div class="action-icon">📦</div>
+                            <div class="action-title">View Models</div>
+                            <div class="action-subtitle">Explore transformation models</div>
+                        </div>
+                        <div class="action-card" onclick="switchView('dashboards')">
+                            <div class="action-icon">📊</div>
+                            <div class="action-title">Dashboards</div>
+                            <div class="action-subtitle">View analytics dashboards</div>
+                        </div>
+                        <div class="action-card" onclick="switchView('lineage')">
+                            <div class="action-icon">🔗</div>
+                            <div class="action-title">Data Lineage</div>
+                            <div class="action-subtitle">Track dependencies</div>
+                        </div>
+                        <div class="action-card" onclick="switchView('charts')">
+                            <div class="action-icon">📈</div>
+                            <div class="action-title">Create Charts</div>
+                            <div class="action-subtitle">Build visualizations</div>
+                        </div>
+                    </div>
+                </div>
 
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">Chart Title</label>
-                            <input type="text" id="chartTitle" placeholder="My Chart"
-                                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+                <!-- Recent Activity -->
+                <div class="recent-activity">
+                    <div class="section-header">
+                        <h3 class="section-title">Recent Activity</h3>
+                        <a href="#" class="text-link" onclick="switchView('runs')">View all →</a>
+                    </div>
+                    <div id="recent-runs-list"></div>
+                </div>
+            </div>
+
+            <!-- Dashboards View -->
+            <div id="dashboards-view" class="view-content">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">Dashboards</h1>
+                        <p class="page-subtitle">Interactive analytics and reporting</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="createNewDashboard()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                        New Dashboard
+                    </button>
+                </div>
+                <div id="dashboards-list"></div>
+            </div>
+
+            <!-- Models View -->
+            <div id="models-view" class="view-content">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">Models</h1>
+                        <p class="page-subtitle">Data transformation models</p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary" onclick="loadModels()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                            </svg>
+                            Refresh
+                        </button>
+                        <button class="btn btn-primary" id="runBtn" onclick="runTransformations()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="5 3 19 12 5 21 5 3"/>
+                            </svg>
+                            Run All
+                        </button>
+                    </div>
+                </div>
+                <div id="execution-status"></div>
+                <div id="models-list"></div>
+            </div>
+
+            <!-- Lineage View -->
+            <div id="lineage-view" class="view-content">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">Data Lineage</h1>
+                        <p class="page-subtitle">Dependency graph and execution flow</p>
+                    </div>
+                </div>
+                <div id="lineage-graph" class="lineage-container"></div>
+            </div>
+
+            <!-- Charts View -->
+            <div id="charts-view" class="view-content">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">Charts</h1>
+                        <p class="page-subtitle">Create and manage visualizations</p>
+                    </div>
+                    <button onclick="switchView('chart-builder')" class="btn btn-primary" id="toggleChartBuilderBtn">
+                        ✨ Create New Chart
+                    </button>
+                </div>
+
+                <!-- All Charts List -->
+                <div class="section-title">📊 All Charts</div>
+                <div id="all-charts-list" class="charts-grid" style="margin-bottom: 3rem;"></div>
+            </div>
+
+            <!-- Chart Builder View (New Full Page View) -->
+            <div id="chart-builder-view" class="view-content">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">✨ Create New Chart</h1>
+                        <p class="page-subtitle">Build custom visualizations from your data</p>
+                    </div>
+                    <button onclick="switchView('charts')" class="btn btn-secondary">
+                        ← Back to Charts
+                    </button>
+                </div>
+
+                <!-- Chart Builder Section -->
+                <div style="display: grid; grid-template-columns: 350px 1fr; gap: 1.5rem; margin-bottom: 3rem;">
+                    <!-- Chart Builder Panel -->
+                    <div style="background: var(--color-bg-surface); border: 1px solid var(--color-border); padding: 1.5rem; border-radius: var(--radius-lg); overflow-y: auto; max-height: 600px;">
+                        <h3 style="margin-bottom: 1.25rem; color: var(--color-text-primary);">📈 Chart Builder</h3>
+
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Chart Title</label>
+                            <input type="text" id="chartTitle" placeholder="My Chart" class="input">
                         </div>
 
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">Data Source</label>
-                            <select id="chartTable" onchange="loadTableColumns()"
-                                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Data Source</label>
+                            <select id="chartTable" onchange="loadTableColumns()" class="input">
                                 <option value="">Select table...</option>
                                 <option value="fct_orders">fct_orders (Gold Layer)</option>
                                 <option value="int_customer_orders">int_customer_orders (Silver)</option>
@@ -153,118 +378,214 @@
                             </select>
                         </div>
 
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">Chart Type</label>
-                            <select id="chartType"
-                                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Chart Type</label>
+                            <select id="chartType" onchange="handleChartTypeChange()" class="input">
                                 <option value="bar">📊 Bar Chart</option>
                                 <option value="line">📈 Line Chart</option>
+                                <option value="bar-stacked">📊 Stacked Bar Chart</option>
                                 <option value="pie">🥧 Pie Chart</option>
                                 <option value="doughnut">🍩 Doughnut Chart</option>
+                                <option value="table">📋 Table</option>
                             </select>
                         </div>
 
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">X-Axis (Labels)</label>
-                            <select id="chartXAxis"
-                                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
-                                <option value="">Select column...</option>
-                            </select>
+                        <!-- Regular Chart Fields (hidden for table type) -->
+                        <div id="regularChartFields">
+                            <div style="margin-bottom: 1rem;">
+                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">X-Axis (Labels)</label>
+                                <select id="chartXAxis" class="input">
+                                    <option value="">Select column...</option>
+                                </select>
+                            </div>
+
+                            <div style="margin-bottom: 1rem;">
+                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Y-Axis (Values)</label>
+                                <select id="chartYAxis" class="input">
+                                    <option value="">Select column...</option>
+                                </select>
+                            </div>
+
+                            <div style="margin-bottom: 1rem;">
+                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Aggregation</label>
+                                <select id="chartAggregation" class="input">
+                                    <option value="sum">SUM</option>
+                                    <option value="avg">AVG</option>
+                                    <option value="count">COUNT</option>
+                                    <option value="min">MIN</option>
+                                    <option value="max">MAX</option>
+                                </select>
+                            </div>
                         </div>
 
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">Y-Axis (Values)</label>
-                            <select id="chartYAxis"
-                                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
-                                <option value="">Select column...</option>
-                            </select>
+                        <!-- Table Chart Fields (hidden by default) -->
+                        <div id="tableChartFields" style="display: none;">
+                            <div style="margin-bottom: 1rem;">
+                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Select Columns</label>
+                                <div id="tableColumnsContainer" style="max-height: 300px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0.5rem;">
+                                    <p style="color: var(--color-text-muted); font-size: 0.875rem; padding: 1rem;">Select a data source first</p>
+                                </div>
+                            </div>
+                            <button type="button" onclick="addTableColumn()" class="btn btn-secondary" style="width: 100%; margin-bottom: 1rem;">
+                                + Add Column
+                            </button>
                         </div>
 
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">Aggregation</label>
-                            <select id="chartAggregation"
-                                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
-                                <option value="sum">SUM</option>
-                                <option value="avg">AVG</option>
-                                <option value="count">COUNT</option>
-                                <option value="min">MIN</option>
-                                <option value="max">MAX</option>
-                            </select>
-                        </div>
-
-                        <button onclick="createChart()"
-                                style="width: 100%; padding: 12px; background: #667eea; color: white; border: none; border-radius: 8px; font-size: 1em; cursor: pointer; font-weight: bold;">
+                        <button onclick="createChart()" class="btn btn-primary" style="width: 100%;">
                             ✨ Create Chart
                         </button>
 
-                        <div id="chartError" style="margin-top: 15px; padding: 10px; background: #fee; border-radius: 6px; color: #c00; display: none;"></div>
+                        <div id="chartError" style="margin-top: 1rem; padding: 0.75rem; background: var(--color-error-light); border-radius: var(--radius-md); color: var(--color-error-dark); display: none; font-size: 0.875rem;"></div>
                     </div>
 
                     <!-- Chart Preview Panel -->
-                    <div style="background: white; padding: 20px; border-radius: 12px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                            <h3>Preview</h3>
-                            <button onclick="saveChart()" id="saveChartBtn" disabled
-                                    style="padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                    <div style="background: var(--color-bg-surface); border: 1px solid var(--color-border); padding: 1.5rem; border-radius: var(--radius-lg); max-height: 600px; display: flex; flex-direction: column;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h3 style="color: var(--color-text-primary);">Preview</h3>
+                            <button onclick="saveChart()" id="saveChartBtn" disabled class="btn btn-secondary">
                                 💾 Save Chart
                             </button>
                         </div>
-                        <canvas id="chartCanvas" style="max-height: 500px;"></canvas>
-                        <div id="chartPlaceholder" style="display: flex; align-items: center; justify-content: center; height: 400px; color: #999;">
-                            Select options and click "Create Chart" to see preview
+                        <div style="flex: 1; position: relative;">
+                            <canvas id="chartCanvas" style="display: none; max-height: 480px;"></canvas>
+                            <div id="chartTableContainer" style="display: none; max-height: 480px; overflow: auto;"></div>
+                            <div id="chartPlaceholder" style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--color-text-muted); text-align: center;">
+                                Select options and click "Create Chart" to see preview
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Runs View -->
+            <div id="runs-view" class="view-content">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">Run History</h1>
+                        <p class="page-subtitle">Execution logs and performance metrics</p>
+                    </div>
+                    <button class="btn btn-secondary" onclick="loadRuns()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+                <div class="filter-bar">
+                    <button class="filter-chip active" onclick="filterRuns('all')">All</button>
+                    <button class="filter-chip" onclick="filterRuns('success')">✓ Success</button>
+                    <button class="filter-chip" onclick="filterRuns('failed')">✕ Failed</button>
+                    <button class="filter-chip" onclick="filterRuns('partial')">⚠ Partial</button>
+                </div>
+                <div id="runs-list"></div>
+            </div>
+
+            <!-- Settings View -->
+            <div id="settings-view" class="view-content">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">Settings</h1>
+                        <p class="page-subtitle">Configure your workspace</p>
+                    </div>
+                </div>
+                <div class="settings-grid">
+                    <div class="settings-card">
+                        <h3>Branding</h3>
+                        <div class="setting-item">
+                            <label>Application Name</label>
+                            <input type="text" class="input" value="TransformDash" id="app-name">
+                        </div>
+                        <div class="setting-item">
+                            <label>Logo URL</label>
+                            <input type="text" class="input" placeholder="https://..." id="logo-url">
+                        </div>
+                        <div class="setting-item">
+                            <label>Primary Color</label>
+                            <input type="color" class="color-picker" value="#667eea" id="primary-color">
+                        </div>
+                        <button class="btn btn-primary" onclick="saveBranding()">Save Branding</button>
+                    </div>
+
+                    <div class="settings-card">
+                        <h3>Preferences</h3>
+                        <div class="setting-item">
+                            <label class="toggle-label">
+                                <input type="checkbox" class="toggle" id="auto-refresh">
+                                <span>Auto-refresh dashboards</span>
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label class="toggle-label">
+                                <input type="checkbox" class="toggle" id="notifications">
+                                <span>Enable notifications</span>
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label class="toggle-label">
+                                <input type="checkbox" class="toggle" id="animations">
+                                <span>Enable animations</span>
+                            </label>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+    </main>
 
-    <!-- Code Viewer Modal -->
+    <!-- Modals -->
     <div id="codeModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-overlay" onclick="closeModal('codeModal')"></div>
+        <div class="modal-container">
             <div class="modal-header">
                 <h2 id="modalTitle">Model Code</h2>
-                <span class="close" onclick="closeModal('codeModal')">&times;</span>
+                <button class="modal-close" onclick="closeModal('codeModal')">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
             </div>
-            <div class="modal-body">
-                <div id="modalBody"></div>
-            </div>
+            <div class="modal-body" id="modalBody"></div>
         </div>
     </div>
 
-    <!-- Logs Viewer Modal -->
     <div id="logsModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-overlay" onclick="closeModal('logsModal')"></div>
+        <div class="modal-container">
             <div class="modal-header">
                 <h2 id="logsModalTitle">Run Logs</h2>
-                <span class="close" onclick="closeModal('logsModal')">&times;</span>
+                <button class="modal-close" onclick="closeModal('logsModal')">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
             </div>
-            <div class="modal-body">
-                <div id="logsModalBody"></div>
-            </div>
+            <div class="modal-body" id="logsModalBody"></div>
         </div>
     </div>
 
-    <!-- Chart Viewer Modal -->
     <div id="chartModal" class="modal">
-        <div class="modal-content" style="max-width: 900px;">
+        <div class="modal-overlay" onclick="closeModal('chartModal')"></div>
+        <div class="modal-container">
             <div class="modal-header">
                 <h2 id="chartModalTitle">Chart</h2>
-                <span class="close" onclick="closeModal('chartModal')">&times;</span>
+                <button class="modal-close" onclick="closeModal('chartModal')">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
             </div>
-            <div class="modal-body">
-                <div id="chartModalBody" style="min-height: 400px;"></div>
-                <div style="margin-top: 20px; text-align: center;">
-                    <button id="goToDashboardBtn" onclick="goToChartDashboard()"
-                            style="padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1em; font-weight: bold;">
-                        📊 Go to Dashboard
-                    </button>
-                </div>
+            <div class="modal-body" id="chartModalBody"></div>
+            <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid var(--color-border); display: flex; justify-content: flex-end; gap: 0.75rem;">
+                <button class="btn btn-secondary" onclick="closeModal('chartModal')">Close</button>
+                <button class="btn btn-primary" onclick="goToChartDashboard()">Go to Dashboard</button>
             </div>
         </div>
     </div>
 
-    <!-- Application JavaScript -->
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Scripts -->
     <script src="/static/js/app.js"></script>
 </body>
 </html>

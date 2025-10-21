@@ -1,7 +1,211 @@
 /**
- * TransformDash JavaScript
- * Main application logic for dashboard interactivity
+ * TransformDash JavaScript - Modern UI
+ * Main application logic for dashboard interactivity with sidebar navigation
  */
+
+// ============================================
+// SIDEBAR & NAVIGATION FUNCTIONS
+// ============================================
+
+// Toggle Sidebar
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    sidebar.classList.toggle('collapsed');
+    sidebar.classList.toggle('open');
+}
+
+// Switch Between Views
+function switchView(viewName) {
+    // Hide all views
+    document.querySelectorAll('.view-content').forEach(view => {
+        view.classList.remove('active');
+    });
+
+    // Show selected view
+    const targetView = document.getElementById(viewName + '-view');
+    if (targetView) {
+        targetView.classList.add('active');
+    }
+
+    // Update navigation active state
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    const activeNav = document.querySelector(`[data-view="${viewName}"]`);
+    if (activeNav) {
+        activeNav.classList.add('active');
+    }
+
+    // Load content for the view
+    switch(viewName) {
+        case 'overview':
+            loadOverview();
+            break;
+        case 'dashboards':
+            loadDashboards();
+            break;
+        case 'models':
+            loadModels();
+            break;
+        case 'lineage':
+            loadLineageGraph();
+            break;
+        case 'charts':
+            loadAllCharts();
+            break;
+        case 'chart-builder':
+            // Chart builder view is ready to use
+            break;
+        case 'runs':
+            loadRuns();
+            break;
+        case 'settings':
+            // Settings view is static
+            break;
+    }
+}
+
+// Load Overview Data
+async function loadOverview() {
+    await loadModels(); // This will update the metrics
+    loadRecentRuns();
+}
+
+// Load Recent Runs for Overview
+async function loadRecentRuns() {
+    try {
+        const response = await fetch('/api/runs?limit=5');
+        const data = await response.json();
+        const container = document.getElementById('recent-runs-list');
+
+        if (!data.runs || data.runs.length === 0) {
+            container.innerHTML = '<p style="color: #888; padding: 20px;">No recent runs</p>';
+            return;
+        }
+
+        container.innerHTML = data.runs.map(run => `
+            <div class="run-item" style="padding: 12px; border-bottom: 1px solid var(--color-border);">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong>${run.run_id}</strong>
+                        <span class="badge badge-${run.status === 'success' ? 'success' : 'error'}" style="margin-left: 8px;">
+                            ${run.status}
+                        </span>
+                    </div>
+                    <small style="color: #888;">${new Date(run.timestamp).toLocaleString()}</small>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading recent runs:', error);
+    }
+}
+
+// Toggle Notifications
+function toggleNotifications() {
+    alert('Notifications feature coming soon!');
+}
+
+// Open Settings
+function openSettings() {
+    switchView('settings');
+}
+
+// Global Search
+function handleGlobalSearch(event) {
+    const query = event.target.value.toLowerCase();
+    const results = document.getElementById('searchResults');
+
+    if (query.length < 2) {
+        results.classList.remove('active');
+        return;
+    }
+
+    // Search across models, dashboards, charts
+    const searchResults = [];
+
+    // Search models
+    modelsData.forEach(model => {
+        if (model.name.toLowerCase().includes(query)) {
+            searchResults.push({
+                type: 'model',
+                name: model.name,
+                subtitle: model.type
+            });
+        }
+    });
+
+    // Display results
+    if (searchResults.length === 0) {
+        results.innerHTML = '<div style="padding: 12px; color: #888;">No results found</div>';
+    } else {
+        results.innerHTML = searchResults.map(result => `
+            <div class="search-result-item" style="padding: 12px; border-bottom: 1px solid var(--color-border); cursor: pointer;" onclick="goToResult('${result.type}', '${result.name}')">
+                <div style="font-weight: 600;">${result.name}</div>
+                <div style="font-size: 0.85em; color: #888;">${result.subtitle}</div>
+            </div>
+        `).join('');
+    }
+
+    results.classList.add('active');
+}
+
+function goToResult(type, name) {
+    const results = document.getElementById('searchResults');
+    results.classList.remove('active');
+    document.getElementById('globalSearch').value = '';
+
+    if (type === 'model') {
+        switchView('models');
+    }
+}
+
+// Settings Functions
+function saveBranding() {
+    const appName = document.getElementById('app-name').value;
+    const logoUrl = document.getElementById('logo-url').value;
+    const primaryColor = document.getElementById('primary-color').value;
+
+    // Save to localStorage
+    localStorage.setItem('appName', appName);
+    localStorage.setItem('logoUrl', logoUrl);
+    localStorage.setItem('primaryColor', primaryColor);
+
+    // Apply changes
+    if (primaryColor) {
+        document.documentElement.style.setProperty('--color-primary', primaryColor);
+    }
+
+    alert('Branding saved!');
+}
+
+function createNewDashboard() {
+    alert('Dashboard creation feature coming soon!');
+}
+
+function runTransformations() {
+    // Reuse existing function
+    if (typeof window.runTransformations === 'function') {
+        window.runTransformations();
+    }
+}
+
+// ============================================
+// INITIALIZE ON PAGE LOAD
+// ============================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Load overview by default
+    switchView('overview');
+
+    // Close search results when clicking outside
+    document.addEventListener('click', function(event) {
+        const searchContainer = document.querySelector('.search-container');
+        if (searchContainer && !searchContainer.contains(event.target)) {
+            document.getElementById('searchResults')?.classList.remove('active');
+        }
+    });
+});
 
 // Global state
 let modelsData = [];
@@ -12,14 +216,35 @@ let currentFilter = 'all';
 function toggleDarkMode() {
     document.body.classList.toggle('dark-mode');
     const isDark = document.body.classList.contains('dark-mode');
-    document.getElementById('theme-icon').textContent = isDark ? '☀️' : '🌙';
+
+    // Update theme icons
+    const lightIcon = document.getElementById('theme-icon-light');
+    const darkIcon = document.getElementById('theme-icon-dark');
+
+    if (isDark) {
+        lightIcon?.classList.add('hidden');
+        darkIcon?.classList.remove('hidden');
+    } else {
+        lightIcon?.classList.remove('hidden');
+        darkIcon?.classList.add('hidden');
+    }
+
     localStorage.setItem('darkMode', isDark);
 }
 
 // Load dark mode preference on page load
-if (localStorage.getItem('darkMode') === 'true') {
+// Dark mode by default (unless explicitly disabled)
+const darkModeSetting = localStorage.getItem('darkMode');
+if (darkModeSetting === null || darkModeSetting === 'true') {
     document.body.classList.add('dark-mode');
-    document.getElementById('theme-icon').textContent = '☀️';
+    const lightIcon = document.getElementById('theme-icon-light');
+    const darkIcon = document.getElementById('theme-icon-dark');
+    lightIcon?.classList.add('hidden');
+    darkIcon?.classList.remove('hidden');
+    // Set to true if not set yet
+    if (darkModeSetting === null) {
+        localStorage.setItem('darkMode', 'true');
+    }
 }
 
 // Load Models
@@ -28,64 +253,82 @@ async function loadModels() {
         const response = await fetch('/api/models');
         modelsData = await response.json();
 
-        // Update sync time
-        const now = new Date();
-        document.getElementById('sync-time').textContent = now.toLocaleTimeString();
+        // Update stats (these exist in overview)
+        const totalModelsEl = document.getElementById('total-models');
+        const bronzeEl = document.getElementById('bronze-count');
+        const silverEl = document.getElementById('silver-count');
+        const goldEl = document.getElementById('gold-count');
 
-        // Update stats
-        document.getElementById('total-models').textContent = modelsData.length;
-        document.getElementById('bronze-count').textContent =
-            modelsData.filter(m => m.name.startsWith('stg_')).length;
-        document.getElementById('silver-count').textContent =
-            modelsData.filter(m => m.name.startsWith('int_')).length;
-        document.getElementById('gold-count').textContent =
-            modelsData.filter(m => m.name.startsWith('fct_') || m.name.startsWith('dim_')).length;
+        if (totalModelsEl) totalModelsEl.textContent = modelsData.length;
+        if (bronzeEl) bronzeEl.textContent = modelsData.filter(m => m.name.startsWith('stg_')).length;
+        if (silverEl) silverEl.textContent = modelsData.filter(m => m.name.startsWith('int_')).length;
+        if (goldEl) goldEl.textContent = modelsData.filter(m => m.name.startsWith('fct_') || m.name.startsWith('dim_')).length;
 
-        // Display models list
+        // Display models list (if we're in models view)
         const modelsList = document.getElementById('models-list');
+        if (!modelsList) return; // Not in models view
 
         if (modelsData.length === 0) {
             modelsList.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">📦</div>
-                    <h3>No Models Found</h3>
-                    <p>Add SQL or Python transformation models to the models/ directory to get started.</p>
+                <div style="text-align: center; padding: 60px 20px; background: white; border-radius: 12px; border: 1px solid var(--color-border);">
+                    <div style="font-size: 4em; margin-bottom: 20px;">📦</div>
+                    <h3 style="margin-bottom: 10px;">No Models Found</h3>
+                    <p style="color: #888;">Add SQL or Python transformation models to the models/ directory to get started.</p>
                 </div>
             `;
         } else {
             modelsList.innerHTML = modelsData.map(model => {
                 const layer = getModelLayer(model.name);
-                const badge = `<span class="badge badge-${layer}">${layer.toUpperCase()}</span>`;
-                const typeBadge = `<span class="badge badge-sql">${model.type.toUpperCase()}</span>`;
+                const layerColors = {
+                    'bronze': 'background: rgba(205, 127, 50, 0.1); color: #b06727;',
+                    'silver': 'background: rgba(192, 192, 192, 0.2); color: #6b7280;',
+                    'gold': 'background: rgba(255, 215, 0, 0.15); color: #e6c200;'
+                };
 
                 return `
-                    <div class="model-item" onclick="highlightModel('${model.name}')">
-                        <div class="model-name">${model.name}</div>
-                        <div class="model-meta">
-                            ${badge}
-                            ${typeBadge}
-                            ${model.depends_on.length > 0 ?
-                                `<br>Depends on: ${model.depends_on.join(', ')}` :
-                                '<br>No dependencies'}
+                    <div class="model-card" id="model-${model.name}">
+                        <div class="model-card-content" onclick="toggleModelCode('${model.name}')">
+                            <div class="model-info">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <span class="expand-icon" id="expand-model-${model.name}">▶</span>
+                                    <h4 class="model-name">${model.name}</h4>
+                                </div>
+                                <div class="model-badges">
+                                    <span class="badge badge-${layer}">${layer.toUpperCase()}</span>
+                                    <span class="badge badge-type">${model.type.toUpperCase()}</span>
+                                </div>
+                                ${model.depends_on.length > 0 ?
+                                    `<div class="model-dependencies"><strong>Depends on:</strong> ${model.depends_on.join(', ')}</div>` :
+                                    '<div class="model-dependencies">No dependencies</div>'}
+                            </div>
+                        </div>
+                        <div class="model-code-section" id="code-${model.name}" style="display: none;">
+                            <div class="model-code-actions">
+                                <input type="text" class="code-search" id="search-${model.name}" placeholder="Search in code..." onkeyup="searchModelCode('${model.name}')">
+                                <button class="action-btn-small" onclick="copyModelCode('${model.name}')">📋 Copy Code</button>
+                            </div>
+                            <div class="model-code-content" id="content-${model.name}">
+                                <div class="loading">Loading code...</div>
+                            </div>
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
-        // Draw lineage graph
-        drawLineage(modelsData);
-
     } catch (error) {
         console.error('Error loading models:', error);
         const modelsList = document.getElementById('models-list');
-        modelsList.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-state-icon">❌</div>
-                <h3>Failed to Load Models</h3>
-                <p>There was an error loading the transformation models. Please check the console for details.</p>
-            </div>
-        `;
+        if (modelsList) {
+            modelsList.innerHTML = `
+                <div style="text-align: center; padding: 60px 20px; background: #fee; border-radius: 12px; border: 1px solid #fcc;">
+                    <div style="font-size: 4em; margin-bottom: 20px;">❌</div>
+                    <h3 style="margin-bottom: 10px; color: #c00;">Failed to Load Models</h3>
+                    <p style="color: #666;">There was an error loading the transformation models. Check the console for details.</p>
+                    <pre style="margin-top: 20px; padding: 12px; background: white; border-radius: 8px; text-align: left; font-size: 0.85em;">${error.message}</pre>
+                </div>
+            `;
+        }
     }
 }
 
@@ -157,41 +400,146 @@ function drawLineage(models) {
         });
     });
 
-    // Draw links
-    svg.selectAll('.link')
+    // Draw links (adjusted for wider nodes)
+    const nodeHalfWidth = 120;  // Half of nodeWidth (240/2)
+
+    const linkPaths = svg.selectAll('.link')
         .data(links)
         .enter()
         .append('path')
         .attr('class', 'link')
+        .attr('data-source', d => d.source)
+        .attr('data-target', d => d.target)
         .attr('d', d => {
             const source = nodes.find(n => n.id === d.source);
             const target = nodes.find(n => n.id === d.target);
             if (!source || !target) return '';
 
-            return `M ${source.x + 60} ${source.y}
+            return `M ${source.x + nodeHalfWidth} ${source.y}
                     C ${(source.x + target.x) / 2} ${source.y},
                       ${(source.x + target.x) / 2} ${target.y},
-                      ${target.x - 60} ${target.y}`;
-        });
+                      ${target.x - nodeHalfWidth} ${target.y}`;
+        })
+        .style('cursor', 'pointer');
 
-    // Draw nodes
+    // Draw nodes (wider and taller for better readability)
+    const nodeWidth = 240;  // Increased to accommodate longer names
+    const nodeHeight = 56;  // Slightly taller
+    const halfWidth = nodeWidth / 2;
+    const halfHeight = nodeHeight / 2;
+
     const nodeGroups = svg.selectAll('.node')
         .data(nodes)
         .enter()
         .append('g')
         .attr('class', d => `node ${d.layer}`)
-        .attr('transform', d => `translate(${d.x - 60}, ${d.y - 20})`);
+        .attr('transform', d => `translate(${d.x - halfWidth}, ${d.y - halfHeight})`);
 
     nodeGroups.append('rect')
-        .attr('width', 120)
-        .attr('height', 40);
+        .attr('width', nodeWidth)
+        .attr('height', nodeHeight)
+        .attr('rx', 8)
+        .attr('ry', 8);
 
     nodeGroups.append('text')
-        .attr('x', 60)
-        .attr('y', 25)
-        .text(d => d.id.length > 12 ? d.id.substring(0, 10) + '...' : d.id)
+        .attr('x', halfWidth)
+        .attr('y', halfHeight + 5)
+        .text(d => d.id.length > 30 ? d.id.substring(0, 28) + '...' : d.id)  // Show more characters
         .append('title')
         .text(d => d.id);
+
+    // Add click functionality to nodes
+    nodeGroups
+        .style('cursor', 'pointer')
+        .on('click', function(event, d) {
+            viewModelCode(d.id);
+        });
+
+    // Add click and hover functionality to links
+    linkPaths
+        .on('click', function(event, d) {
+            event.stopPropagation();
+            highlightConnection(d.source, d.target, svg);
+        })
+        .on('mouseenter', function(event, d) {
+            // Temporary highlight on hover
+            d3.select(this)
+                .style('stroke', '#667eea')
+                .style('stroke-width', '4px')
+                .style('opacity', '1');
+        })
+        .on('mouseleave', function(event, d) {
+            // Reset hover unless this link is clicked/highlighted
+            const isHighlighted = d3.select(this).classed('highlighted');
+            if (!isHighlighted) {
+                d3.select(this)
+                    .style('stroke', null)
+                    .style('stroke-width', null)
+                    .style('opacity', null);
+            }
+        });
+
+    // Click on background to clear highlights
+    svg.on('click', function(event) {
+        if (event.target === this) {
+            clearLineageHighlights(svg);
+        }
+    });
+}
+
+// Highlight a specific connection in the lineage graph
+function highlightConnection(sourceId, targetId, svg) {
+    // Clear previous highlights
+    clearLineageHighlights(svg);
+
+    // Highlight the clicked link
+    svg.selectAll('.link')
+        .filter(function() {
+            const source = d3.select(this).attr('data-source');
+            const target = d3.select(this).attr('data-target');
+            return source === sourceId && target === targetId;
+        })
+        .classed('highlighted', true)
+        .style('stroke', '#667eea')
+        .style('stroke-width', '4px')
+        .style('opacity', '1');
+
+    // Highlight connected nodes
+    svg.selectAll('.node')
+        .filter(function(d) {
+            return d.id === sourceId || d.id === targetId;
+        })
+        .classed('highlighted', true)
+        .select('rect')
+        .style('stroke', '#667eea')
+        .style('stroke-width', '3px')
+        .style('filter', 'brightness(1.2)');
+
+    // Dim other elements
+    svg.selectAll('.link:not(.highlighted)')
+        .style('opacity', '0.2');
+
+    svg.selectAll('.node:not(.highlighted)')
+        .style('opacity', '0.3');
+}
+
+// Clear all highlights in the lineage graph
+function clearLineageHighlights(svg) {
+    // Reset links
+    svg.selectAll('.link')
+        .classed('highlighted', false)
+        .style('stroke', null)
+        .style('stroke-width', null)
+        .style('opacity', null);
+
+    // Reset nodes
+    svg.selectAll('.node')
+        .classed('highlighted', false)
+        .style('opacity', null)
+        .select('rect')
+        .style('stroke', null)
+        .style('stroke-width', null)
+        .style('filter', null);
 }
 
 // Highlight Model (show code in modal)
@@ -224,6 +572,168 @@ async function highlightModel(modelName) {
     }
 }
 
+// Alias for viewModelCode - calls highlightModel (for lineage graph compatibility)
+function viewModelCode(modelName) {
+    // For lineage graph clicks, open modal
+    highlightModel(modelName);
+}
+
+// Toggle model code inline (for model cards)
+let expandedModels = new Set();
+
+async function toggleModelCode(modelName) {
+    const codeSection = document.getElementById(`code-${modelName}`);
+    const expandIcon = document.getElementById(`expand-model-${modelName}`);
+    const contentDiv = document.getElementById(`content-${modelName}`);
+
+    if (expandedModels.has(modelName)) {
+        // Collapse
+        codeSection.style.display = 'none';
+        expandIcon.textContent = '▶';
+        expandedModels.delete(modelName);
+    } else {
+        // Expand
+        codeSection.style.display = 'block';
+        expandIcon.textContent = '▼';
+        expandedModels.add(modelName);
+
+        // Load code if not already loaded
+        if (contentDiv.innerHTML.includes('Loading code')) {
+            await loadModelCodeInline(modelName);
+        }
+    }
+}
+
+async function loadModelCodeInline(modelName) {
+    const contentDiv = document.getElementById(`content-${modelName}`);
+
+    try {
+        const response = await fetch(`/api/models/${modelName}/code`);
+        const data = await response.json();
+
+        const metaInfo = `
+            <div class="model-meta-info">
+                <div><strong>Type:</strong> ${data.config.materialized || 'view'}</div>
+                <div><strong>Depends on:</strong> ${data.depends_on.length > 0 ? data.depends_on.join(', ') : 'None'}</div>
+                <div><strong>File:</strong> ${data.file_path}</div>
+            </div>
+        `;
+
+        const code = `
+            <pre class="code-block" id="code-block-${modelName}"><code>${escapeHtml(data.code)}</code></pre>
+        `;
+
+        contentDiv.innerHTML = metaInfo + code;
+    } catch (error) {
+        console.error('Error loading model code:', error);
+        contentDiv.innerHTML = '<div class="error-logs">Failed to load model code</div>';
+    }
+}
+
+// Search in model code
+function searchModelCode(modelName) {
+    const searchInput = document.getElementById(`search-${modelName}`);
+    const query = searchInput.value.toLowerCase();
+    const codeBlock = document.getElementById(`code-block-${modelName}`);
+
+    if (!codeBlock) return;
+
+    const code = codeBlock.querySelector('code');
+    if (!code) return;
+
+    // Get original text (stored in data attribute)
+    if (!code.dataset.originalText) {
+        code.dataset.originalText = code.textContent;
+    }
+
+    const originalText = code.dataset.originalText;
+
+    if (!query) {
+        // Reset to original
+        code.innerHTML = escapeHtml(originalText);
+        return;
+    }
+
+    // Highlight matches
+    const lines = originalText.split('\n');
+    const highlightedLines = lines.map(line => {
+        if (line.toLowerCase().includes(query)) {
+            const regex = new RegExp(`(${query})`, 'gi');
+            return escapeHtml(line).replace(regex, '<mark>$1</mark>');
+        }
+        return escapeHtml(line);
+    });
+
+    code.innerHTML = highlightedLines.join('\n');
+}
+
+// Copy model code to clipboard
+async function copyModelCode(modelName) {
+    const codeBlock = document.getElementById(`code-block-${modelName}`);
+    if (!codeBlock) return;
+
+    const code = codeBlock.querySelector('code');
+    if (!code) return;
+
+    const text = code.dataset.originalText || code.textContent;
+
+    try {
+        await navigator.clipboard.writeText(text);
+
+        // Show feedback
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = '✓ Copied!';
+        btn.style.background = 'var(--color-success)';
+        btn.style.color = 'white';
+
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.style.background = '';
+            btn.style.color = '';
+        }, 2000);
+    } catch (error) {
+        console.error('Error copying to clipboard:', error);
+        alert('Failed to copy code');
+    }
+}
+
+// Load Lineage Graph
+async function loadLineageGraph() {
+    try {
+        const response = await fetch('/api/models');
+        const models = await response.json();
+
+        if (models.length === 0) {
+            const container = document.getElementById('lineage-graph');
+            if (container) {
+                container.innerHTML = `
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 400px; color: #888;">
+                        <div style="font-size: 4em; margin-bottom: 20px;">🔗</div>
+                        <h3 style="color: #666;">No Models to Display</h3>
+                        <p>Add models to see their lineage relationships</p>
+                    </div>
+                `;
+            }
+            return;
+        }
+
+        drawLineage(models);
+    } catch (error) {
+        console.error('Error loading lineage graph:', error);
+        const container = document.getElementById('lineage-graph');
+        if (container) {
+            container.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 400px; background: #fee; color: #c00; padding: 20px; border-radius: 12px;">
+                    <div style="font-size: 4em; margin-bottom: 20px;">❌</div>
+                    <h3>Failed to Load Lineage Graph</h3>
+                    <pre style="margin-top: 10px; padding: 10px; background: white; border-radius: 6px;">${error.message}</pre>
+                </div>
+            `;
+        }
+    }
+}
+
 // Close Modal
 function closeModal(modalId) {
     document.getElementById(modalId).style.display = 'none';
@@ -242,7 +752,10 @@ function switchTab(tabName) {
 
     // Update tab content
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-    document.getElementById(`${tabName}-tab`).classList.add('active');
+    const tabContent = document.getElementById(`${tabName}-tab`);
+    if (tabContent) {
+        tabContent.classList.add('active');
+    }
 
     // Load data if needed
     if (tabName === 'runs') {
@@ -295,7 +808,7 @@ async function loadDashboards() {
             headerLeft.onclick = () => toggleDashboard(dashboard.id);
             headerLeft.innerHTML = `
                 <span>📊</span>
-                <span class="dashboard-name">${dashboard.name}</span>
+                <span class="dashboard-name" style="color: #111827 !important;">${dashboard.name}</span>
                 <span class="dashboard-id">${dashboard.charts?.length || 0} charts</span>
             `;
 
@@ -381,6 +894,8 @@ async function toggleDashboard(dashboardId) {
 
         if (!dashboardCard || !chartsContainer || !expandIndicator) {
             console.error('>>> Could not find elements for dashboard:', dashboardId);
+            console.error('>>> Missing elements: card=', !!dashboardCard, 'charts=', !!chartsContainer, 'indicator=', !!expandIndicator);
+            toggleLock.delete(dashboardId);
             return;
         }
 
@@ -397,12 +912,16 @@ async function toggleDashboard(dashboardId) {
             // Show filters
             const filtersContainer = document.getElementById('filters-' + dashboardId);
             if (filtersContainer) {
-                filtersContainer.style.display = 'block';
+                filtersContainer.style.display = 'flex';
                 // Load filters if not already loaded
                 if (filtersContainer.children.length === 0) {
                     await loadDashboardFilters(dashboardId, filtersContainer);
                 }
             }
+
+            // Show charts container and add active class
+            chartsContainer.style.display = 'grid';
+            chartsContainer.classList.add('active');
 
             // Load charts if not already loaded
             if (chartsContainer.children.length === 0) {
@@ -422,6 +941,10 @@ async function toggleDashboard(dashboardId) {
             if (filtersContainer) {
                 filtersContainer.style.display = 'none';
             }
+
+            // Hide charts container
+            chartsContainer.style.display = 'none';
+            chartsContainer.classList.remove('active');
         }
     } finally {
         // Release lock after a short delay
@@ -490,22 +1013,27 @@ async function loadDashboardCharts(dashboardId, container, filters = {}) {
 // Render a single chart from configuration
 async function renderDashboardChart(chartConfig, container, filters = {}) {
     try {
-        // Skip charts with unsupported features (but log them properly)
-        if (chartConfig.metrics || chartConfig.calculation) {
-            console.log('Skipping advanced chart type (requires multi-metric support):', chartConfig.id);
-            // Don't return early, show an info card instead
+        // Skip only calculation-based charts (not multi-metric)
+        if (chartConfig.calculation) {
+            console.log('Skipping calculation chart type:', chartConfig.id);
             const infoCard = document.createElement('div');
             infoCard.style.cssText = 'background: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;';
             infoCard.innerHTML = `
                 <div style="font-weight: bold; color: #92400e; margin-bottom: 5px;">⚠️ ${chartConfig.title}</div>
-                <div style="font-size: 0.85em; color: #78350f;">Advanced chart type - coming soon!</div>
+                <div style="font-size: 0.85em; color: #78350f;">Calculation-based chart - coming soon!</div>
             `;
             container.appendChild(infoCard);
             return;
         }
 
+        // Validate required fields for multi-metric charts
+        if (chartConfig.metrics && (!chartConfig.model || !chartConfig.x_axis)) {
+            console.warn('Skipping multi-metric chart with missing config:', chartConfig.id, chartConfig);
+            return;
+        }
+
         // Validate required fields for standard charts
-        if (chartConfig.type !== 'metric' && (!chartConfig.model || !chartConfig.x_axis || !chartConfig.y_axis)) {
+        if (!chartConfig.metrics && chartConfig.type !== 'metric' && chartConfig.type !== 'table' && (!chartConfig.model || !chartConfig.x_axis || !chartConfig.y_axis)) {
             console.warn('Skipping chart with missing config:', chartConfig.id, chartConfig);
             return;
         }
@@ -534,6 +1062,16 @@ async function renderDashboardChart(chartConfig, container, filters = {}) {
             chartWrapper.appendChild(desc);
         }
 
+        // Handle table type differently - no canvas needed
+        if (chartConfig.type === 'table') {
+            const tableContainer = document.createElement('div');
+            tableContainer.style.cssText = 'max-height: 400px; overflow: auto;';
+            chartWrapper.appendChild(tableContainer);
+            container.appendChild(chartWrapper);
+            await renderTableChart(tableContainer, chartConfig, filters);
+            return;
+        }
+
         // Canvas for chart
         const canvas = document.createElement('canvas');
         canvas.id = 'chart-' + chartConfig.id;
@@ -549,17 +1087,27 @@ async function renderDashboardChart(chartConfig, container, filters = {}) {
             return;
         }
 
-        // Fetch data from API for other chart types
+        // Build query payload
+        const queryPayload = {
+            table: chartConfig.model,
+            type: chartConfig.type,
+            x_axis: chartConfig.x_axis,
+            filters: filters
+        };
+
+        // Handle multi-metric charts
+        if (chartConfig.metrics) {
+            queryPayload.metrics = chartConfig.metrics;
+        } else {
+            queryPayload.y_axis = chartConfig.y_axis;
+            queryPayload.aggregation = chartConfig.aggregation || 'sum';
+        }
+
+        // Fetch data from API
         const queryResponse = await fetch('/api/query', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                table: chartConfig.model,
-                x_axis: chartConfig.x_axis,
-                y_axis: chartConfig.y_axis,
-                aggregation: chartConfig.aggregation || 'sum',
-                filters: filters  // Pass filters to backend
-            })
+            body: JSON.stringify(queryPayload)
         });
 
         if (!queryResponse.ok) {
@@ -569,78 +1117,142 @@ async function renderDashboardChart(chartConfig, container, filters = {}) {
         const chartData = await queryResponse.json();
 
         // Validate response
-        if (!chartData.labels || !chartData.values) {
+        if (!chartData.labels) {
             throw new Error('Invalid chart data received');
         }
 
-        // Check if data is empty
-        const hasData = chartData.labels.length > 0 && chartData.values.length > 0;
+        // Prepare datasets
+        let datasets;
+        if (chartData.datasets) {
+            // Multi-series chart
+            const colorPalette = [
+                { bg: 'rgba(102, 126, 234, 0.2)', border: 'rgba(102, 126, 234, 1)' },
+                { bg: 'rgba(16, 185, 129, 0.2)', border: 'rgba(16, 185, 129, 1)' },
+                { bg: 'rgba(245, 158, 11, 0.2)', border: 'rgba(245, 158, 11, 1)' },
+                { bg: 'rgba(239, 68, 68, 0.2)', border: 'rgba(239, 68, 68, 1)' },
+                { bg: 'rgba(139, 92, 246, 0.2)', border: 'rgba(139, 92, 246, 1)' }
+            ];
 
-        // Get colors
-        const colors = getChartColors(chartConfig, chartData.labels.length || 1);
-
-        // Create Chart.js chart with empty state handling
-        new Chart(canvas, {
-            type: chartConfig.type,
-            data: {
-                labels: chartData.labels,
-                datasets: [{
-                    label: chartConfig.title,
-                    data: chartData.values,
-                    backgroundColor: colors.background,
-                    borderColor: colors.border,
+            datasets = chartData.datasets.map((dataset, index) => {
+                const color = colorPalette[index % colorPalette.length];
+                return {
+                    label: dataset.label,
+                    data: dataset.data,
+                    backgroundColor: color.bg,
+                    borderColor: color.border,
                     borderWidth: 2,
                     tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: ['pie', 'doughnut'].includes(chartConfig.type),
-                        labels: {
-                            color: '#374151',  // Darker gray for better contrast
-                            font: {
-                                size: 12,
-                                weight: '500'
-                            }
+                };
+            });
+        } else {
+            // Single-series chart
+            const colors = getChartColors(chartConfig, chartData.labels.length || 1);
+            datasets = [{
+                label: chartConfig.title,
+                data: chartData.values,
+                backgroundColor: colors.background,
+                borderColor: colors.border,
+                borderWidth: 2,
+                tension: 0.4
+            }];
+        }
+
+        // Check if there's any data
+        const hasData = chartData.labels.length > 0 && datasets.some(ds => ds.data && ds.data.length > 0);
+
+        // Determine actual chart type and options
+        let actualChartType = chartConfig.type;
+        let chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: ['pie', 'doughnut'].includes(chartConfig.type) || (chartData.datasets && chartData.datasets.length > 1),
+                    labels: {
+                        color: '#374151',  // Darker gray for better contrast
+                        font: {
+                            size: 12,
+                            weight: '500'
                         }
-                    },
-                    tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                        titleColor: '#fff',
-                        bodyColor: '#fff',
-                        borderColor: '#667eea',
-                        borderWidth: 1
                     }
                 },
-                scales: ['line', 'bar'].includes(chartConfig.type) ? {
-                    x: {
-                        ticks: {
-                            color: '#374151',  // Darker text
-                            font: {
-                                size: 11
-                            }
-                        },
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.05)'
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: '#667eea',
+                    borderWidth: 1
+                }
+            },
+            scales: {}
+        };
+
+        // Handle stacked bar chart
+        if (chartConfig.type === 'bar-stacked') {
+            actualChartType = 'bar';
+            chartOptions.scales = {
+                x: {
+                    stacked: true,
+                    ticks: {
+                        color: '#374151',
+                        font: {
+                            size: 11
                         }
                     },
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            color: '#374151',  // Darker text
-                            font: {
-                                size: 11
-                            }
-                        },
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.05)'
-                        }
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
                     }
-                } : {}
-            }
+                },
+                y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#374151',
+                        font: {
+                            size: 11
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                }
+            };
+        } else if (['line', 'bar'].includes(chartConfig.type)) {
+            chartOptions.scales = {
+                x: {
+                    ticks: {
+                        color: '#374151',  // Darker text
+                        font: {
+                            size: 11
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#374151',  // Darker text
+                        font: {
+                            size: 11
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                }
+            };
+        }
+
+        // Create Chart.js chart
+        new Chart(canvas, {
+            type: actualChartType,
+            data: {
+                labels: chartData.labels,
+                datasets: datasets
+            },
+            options: chartOptions
         });
 
         // Add "No data" overlay if chart is empty
@@ -725,6 +1337,60 @@ async function renderMetricChart(canvas, chartConfig, filters = {}) {
         errorDiv.style.cssText = 'text-align: center; padding: 20px; color: #ef4444;';
         errorDiv.textContent = `Error loading metric: ${error.message}`;
         canvas.parentElement.appendChild(errorDiv);
+    }
+}
+
+// Render table chart type
+async function renderTableChart(container, chartConfig, filters = {}) {
+    try {
+        // Fetch data from API
+        const queryResponse = await fetch('/api/query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                table: chartConfig.model,
+                x_axis: chartConfig.x_axis,
+                y_axis: chartConfig.y_axis,
+                aggregation: chartConfig.aggregation || 'sum',
+                filters: filters
+            })
+        });
+
+        if (!queryResponse.ok) {
+            throw new Error('Failed to fetch table data');
+        }
+
+        const chartData = await queryResponse.json();
+
+        // Check if we have data
+        const hasData = chartData.labels && chartData.labels.length > 0;
+
+        if (!hasData) {
+            container.innerHTML = '<div style="padding: 30px; text-align: center; color: #888;">No data available</div>';
+            return;
+        }
+
+        // Create HTML table
+        let tableHTML = '<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">';
+        tableHTML += '<thead><tr>';
+        tableHTML += `<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--color-border); background: var(--color-bg-secondary); font-weight: 600;">${chartConfig.x_axis}</th>`;
+        tableHTML += `<th style="padding: 0.75rem; text-align: right; border-bottom: 2px solid var(--color-border); background: var(--color-bg-secondary); font-weight: 600;">${chartConfig.aggregation?.toUpperCase() || 'SUM'}(${chartConfig.y_axis})</th>`;
+        tableHTML += '</tr></thead><tbody>';
+
+        for (let i = 0; i < chartData.labels.length; i++) {
+            const rowStyle = i % 2 === 0 ? 'background: #f9fafb;' : '';
+            tableHTML += `<tr style="${rowStyle}">`;
+            tableHTML += `<td style="padding: 0.75rem; border-bottom: 1px solid var(--color-border);">${chartData.labels[i]}</td>`;
+            tableHTML += `<td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid var(--color-border); font-weight: 500;">${chartData.values[i]}</td>`;
+            tableHTML += '</tr>';
+        }
+
+        tableHTML += '</tbody></table>';
+        container.innerHTML = tableHTML;
+
+    } catch (error) {
+        console.error('Error rendering table:', error);
+        container.innerHTML = `<div style="padding: 20px; color: #ef4444; text-align: center;">Error loading table: ${error.message}</div>`;
     }
 }
 
@@ -815,15 +1481,7 @@ async function loadAllCharts() {
         // Display each chart as a card
         allCharts.forEach(chart => {
             const card = document.createElement('div');
-            card.style.cssText = 'background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;';
-            card.onmouseenter = () => {
-                card.style.transform = 'translateY(-2px)';
-                card.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
-            };
-            card.onmouseleave = () => {
-                card.style.transform = 'translateY(0)';
-                card.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-            };
+            card.className = 'chart-item-card';
 
             // Chart type icon
             const typeIcons = {
@@ -835,12 +1493,12 @@ async function loadAllCharts() {
             };
 
             card.innerHTML = `
-                <div style="font-size: 1.5em; margin-bottom: 8px;">${typeIcons[chart.type] || '📊'}</div>
-                <div style="font-weight: bold; color: #333; margin-bottom: 5px; font-size: 0.95em;">${chart.title}</div>
-                <div style="font-size: 0.75em; color: #666; margin-bottom: 8px;">${chart.dashboardName}</div>
-                <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-                    <span style="background: #e0e7ff; color: #667eea; padding: 3px 8px; border-radius: 4px; font-size: 0.7em;">${chart.type}</span>
-                    <span style="background: #e0f2fe; color: #0284c7; padding: 3px 8px; border-radius: 4px; font-size: 0.7em;">${chart.model}</span>
+                <div class="chart-item-icon">${typeIcons[chart.type] || '📊'}</div>
+                <div class="chart-item-title">${chart.title}</div>
+                <div class="chart-item-dashboard">${chart.dashboardName}</div>
+                <div class="chart-item-badges">
+                    <span class="chart-badge chart-badge-type">${chart.type}</span>
+                    <span class="chart-badge chart-badge-model">${chart.model}</span>
                 </div>
             `;
 
@@ -854,7 +1512,7 @@ async function loadAllCharts() {
 
         // Show total count
         const countDiv = document.createElement('div');
-        countDiv.style.cssText = 'grid-column: 1 / -1; text-align: center; color: #666; font-size: 0.9em; margin-top: 10px;';
+        countDiv.className = 'charts-count';
         countDiv.textContent = `📊 Total: ${allCharts.length} charts across ${data.dashboards.length} dashboards`;
         chartsList.appendChild(countDiv);
 
@@ -880,11 +1538,18 @@ let currentChart = null;
 
 async function loadTableColumns() {
     const table = document.getElementById('chartTable').value;
+    const chartType = document.getElementById('chartType').value;
     if (!table) return;
 
     try {
         const response = await fetch(`/api/tables/${table}/columns`);
         const data = await response.json();
+
+        // Handle table type separately
+        if (chartType === 'table') {
+            loadTableColumnsForBuilder();
+            return;
+        }
 
         const xAxis = document.getElementById('chartXAxis');
         const yAxis = document.getElementById('chartYAxis');
@@ -908,6 +1573,179 @@ async function loadTableColumns() {
     } catch (error) {
         console.error('Error loading columns:', error);
     }
+}
+
+// Global variable to store table columns configuration
+let tableColumns = [];
+
+function toggleChartBuilder() {
+    const builderSection = document.getElementById('chart-builder-section');
+    const btn = document.getElementById('toggleChartBuilderBtn');
+
+    if (builderSection.style.display === 'none') {
+        builderSection.style.display = 'block';
+        btn.textContent = '✖ Close Chart Builder';
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-secondary');
+        // Scroll to chart builder
+        builderSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+        builderSection.style.display = 'none';
+        btn.textContent = '✨ Create New Chart';
+        btn.classList.remove('btn-secondary');
+        btn.classList.add('btn-primary');
+    }
+}
+
+// Handle chart type change to show/hide appropriate fields
+function handleChartTypeChange() {
+    const chartType = document.getElementById('chartType').value;
+    const regularFields = document.getElementById('regularChartFields');
+    const tableFields = document.getElementById('tableChartFields');
+
+    if (chartType === 'table') {
+        regularFields.style.display = 'none';
+        tableFields.style.display = 'block';
+        // Load table columns if table is selected
+        const table = document.getElementById('chartTable').value;
+        if (table) {
+            loadTableColumnsForBuilder();
+        }
+    } else {
+        regularFields.style.display = 'block';
+        tableFields.style.display = 'none';
+    }
+}
+
+// Load available columns for table builder
+async function loadTableColumnsForBuilder() {
+    const table = document.getElementById('chartTable').value;
+    if (!table) return;
+
+    try {
+        const response = await fetch(`/api/tables/${table}/columns`);
+        const data = await response.json();
+        const container = document.getElementById('tableColumnsContainer');
+
+        // Clear and reset
+        tableColumns = [];
+        container.innerHTML = '<p style="color: var(--color-text-muted); font-size: 0.875rem; padding: 1rem;">Click "+ Add Column" to add columns to your table</p>';
+    } catch (error) {
+        console.error('Error loading columns:', error);
+    }
+}
+
+// Add a column configuration to the table
+function addTableColumn() {
+    const table = document.getElementById('chartTable').value;
+    if (!table) {
+        document.getElementById('chartError').style.display = 'block';
+        document.getElementById('chartError').textContent = 'Please select a data source first';
+        return;
+    }
+
+    // Fetch columns and show modal
+    fetch(`/api/tables/${table}/columns`)
+        .then(response => response.json())
+        .then(data => {
+            const columnId = 'col_' + Date.now();
+            const column = {
+                id: columnId,
+                field: '',
+                function: 'none',
+                label: ''
+            };
+
+            tableColumns.push(column);
+            renderTableColumns(data.columns);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('chartError').style.display = 'block';
+            document.getElementById('chartError').textContent = 'Error loading columns';
+        });
+}
+
+// Render table columns configuration UI
+function renderTableColumns(availableColumns) {
+    const container = document.getElementById('tableColumnsContainer');
+
+    if (tableColumns.length === 0) {
+        container.innerHTML = '<p style="color: var(--color-text-muted); font-size: 0.875rem; padding: 1rem;">Click "+ Add Column" to add columns to your table</p>';
+        return;
+    }
+
+    let html = '';
+    tableColumns.forEach((col, index) => {
+        html += `
+            <div style="background: var(--color-bg-primary); padding: 0.75rem; margin-bottom: 0.5rem; border-radius: var(--radius-md); border: 1px solid var(--color-border);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <strong style="font-size: 0.875rem; color: var(--color-text-primary);">Column ${index + 1}</strong>
+                    <button onclick="removeTableColumn('${col.id}')" style="background: none; border: none; color: var(--color-error); cursor: pointer; font-size: 1.2rem; padding: 0; margin-left: auto;">×</button>
+                </div>
+                <div style="margin-bottom: 0.5rem;">
+                    <label style="display: block; font-size: 0.75rem; margin-bottom: 0.25rem; color: var(--color-text-muted);">Field</label>
+                    <select onchange="updateTableColumn('${col.id}', 'field', this.value)" class="input" style="font-size: 0.875rem; padding: 0.5rem;">
+                        <option value="">Select field...</option>
+                        <option value="__custom__" ${col.field === '__custom__' ? 'selected' : ''}>Custom SQL Expression</option>
+                        ${availableColumns.map(c => `<option value="${c}" ${col.field === c ? 'selected' : ''}>${c}</option>`).join('')}
+                    </select>
+                </div>
+                ${col.field === '__custom__' ? `
+                <div style="margin-bottom: 0.5rem;">
+                    <label style="display: block; font-size: 0.75rem; margin-bottom: 0.25rem; color: var(--color-text-muted);">SQL Expression</label>
+                    <input type="text" value="${col.sqlExpression || ''}" onchange="updateTableColumn('${col.id}', 'sqlExpression', this.value)" placeholder="e.g., quantity * price" class="input" style="font-size: 0.875rem; padding: 0.5rem; font-family: monospace;">
+                    <div style="font-size: 0.7rem; color: var(--color-text-muted); margin-top: 0.25rem;">Use field names and SQL operators (+, -, *, /, CASE, etc.)</div>
+                </div>
+                ` : ''}
+                ${col.field !== '__custom__' ? `
+                <div style="margin-bottom: 0.5rem;">
+                    <label style="display: block; font-size: 0.75rem; margin-bottom: 0.25rem; color: var(--color-text-muted);">Aggregation Function</label>
+                    <select onchange="updateTableColumn('${col.id}', 'function', this.value)" class="input" style="font-size: 0.875rem; padding: 0.5rem;">
+                        <option value="none" ${col.function === 'none' ? 'selected' : ''}>None (Show values)</option>
+                        <option value="sum" ${col.function === 'sum' ? 'selected' : ''}>SUM</option>
+                        <option value="avg" ${col.function === 'avg' ? 'selected' : ''}>AVG</option>
+                        <option value="count" ${col.function === 'count' ? 'selected' : ''}>COUNT</option>
+                        <option value="min" ${col.function === 'min' ? 'selected' : ''}>MIN</option>
+                        <option value="max" ${col.function === 'max' ? 'selected' : ''}>MAX</option>
+                    </select>
+                </div>
+                ` : ''}
+                <div>
+                    <label style="display: block; font-size: 0.75rem; margin-bottom: 0.25rem; color: var(--color-text-muted);">Column Label</label>
+                    <input type="text" value="${col.label}" onchange="updateTableColumn('${col.id}', 'label', this.value)" placeholder="Auto-generated" class="input" style="font-size: 0.875rem; padding: 0.5rem;">
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+// Update a table column configuration
+function updateTableColumn(columnId, field, value) {
+    const column = tableColumns.find(c => c.id === columnId);
+    if (column) {
+        column[field] = value;
+        // If field selection changes, re-render to show/hide custom SQL or aggregation
+        if (field === 'field') {
+            const table = document.getElementById('chartTable').value;
+            fetch(`/api/tables/${table}/columns`)
+                .then(response => response.json())
+                .then(data => renderTableColumns(data.columns))
+                .catch(error => console.error('Error:', error));
+        }
+    }
+}
+
+// Remove a table column
+function removeTableColumn(columnId) {
+    tableColumns = tableColumns.filter(c => c.id !== columnId);
+    const table = document.getElementById('chartTable').value;
+    fetch(`/api/tables/${table}/columns`)
+        .then(response => response.json())
+        .then(data => renderTableColumns(data.columns))
+        .catch(error => console.error('Error:', error));
 }
 
 async function createChart() {
@@ -937,37 +1775,44 @@ async function createChart() {
 
         const data = await response.json();
 
-        // Hide placeholder, show canvas
+        // Hide all preview containers
         document.getElementById('chartPlaceholder').style.display = 'none';
-        document.getElementById('chartCanvas').style.display = 'block';
+        document.getElementById('chartCanvas').style.display = 'none';
+        document.getElementById('chartTableContainer').style.display = 'none';
 
-        // Destroy existing chart if any
-        if (currentChart) {
-            currentChart.destroy();
-        }
+        // Handle table chart type
+        if (chartType === 'table') {
+            const tableContainer = document.getElementById('chartTableContainer');
+            tableContainer.style.display = 'block';
 
-        // Create new chart
-        const ctx = document.getElementById('chartCanvas').getContext('2d');
-        currentChart = new Chart(ctx, {
-            type: chartType,
-            data: {
-                labels: data.labels,
-                datasets: [{
-                    label: `${aggregation.toUpperCase()}(${yAxis})`,
-                    data: data.values,
-                    backgroundColor: [
-                        'rgba(102, 126, 234, 0.8)',
-                        'rgba(16, 185, 129, 0.8)',
-                        'rgba(245, 158, 11, 0.8)',
-                        'rgba(239, 68, 68, 0.8)',
-                        'rgba(139, 92, 246, 0.8)',
-                        'rgba(236, 72, 153, 0.8)',
-                    ],
-                    borderColor: 'rgba(102, 126, 234, 1)',
-                    borderWidth: 2
-                }]
-            },
-            options: {
+            // Create HTML table
+            let tableHTML = '<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">';
+            tableHTML += '<thead><tr>';
+            tableHTML += `<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--color-border); background: var(--color-bg-secondary); font-weight: 600;">${xAxis}</th>`;
+            tableHTML += `<th style="padding: 0.75rem; text-align: right; border-bottom: 2px solid var(--color-border); background: var(--color-bg-secondary); font-weight: 600;">${aggregation.toUpperCase()}(${yAxis})</th>`;
+            tableHTML += '</tr></thead><tbody>';
+
+            for (let i = 0; i < data.labels.length; i++) {
+                tableHTML += '<tr>';
+                tableHTML += `<td style="padding: 0.75rem; border-bottom: 1px solid var(--color-border);">${data.labels[i]}</td>`;
+                tableHTML += `<td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid var(--color-border); font-weight: 500;">${data.values[i]}</td>`;
+                tableHTML += '</tr>';
+            }
+
+            tableHTML += '</tbody></table>';
+            tableContainer.innerHTML = tableHTML;
+        } else {
+            // Show canvas for chart types
+            document.getElementById('chartCanvas').style.display = 'block';
+
+            // Destroy existing chart if any
+            if (currentChart) {
+                currentChart.destroy();
+            }
+
+            // Determine actual Chart.js type and options
+            let actualChartType = chartType;
+            let chartOptions = {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
@@ -980,11 +1825,46 @@ async function createChart() {
                         display: chartType === 'pie' || chartType === 'doughnut'
                     }
                 },
-                scales: chartType !== 'pie' && chartType !== 'doughnut' ? {
+                scales: {}
+            };
+
+            // Handle stacked bar chart
+            if (chartType === 'bar-stacked') {
+                actualChartType = 'bar';
+                chartOptions.scales = {
+                    x: { stacked: true },
+                    y: { stacked: true, beginAtZero: true }
+                };
+            } else if (chartType !== 'pie' && chartType !== 'doughnut') {
+                chartOptions.scales = {
                     y: { beginAtZero: true }
-                } : {}
+                };
             }
-        });
+
+            // Create new chart
+            const ctx = document.getElementById('chartCanvas').getContext('2d');
+            currentChart = new Chart(ctx, {
+                type: actualChartType,
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: `${aggregation.toUpperCase()}(${yAxis})`,
+                        data: data.values,
+                        backgroundColor: [
+                            'rgba(102, 126, 234, 0.8)',
+                            'rgba(16, 185, 129, 0.8)',
+                            'rgba(245, 158, 11, 0.8)',
+                            'rgba(239, 68, 68, 0.8)',
+                            'rgba(139, 92, 246, 0.8)',
+                            'rgba(236, 72, 153, 0.8)',
+                        ],
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: chartOptions
+            });
+        }
 
         // Enable save button
         document.getElementById('saveChartBtn').disabled = false;
@@ -996,9 +1876,144 @@ async function createChart() {
     }
 }
 
-function saveChart() {
+async function saveChart() {
     const title = document.getElementById('chartTitle').value || 'Chart';
-    alert(`Chart "${title}" saved!\n\nIn a full implementation, this would save to a charts.yml file that can be loaded into dashboards.`);
+    const table = document.getElementById('chartTable').value;
+    let chartType = document.getElementById('chartType').value;
+    const xAxis = document.getElementById('chartXAxis').value;
+    const yAxis = document.getElementById('chartYAxis').value;
+    const aggregation = document.getElementById('chartAggregation').value;
+
+    // Validation
+    if (!table || !xAxis || !yAxis) {
+        alert('Please fill in all required fields before saving');
+        return;
+    }
+
+    const saveBtn = document.getElementById('saveChartBtn');
+    const originalText = saveBtn.textContent;
+    saveBtn.textContent = '💾 Saving...';
+    saveBtn.disabled = true;
+
+    try {
+        // Generate chart ID
+        const chartId = `chart_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        // Convert bar-stacked to bar for storage (with metadata to indicate stacking)
+        let actualType = chartType;
+        if (chartType === 'bar-stacked') {
+            actualType = 'bar';
+        }
+
+        // Save chart configuration
+        const response = await fetch('/api/charts/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id: chartId,
+                title: title,
+                type: chartType,  // Save the original type
+                model: table,
+                x_axis: xAxis,
+                y_axis: yAxis,
+                aggregation: aggregation
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || `Server error: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (result.success) {
+            saveBtn.textContent = '✓ Saved!';
+            saveBtn.style.background = 'var(--color-success)';
+
+            // Show success modal with options
+            showChartSavedModal(result.dashboard_id, chartId, title);
+
+            setTimeout(() => {
+                saveBtn.textContent = originalText;
+                saveBtn.style.background = '';
+                saveBtn.disabled = false;
+            }, 3000);
+        } else {
+            throw new Error(result.message || 'Failed to save chart');
+        }
+    } catch (error) {
+        console.error('Error saving chart:', error);
+        saveBtn.textContent = '❌ Failed';
+        saveBtn.style.background = 'var(--color-error)';
+
+        setTimeout(() => {
+            saveBtn.textContent = originalText;
+            saveBtn.style.background = '';
+            saveBtn.disabled = false;
+        }, 3000);
+
+        alert('Failed to save chart: ' + error.message);
+    }
+}
+
+function showChartSavedModal(dashboardId, chartId, title) {
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'chart-saved-modal';
+    modal.innerHTML = `
+        <div class="modal-overlay" onclick="closeChartSavedModal()"></div>
+        <div class="modal-container" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>✓ Chart Saved Successfully!</h2>
+                <button class="modal-close" onclick="closeChartSavedModal()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">
+                    Your chart "<strong>${title}</strong>" has been saved to the "Custom Charts" dashboard.
+                </p>
+                <div style="display: flex; gap: 0.75rem; flex-direction: column;">
+                    <button class="btn btn-primary" style="width: 100%;" onclick="viewChartInDashboard('${dashboardId}'); closeChartSavedModal();">
+                        📊 View in Dashboard
+                    </button>
+                    <button class="btn btn-secondary" style="width: 100%;" onclick="closeChartSavedModal();">
+                        Continue Creating Charts
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+function closeChartSavedModal() {
+    const modal = document.getElementById('chart-saved-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+async function viewChartInDashboard(dashboardId) {
+    // Switch to dashboards tab
+    switchTab('dashboards');
+
+    // Wait for dashboards to load
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Expand the dashboard
+    const dashboardCard = document.getElementById('dashboard-' + dashboardId);
+    if (dashboardCard && !dashboardCard.classList.contains('expanded')) {
+        await toggleDashboard(dashboardId);
+    }
+
+    // Scroll to dashboard
+    if (dashboardCard) {
+        dashboardCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
 }
 
 // Runs Management
@@ -1072,9 +2087,10 @@ function displayRuns() {
         const statusBadge = getStatusBadge(status);
 
         return `
-            <div class="run-item ${status}" onclick="viewRunLogs('${run.run_id}')">
-                <div class="run-header">
+            <div class="run-card ${status}">
+                <div class="run-header" onclick="toggleRunDetails('${run.run_id}')">
                     <div style="display: flex; align-items: center; gap: 12px;">
+                        <span class="expand-icon" id="expand-run-${run.run_id}">▶</span>
                         <span class="run-id">${run.run_id}</span>
                         ${statusBadge}
                     </div>
@@ -1085,6 +2101,17 @@ function displayRuns() {
                     <span class="run-stat-item stat-failure">✗ ${run.summary.failures}</span>
                     <span class="run-stat-item stat-neutral">⏱️ ${run.summary.total_execution_time.toFixed(2)}s</span>
                     <span class="run-stat-item stat-neutral">📊 ${successRate}% success</span>
+                </div>
+                <div class="run-details" id="run-details-${run.run_id}" style="display: none;">
+                    <div class="run-details-actions">
+                        <input type="text" class="log-search" id="search-${run.run_id}"
+                               placeholder="Search logs..." onkeyup="searchRunLogs('${run.run_id}')">
+                        <button class="action-btn-small" onclick="printRunLogs('${run.run_id}')">🖨️ Print</button>
+                        <button class="action-btn-small" onclick="saveRunLogs('${run.run_id}')">💾 Save</button>
+                    </div>
+                    <div class="run-logs" id="logs-${run.run_id}">
+                        <div class="loading">Loading logs...</div>
+                    </div>
                 </div>
             </div>
         `;
@@ -1156,6 +2183,124 @@ async function viewRunLogs(runId) {
         console.error('Error loading run logs:', error);
         alert('Failed to load run logs');
     }
+}
+
+// Toggle run details expansion (inline)
+let expandedRuns = new Set();
+
+async function toggleRunDetails(runId) {
+    const detailsDiv = document.getElementById(`run-details-${runId}`);
+    const expandIcon = document.getElementById(`expand-run-${runId}`);
+    const logsDiv = document.getElementById(`logs-${runId}`);
+
+    if (expandedRuns.has(runId)) {
+        // Collapse
+        detailsDiv.style.display = 'none';
+        expandIcon.textContent = '▶';
+        expandedRuns.delete(runId);
+    } else {
+        // Expand
+        detailsDiv.style.display = 'block';
+        expandIcon.textContent = '▼';
+        expandedRuns.add(runId);
+
+        // Load logs if not already loaded
+        if (logsDiv.innerHTML.includes('Loading logs')) {
+            await loadRunLogsInline(runId);
+        }
+    }
+}
+
+async function loadRunLogsInline(runId) {
+    const logsDiv = document.getElementById(`logs-${runId}`);
+
+    try {
+        const response = await fetch(`/api/runs/${runId}`);
+        const data = await response.json();
+
+        const logs = data.logs.map(log => {
+            const levelMatch = log.match(/\[(INFO|SUCCESS|ERROR|WARNING)\]/);
+            const level = levelMatch ? levelMatch[1] : 'INFO';
+            return `<div class="log-entry log-level-${level}" data-log="${escapeHtml(log)}">${escapeHtml(log)}</div>`;
+        }).join('');
+
+        logsDiv.innerHTML = logs || '<div class="empty-logs">No logs available</div>';
+    } catch (error) {
+        console.error('Error loading run logs:', error);
+        logsDiv.innerHTML = '<div class="error-logs">Failed to load logs</div>';
+    }
+}
+
+// Search run logs
+function searchRunLogs(runId) {
+    const searchInput = document.getElementById(`search-${runId}`);
+    const query = searchInput.value.toLowerCase();
+    const logsDiv = document.getElementById(`logs-${runId}`);
+    const logEntries = logsDiv.querySelectorAll('.log-entry');
+
+    logEntries.forEach(entry => {
+        const text = entry.textContent.toLowerCase();
+        if (!query || text.includes(query)) {
+            entry.style.display = '';
+            if (query) {
+                // Highlight matched text
+                const originalText = entry.getAttribute('data-log');
+                const regex = new RegExp(`(${query})`, 'gi');
+                entry.innerHTML = originalText.replace(regex, '<mark>$1</mark>');
+            }
+        } else {
+            entry.style.display = 'none';
+        }
+    });
+}
+
+// Print run logs
+function printRunLogs(runId) {
+    const logsDiv = document.getElementById(`logs-${runId}`);
+    const logEntries = Array.from(logsDiv.querySelectorAll('.log-entry:not([style*="display: none"])'));
+
+    const printWindow = window.open('', '', 'width=800,height=600');
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Run Logs - ${runId}</title>
+            <style>
+                body { font-family: 'Courier New', monospace; padding: 20px; }
+                h1 { font-size: 18px; margin-bottom: 20px; }
+                .log-entry { padding: 4px 0; white-space: pre-wrap; }
+                .log-level-ERROR { color: #dc2626; }
+                .log-level-SUCCESS { color: #16a34a; }
+                .log-level-WARNING { color: #ea580c; }
+                @media print {
+                    body { margin: 0; padding: 15px; }
+                }
+            </style>
+        </head>
+        <body>
+            <h1>Run Logs - ${runId}</h1>
+            ${logEntries.map(e => `<div class="log-entry ${e.className}">${e.textContent}</div>`).join('')}
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+}
+
+// Save run logs
+function saveRunLogs(runId) {
+    const logsDiv = document.getElementById(`logs-${runId}`);
+    const logEntries = Array.from(logsDiv.querySelectorAll('.log-entry:not([style*="display: none"])'));
+    const logsText = logEntries.map(e => e.textContent).join('\n');
+
+    const blob = new Blob([logsText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${runId}-logs.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
 function escapeHtml(text) {
@@ -1268,21 +2413,31 @@ async function showChartModal(chart) {
         if (chart.type === 'metric') {
             await renderMetricChart(canvas, chart);
         } else {
-            // Skip unsupported chart types
-            if (chart.metrics || chart.calculation) {
-                throw new Error('This chart type requires additional features not yet implemented');
+            // Skip only calculation-based charts
+            if (chart.calculation) {
+                throw new Error('Calculation-based charts not yet implemented');
+            }
+
+            // Build query payload
+            const queryPayload = {
+                table: chart.model,
+                type: chart.type,
+                x_axis: chart.x_axis
+            };
+
+            // Handle multi-metric charts
+            if (chart.metrics) {
+                queryPayload.metrics = chart.metrics;
+            } else {
+                queryPayload.y_axis = chart.y_axis;
+                queryPayload.aggregation = chart.aggregation || 'sum';
             }
 
             // Fetch data
             const queryResponse = await fetch('/api/query', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    table: chart.model,
-                    x_axis: chart.x_axis,
-                    y_axis: chart.y_axis,
-                    aggregation: chart.aggregation || 'sum'
-                })
+                body: JSON.stringify(queryPayload)
             });
 
             if (!queryResponse.ok) {
@@ -1291,26 +2446,52 @@ async function showChartModal(chart) {
 
             const chartData = await queryResponse.json();
 
-            if (!chartData.labels || !chartData.values) {
+            if (!chartData.labels) {
                 throw new Error('Invalid chart data received');
             }
 
-            // Get colors
-            const colors = getChartColors(chart, chartData.labels.length);
+            // Prepare datasets
+            let datasets;
+            if (chartData.datasets) {
+                // Multi-series chart
+                const colorPalette = [
+                    { bg: 'rgba(102, 126, 234, 0.2)', border: 'rgba(102, 126, 234, 1)' },
+                    { bg: 'rgba(16, 185, 129, 0.2)', border: 'rgba(16, 185, 129, 1)' },
+                    { bg: 'rgba(245, 158, 11, 0.2)', border: 'rgba(245, 158, 11, 1)' },
+                    { bg: 'rgba(239, 68, 68, 0.2)', border: 'rgba(239, 68, 68, 1)' },
+                    { bg: 'rgba(139, 92, 246, 0.2)', border: 'rgba(139, 92, 246, 1)' }
+                ];
+
+                datasets = chartData.datasets.map((dataset, index) => {
+                    const color = colorPalette[index % colorPalette.length];
+                    return {
+                        label: dataset.label,
+                        data: dataset.data,
+                        backgroundColor: color.bg,
+                        borderColor: color.border,
+                        borderWidth: 2,
+                        tension: 0.4
+                    };
+                });
+            } else {
+                // Single-series chart
+                const colors = getChartColors(chart, chartData.labels.length);
+                datasets = [{
+                    label: chart.title,
+                    data: chartData.values,
+                    backgroundColor: colors.background,
+                    borderColor: colors.border,
+                    borderWidth: 2,
+                    tension: 0.4
+                }];
+            }
 
             // Create Chart.js chart
             new Chart(canvas, {
                 type: chart.type,
                 data: {
                     labels: chartData.labels,
-                    datasets: [{
-                        label: chart.title,
-                        data: chartData.values,
-                        backgroundColor: colors.background,
-                        borderColor: colors.border,
-                        borderWidth: 2,
-                        tension: 0.4
-                    }]
+                    datasets: datasets
                 },
                 options: {
                     responsive: true,
@@ -1367,84 +2548,14 @@ async function goToChartDashboard() {
     console.log('=== goToChartDashboard START ===');
     console.log('Dashboard ID:', dashboardId);
 
-    // Add a lock to prevent toggle while we're navigating
-    toggleLock.add(dashboardId);
-    console.log('Lock added for:', dashboardId);
-
     // Close modal
     closeModal('chartModal');
     console.log('Modal closed');
 
-    // Switch to dashboards tab
-    switchTab('dashboards');
-    console.log('Switched to dashboards tab');
-
-    // Wait for dashboards to load
-    await new Promise(resolve => setTimeout(resolve, 300));
-    console.log('Waited for dashboards to load');
-
-    // Find and scroll to the specific dashboard
-    const dashboardCard = document.getElementById('dashboard-' + dashboardId);
-    console.log('Found dashboard card:', dashboardCard ? 'YES' : 'NO');
-
-    if (dashboardCard) {
-        dashboardCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        console.log('Scrolling to dashboard');
-
-        // Wait for scroll to complete
-        await new Promise(resolve => setTimeout(resolve, 500));
-        console.log('Scroll complete');
-
-        // Ensure the dashboard is expanded (don't toggle if already expanded)
-        const chartsContainer = document.getElementById('charts-' + dashboardId);
-        const expandIndicator = document.getElementById('expand-' + dashboardId);
-
-        console.log('Charts container found:', chartsContainer ? 'YES' : 'NO');
-        console.log('Expand indicator found:', expandIndicator ? 'YES' : 'NO');
-
-        if (dashboardCard && chartsContainer) {
-            // Only expand if currently collapsed
-            const isExpanded = dashboardCard.classList.contains('expanded');
-            console.log('Is currently expanded:', isExpanded);
-            console.log('Container children count:', chartsContainer.children.length);
-
-            if (!isExpanded) {
-                console.log('Expanding dashboard from modal navigation');
-                dashboardCard.classList.add('expanded');
-                console.log('Added expanded class to dashboard card');
-
-                if (expandIndicator) expandIndicator.textContent = '▲';
-
-                // Load charts if not already loaded
-                if (chartsContainer.children.length === 0) {
-                    console.log('Container empty, loading charts...');
-                    await loadDashboardCharts(dashboardId, chartsContainer);
-                    console.log('Charts loaded, container now has', chartsContainer.children.length, 'children');
-                } else {
-                    console.log('Container already has', chartsContainer.children.length, 'children');
-                }
-
-                // Verify state after loading
-                console.log('After loading - is expanded:', dashboardCard.classList.contains('expanded'));
-                console.log('After loading - container children:', chartsContainer.children.length);
-            } else {
-                console.log('Dashboard already expanded, keeping it open');
-            }
-        }
-
-        // Keep lock for a bit longer to prevent accidental toggles
-        setTimeout(() => {
-            toggleLock.delete(dashboardId);
-            const stillExpanded = dashboardCard.classList.contains('expanded');
-            console.log('Released lock for dashboard:', dashboardId);
-            console.log('Dashboard still expanded after lock release:', stillExpanded);
-            console.log('=== goToChartDashboard END ===');
-        }, 1000);
-    } else {
-        // Release lock if dashboard not found
-        toggleLock.delete(dashboardId);
-        console.log('Dashboard not found, lock released');
-    }
+    // Navigate to the dashboard detail page
+    window.location.href = `/dashboard/${dashboardId}`;
+    console.log('Navigating to dashboard detail page:', dashboardId);
+    console.log('=== goToChartDashboard END ===');
 }
 
 // Close modal when clicking outside
@@ -1629,17 +2740,9 @@ let fullscreenState = {
 };
 
 async function openDashboardInTab(dashboardId) {
-    const dashboardCard = document.getElementById('dashboard-' + dashboardId);
-    if (!dashboardCard) return;
-
-    // Ensure dashboard is expanded first
-    if (!dashboardCard.classList.contains('expanded')) {
-        await toggleDashboard(dashboardId);
-        await new Promise(resolve => setTimeout(resolve, 500));
-    }
-
-    // Enter fullscreen mode
-    enterFullscreenMode(dashboardId);
+    // Open dashboard in a new browser tab
+    const url = `/dashboard/${dashboardId}`;
+    window.open(url, '_blank');
 }
 
 function enterFullscreenMode(dashboardId) {
@@ -1805,6 +2908,21 @@ async function exportDashboardPDF(dashboardId) {
         const headerRight = clone.querySelector('.dashboard-header > div:last-child');
         if (headerRight) headerRight.remove();
 
+        // Convert canvas charts to images
+        const originalCanvases = dashboardCard.querySelectorAll('canvas');
+        const clonedCanvases = clone.querySelectorAll('canvas');
+
+        originalCanvases.forEach((originalCanvas, index) => {
+            if (clonedCanvases[index]) {
+                const clonedCanvas = clonedCanvases[index];
+                const image = document.createElement('img');
+                image.src = originalCanvas.toDataURL('image/png');
+                image.style.maxWidth = '100%';
+                image.style.height = 'auto';
+                clonedCanvas.parentNode.replaceChild(image, clonedCanvas);
+            }
+        });
+
         printContainer.appendChild(clone);
         document.body.appendChild(printContainer);
 
@@ -1834,6 +2952,26 @@ async function exportDashboardPDF(dashboardId) {
                 }
                 .dashboard-filters {
                     display: none !important;
+                }
+                .chart-container img {
+                    max-width: 100% !important;
+                    height: auto !important;
+                    page-break-inside: avoid;
+                }
+                .chart-card {
+                    page-break-inside: avoid;
+                    margin-bottom: 20px;
+                }
+                .metric-card {
+                    page-break-inside: avoid;
+                }
+                .metric-value {
+                    color: #000 !important;
+                    font-size: 2rem !important;
+                    font-weight: bold !important;
+                }
+                .metric-label {
+                    color: #333 !important;
                 }
             }
         `;

@@ -38,12 +38,6 @@ async def root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-@app.get("/modern", response_class=HTMLResponse)
-async def modern_dashboard(request: Request):
-    """Serve the modern UI dashboard (work in progress)"""
-    return templates.TemplateResponse("index_modern.html", {"request": request})
-
-
 @app.get("/dashboard/{dashboard_id}", response_class=HTMLResponse)
 async def dashboard_view(request: Request, dashboard_id: str):
     """Serve an individual dashboard in full-page view"""
