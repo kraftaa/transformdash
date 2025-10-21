@@ -11,8 +11,8 @@ long_description = (this_directory / "README.md").read_text()
 setup(
     name="transformdash",
     version="1.0.0",
-    author="Maria Kraft",
-    author_email="your.email@example.com",  # Update with your email
+    author="Maria Dubyaga",
+    author_email="kraftaa@gmail.com",
     description="A modern, dbt-inspired data transformation platform",
     long_description=long_description,
     long_description_content_type="text/markdown",
