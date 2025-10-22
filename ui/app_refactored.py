@@ -392,6 +392,85 @@ async def add_chart_to_dashboard(dashboard_id: str, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/dashboards/{dashboard_id}")
+async def get_dashboard(dashboard_id: str):
+    """Get a specific dashboard by ID"""
+    try:
+        import yaml
+
+        dashboards_file = models_dir / "dashboards.yml"
+
+        if not dashboards_file.exists():
+            raise HTTPException(status_code=404, detail="Dashboards file not found")
+
+        # Load dashboards
+        with open(dashboards_file, 'r') as f:
+            data = yaml.safe_load(f) or {}
+
+        # Find the specific dashboard
+        for dashboard in data.get('dashboards', []):
+            if dashboard.get('id') == dashboard_id:
+                return dashboard
+
+        raise HTTPException(status_code=404, detail=f"Dashboard {dashboard_id} not found")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        import traceback
+        logging.error(f"Error getting dashboard: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/dashboards/{dashboard_id}")
+async def update_dashboard(dashboard_id: str, request: Request):
+    """Update a dashboard with new chart configuration"""
+    try:
+        import yaml
+        import logging
+
+        body = await request.json()
+        new_charts = body.get("charts", [])
+
+        dashboards_file = models_dir / "dashboards.yml"
+
+        if not dashboards_file.exists():
+            raise HTTPException(status_code=404, detail="Dashboards file not found")
+
+        # Load dashboards
+        with open(dashboards_file, 'r') as f:
+            data = yaml.safe_load(f) or {}
+
+        # Find target dashboard
+        target_dashboard = None
+        for dashboard in data.get('dashboards', []):
+            if dashboard.get('id') == dashboard_id:
+                target_dashboard = dashboard
+                break
+
+        if not target_dashboard:
+            raise HTTPException(status_code=404, detail=f"Dashboard {dashboard_id} not found")
+
+        # Update charts in the dashboard
+        target_dashboard['charts'] = new_charts
+
+        # Save back to file
+        with open(dashboards_file, 'w') as f:
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+        return {
+            "success": True,
+            "message": f"Dashboard '{target_dashboard.get('name', dashboard_id)}' updated successfully!"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error updating dashboard: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/tables/{table_name}/columns")
 async def get_table_columns(table_name: str):
     """Get columns for a specific table"""

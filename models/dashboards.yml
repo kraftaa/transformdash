@@ -49,6 +49,16 @@ dashboards:
     aggregation: count
     description: Monthly order volume showing seasonality
     color_scheme: blue
+  - id: orders-by-status
+    title: Order Status Distribution
+    model: fct_orders
+    type: pie
+    x_axis: status
+    y_axis: order_id
+    aggregation: count
+    description: Current status of all orders
+    dashboardName: Orders Analytics Dashboard
+    dashboardId: orders-analytics
 - id: orders-analytics
   name: Orders Analytics Dashboard
   description: Deep dive into order patterns and performance

@@ -2112,3 +2112,164 @@ body.dark-mode .chart-badge-model {
 .mt-4 { margin-top: var(--space-4); }
 .mt-6 { margin-top: var(--space-6); }
 .mt-8 { margin-top: var(--space-8); }
+
+/* ============================================
+   DASHBOARD EDITOR STYLES
+   ============================================ */
+
+.dashboard-editor-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-4);
+    min-height: 300px;
+}
+
+.editor-chart-card {
+    background: var(--color-bg-surface);
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    cursor: move;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.editor-chart-card:hover {
+    border-color: var(--color-primary);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    transform: translateY(-2px);
+}
+
+.editor-chart-card.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.editor-chart-card.drag-over {
+    border-color: var(--color-success);
+    background: var(--color-success-light);
+}
+
+.editor-chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-3);
+}
+
+.editor-chart-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    line-height: 1.4;
+    flex: 1;
+}
+
+.editor-chart-remove {
+    background: var(--color-error);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    margin-left: var(--space-2);
+}
+
+.editor-chart-remove:hover {
+    background: var(--color-error-dark);
+    transform: scale(1.1);
+}
+
+.editor-chart-info {
+    font-size: 0.8125rem;
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-2);
+}
+
+.editor-chart-type {
+    display: inline-block;
+    padding: 2px 8px;
+    background: var(--color-info-light);
+    color: var(--color-info);
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.available-chart-item {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.available-chart-item:hover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-light);
+    transform: translateX(4px);
+}
+
+.available-chart-item:active {
+    transform: translateX(4px) scale(0.98);
+}
+
+.available-chart-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: var(--space-1);
+}
+
+.available-chart-type {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+}
+
+.empty-editor-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: var(--space-8);
+    color: var(--color-text-secondary);
+}
+
+.empty-editor-icon {
+    font-size: 3rem;
+    margin-bottom: var(--space-4);
+    opacity: 0.3;
+}
+
+.empty-editor-text {
+    font-size: 1rem;
+    margin-bottom: var(--space-2);
+}
+
+/* Dark Mode Support */
+body.dark-mode .editor-chart-card {
+    background: var(--color-bg-elevated);
+    border-color: var(--color-border);
+}
+
+body.dark-mode .editor-chart-card:hover {
+    border-color: var(--color-primary-light);
+}
+
+body.dark-mode .available-chart-item {
+    background: var(--color-bg-elevated);
+    border-color: var(--color-border);
+}
+
+body.dark-mode .available-chart-item:hover {
+    border-color: var(--color-primary-light);
+    background: rgba(102, 126, 234, 0.1);
+}

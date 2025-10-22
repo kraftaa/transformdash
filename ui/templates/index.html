@@ -336,6 +336,50 @@
                 <div id="dashboards-list"></div>
             </div>
 
+            <!-- Dashboard Editor View -->
+            <div id="dashboard-editor-view" class="view-content" style="display: none;">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title" id="editor-dashboard-name">Edit Dashboard</h1>
+                        <p class="page-subtitle">Arrange charts and customize layout</p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary" onclick="cancelDashboardEdit()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 6L6 18M6 6l12 12"/>
+                            </svg>
+                            Cancel
+                        </button>
+                        <button class="btn btn-primary" onclick="saveDashboardEdit()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                                <polyline points="17 21 17 13 7 13 7 21"/>
+                                <polyline points="7 3 7 8 15 8"/>
+                            </svg>
+                            Save Changes
+                        </button>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 300px; gap: var(--space-6); height: calc(100vh - 200px);">
+                    <!-- Chart Canvas -->
+                    <div class="card" style="padding: var(--space-6); overflow-y: auto;">
+                        <h3 style="margin-bottom: var(--space-4); color: var(--text-secondary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Dashboard Layout</h3>
+                        <div id="editor-chart-grid" class="dashboard-editor-grid">
+                            <!-- Charts will be added here dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Available Charts Sidebar -->
+                    <div class="card" style="padding: var(--space-6); overflow-y: auto;">
+                        <h3 style="margin-bottom: var(--space-4); color: var(--text-secondary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Available Charts</h3>
+                        <div id="available-charts-list">
+                            <!-- Available charts will be listed here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Models View -->
             <div id="models-view" class="view-content">
                 <div class="page-header">

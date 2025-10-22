@@ -171,28 +171,18 @@ async function loadDataFreshness() {
 // Load Table Stats (Total Rows)
 async function loadTableStats() {
     try {
-        // Query to get approximate total rows from all tables in gold schema
-        const response = await fetch('/api/query', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                query: `
-                    SELECT SUM(n_live_tup)::bigint as total_rows
-                    FROM pg_stat_user_tables
-                    WHERE schemaname IN ('gold', 'silver', 'bronze', 'raw')
-                `
-            })
-        });
-
+        // Use a stats endpoint or calculate from models
+        const response = await fetch('/api/models');
         const data = await response.json();
         const totalRowsEl = document.getElementById('total-rows');
 
-        if (data.data && data.data.length > 0 && data.data[0].total_rows) {
-            const totalRows = parseInt(data.data[0].total_rows);
-            // Format with commas
-            totalRowsEl.textContent = totalRows.toLocaleString();
+        // For now, just show the number of models as a placeholder
+        // In a real implementation, you'd query actual row counts
+        if (data.models) {
+            const modelCount = data.models.length;
+            totalRowsEl.textContent = `${modelCount} models`;
         } else {
-            totalRowsEl.textContent = '0';
+            totalRowsEl.textContent = '—';
         }
     } catch (error) {
         console.error('Error loading table stats:', error);
@@ -1036,75 +1026,348 @@ function closeModal(modalId) {
     document.getElementById(modalId).style.display = 'none';
 }
 
-// Edit Dashboard - Add Charts
-let currentEditingDashboardId = null;
+// Dashboard Editor - Full Page Editor with Drag & Drop
+let editorState = {
+    dashboardId: null,
+    dashboardName: null,
+    currentCharts: [],
+    availableCharts: [],
+    draggedIndex: null
+};
 
-async function openEditDashboardModal(dashboardId, dashboardName) {
-    currentEditingDashboardId = dashboardId;
-    document.getElementById('editDashboardModalTitle').textContent = `Edit Dashboard: ${dashboardName}`;
+async function openDashboardEditor(dashboardId, dashboardName) {
+    // Initialize editor state
+    editorState.dashboardId = dashboardId;
+    editorState.dashboardName = dashboardName;
 
-    // Fetch all available charts
+    // Set dashboard name in header
+    document.getElementById('editor-dashboard-name').textContent = `Edit: ${dashboardName}`;
+
+    // Hide all views and show editor
+    document.querySelectorAll('.view-content').forEach(view => {
+        view.classList.remove('active');
+        view.style.display = 'none';
+    });
+
+    const editorView = document.getElementById('dashboard-editor-view');
+    editorView.style.display = 'block';
+    editorView.classList.add('active');
+
+    // Load dashboard and charts data
+    await loadEditorData();
+}
+
+async function loadEditorData() {
     try {
-        const response = await fetch('/api/charts');
-        const data = await response.json();
+        // Load current dashboard charts
+        const dashboardResponse = await fetch(`/api/dashboards/${editorState.dashboardId}`);
+        const dashboardData = await dashboardResponse.json();
+        editorState.currentCharts = dashboardData.charts || [];
 
-        const chartsList = document.getElementById('availableChartsList');
-        chartsList.innerHTML = '';
+        // Load all available charts
+        const chartsResponse = await fetch('/api/charts');
+        const chartsData = await chartsResponse.json();
+        editorState.availableCharts = chartsData.charts || [];
 
-        if (data.charts.length === 0) {
-            chartsList.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 2rem;">No charts available. Create charts first in the Charts view.</p>';
-        } else {
-            data.charts.forEach(chart => {
-                const chartCard = document.createElement('div');
-                chartCard.style.cssText = 'padding: 1rem; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center; background: white;';
-
-                chartCard.innerHTML = `
-                    <div>
-                        <div style="font-weight: 600; color: #111827; margin-bottom: 0.25rem;">${chart.title || chart.id}</div>
-                        <div style="font-size: 0.875rem; color: #6b7280;">
-                            ${chart.type} • ${chart.model} • ${chart.x_axis} vs ${chart.y_axis}
-                            ${chart.dashboardName ? `<br/>Current: ${chart.dashboardName}` : ''}
-                        </div>
-                    </div>
-                    <button class="btn btn-primary btn-sm" onclick="addChartToDashboard('${chart.id}', '${dashboardId}')" style="white-space: nowrap;">
-                        Add to Dashboard
-                    </button>
-                `;
-
-                chartsList.appendChild(chartCard);
-            });
-        }
-
-        document.getElementById('editDashboardModal').style.display = 'flex';
+        // Render the editor
+        renderEditorCharts();
+        renderAvailableCharts();
     } catch (error) {
-        console.error('Error loading charts:', error);
-        showToast('Failed to load charts', 'error');
+        console.error('Error loading editor data:', error);
+        showToast('Failed to load editor data', 'error');
     }
 }
 
-async function addChartToDashboard(chartId, dashboardId) {
+function renderEditorCharts() {
+    const grid = document.getElementById('editor-chart-grid');
+    grid.innerHTML = '';
+
+    if (editorState.currentCharts.length === 0) {
+        grid.innerHTML = `
+            <div class="empty-editor-state">
+                <div class="empty-editor-icon">📊</div>
+                <div class="empty-editor-text">No charts in this dashboard yet</div>
+                <div style="font-size: 0.875rem; color: var(--color-text-secondary);">Add charts from the sidebar</div>
+            </div>
+        `;
+        return;
+    }
+
+    editorState.currentCharts.forEach((chart, index) => {
+        const chartCard = document.createElement('div');
+        chartCard.className = 'editor-chart-card';
+        chartCard.draggable = true;
+        chartCard.dataset.index = index;
+
+        chartCard.innerHTML = `
+            <div class="editor-chart-header">
+                <div class="editor-chart-title">${chart.title || chart.id}</div>
+                <button class="editor-chart-remove" onclick="removeChartFromEditor(${index})" title="Remove chart">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="editor-chart-info">Model: ${chart.model}</div>
+            <div class="editor-chart-info">${chart.x_axis} vs ${chart.y_axis} (${chart.aggregation || 'count'})</div>
+            <span class="editor-chart-type">${chart.type}</span>
+        `;
+
+        // Add drag event listeners
+        chartCard.addEventListener('dragstart', handleDragStart);
+        chartCard.addEventListener('dragend', handleDragEnd);
+        chartCard.addEventListener('dragover', handleDragOver);
+        chartCard.addEventListener('drop', handleDrop);
+        chartCard.addEventListener('dragenter', handleDragEnter);
+        chartCard.addEventListener('dragleave', handleDragLeave);
+
+        grid.appendChild(chartCard);
+    });
+}
+
+function renderAvailableCharts() {
+    const list = document.getElementById('available-charts-list');
+    list.innerHTML = '';
+
+    // Filter out charts already in dashboard
+    const currentChartIds = editorState.currentCharts.map(c => c.id);
+    const availableCharts = editorState.availableCharts.filter(c => !currentChartIds.includes(c.id));
+
+    if (availableCharts.length === 0) {
+        list.innerHTML = '<p style="color: var(--color-text-secondary); font-size: 0.875rem; text-align: center; padding: 1rem;">All charts are in use</p>';
+        return;
+    }
+
+    availableCharts.forEach((chart, index) => {
+        const item = document.createElement('div');
+        item.className = 'available-chart-item';
+        item.onclick = () => addChartToEditor(chart);
+
+        // Create a unique canvas ID for this chart preview
+        const canvasId = `preview-chart-${index}`;
+
+        item.innerHTML = `
+            <div class="available-chart-name">${chart.title || chart.id}</div>
+            <div class="available-chart-preview" style="height: 120px; margin: 8px 0; position: relative;">
+                <canvas id="${canvasId}"></canvas>
+            </div>
+            <div class="available-chart-type">${chart.type} • ${chart.model}</div>
+        `;
+
+        list.appendChild(item);
+
+        // Render mini preview chart after the element is in the DOM
+        // Use requestAnimationFrame to ensure DOM is ready and prevent blocking
+        requestAnimationFrame(() => {
+            renderChartPreview(canvasId, chart).catch(err => {
+                console.error(`Failed to render preview for ${chart.id}:`, err);
+                // Show a placeholder on error
+                const canvas = document.getElementById(canvasId);
+                if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    ctx.font = '12px sans-serif';
+                    ctx.fillStyle = '#999';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Preview unavailable', canvas.width / 2, canvas.height / 2);
+                }
+            });
+        });
+    });
+}
+
+// Render a mini preview of the chart
+async function renderChartPreview(canvasId, chartConfig) {
     try {
-        const response = await fetch(`/api/dashboards/${dashboardId}/charts/add`, {
+        // Check if canvas still exists
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) {
+            console.warn(`Canvas ${canvasId} not found`);
+            return;
+        }
+
+        // Fetch chart data
+        const queryPayload = {
+            table: chartConfig.model,
+            x_axis: chartConfig.x_axis,
+            y_axis: chartConfig.y_axis,
+            aggregation: chartConfig.aggregation || 'count'
+        };
+
+        const response = await fetch('/api/query', {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(queryPayload)
+        });
+
+        // Check if response is OK
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Validate data
+        if (!data || !data.data || data.data.length === 0) {
+            console.warn(`No data for chart ${chartConfig.id}`);
+            return;
+        }
+
+        // Check if canvas still exists after async operation
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) {
+            console.warn(`Canvas ${canvasId} removed during fetch`);
+            return;
+        }
+
+        // Prepare data for Chart.js
+        const labels = data.data.map(row => row.label || row[chartConfig.x_axis]);
+        const values = data.data.map(row => row.value || row[chartConfig.y_axis]);
+
+        // Create mini chart
+        new Chart(ctx, {
+            type: chartConfig.type === 'doughnut' ? 'doughnut' : chartConfig.type,
+            data: {
+                labels: labels.slice(0, 5), // Show only first 5 items for preview
+                datasets: [{
+                    data: values.slice(0, 5),
+                    backgroundColor: [
+                        'rgba(102, 126, 234, 0.8)',
+                        'rgba(118, 75, 162, 0.8)',
+                        'rgba(237, 100, 166, 0.8)',
+                        'rgba(255, 154, 158, 0.8)',
+                        'rgba(250, 208, 196, 0.8)'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: false }
+                },
+                scales: chartConfig.type === 'pie' || chartConfig.type === 'doughnut' ? {} : {
+                    x: { display: false },
+                    y: { display: false }
+                },
+                animation: false // Disable animation for previews
+            }
+        });
+    } catch (error) {
+        console.error(`Error rendering chart preview for ${chartConfig.id}:`, error);
+        // Don't throw - just log and continue
+    }
+}
+
+function addChartToEditor(chart) {
+    editorState.currentCharts.push(chart);
+    renderEditorCharts();
+    renderAvailableCharts();
+    showToast(`Added "${chart.title || chart.id}" to dashboard`, 'success');
+}
+
+function removeChartFromEditor(index) {
+    const chart = editorState.currentCharts[index];
+    editorState.currentCharts.splice(index, 1);
+    renderEditorCharts();
+    renderAvailableCharts();
+    showToast(`Removed "${chart.title || chart.id}" from dashboard`, 'info');
+}
+
+// Drag and Drop handlers
+function handleDragStart(e) {
+    editorState.draggedIndex = parseInt(e.target.dataset.index);
+    e.target.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragEnd(e) {
+    e.target.classList.remove('dragging');
+    document.querySelectorAll('.editor-chart-card').forEach(card => {
+        card.classList.remove('drag-over');
+    });
+}
+
+function handleDragOver(e) {
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+    e.dataTransfer.dropEffect = 'move';
+    return false;
+}
+
+function handleDragEnter(e) {
+    if (e.target.classList.contains('editor-chart-card')) {
+        e.target.classList.add('drag-over');
+    }
+}
+
+function handleDragLeave(e) {
+    if (e.target.classList.contains('editor-chart-card')) {
+        e.target.classList.remove('drag-over');
+    }
+}
+
+function handleDrop(e) {
+    if (e.stopPropagation) {
+        e.stopPropagation();
+    }
+
+    const targetIndex = parseInt(e.target.closest('.editor-chart-card').dataset.index);
+
+    if (editorState.draggedIndex !== targetIndex) {
+        // Reorder charts array
+        const draggedChart = editorState.currentCharts[editorState.draggedIndex];
+        editorState.currentCharts.splice(editorState.draggedIndex, 1);
+        editorState.currentCharts.splice(targetIndex, 0, draggedChart);
+
+        renderEditorCharts();
+        showToast('Chart reordered', 'info');
+    }
+
+    return false;
+}
+
+async function saveDashboardEdit() {
+    try {
+        const response = await fetch(`/api/dashboards/${editorState.dashboardId}`, {
+            method: 'PUT',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({chart_id: chartId})
+            body: JSON.stringify({
+                charts: editorState.currentCharts
+            })
         });
 
         const result = await response.json();
 
-        if (result.success) {
-            showToast(result.message, 'success');
-            // Reload dashboards to show the new chart
+        if (response.ok) {
+            showToast('Dashboard saved successfully', 'success');
+            // Return to dashboards view
             setTimeout(() => {
-                loadDashboards();
-            }, 500);
+                cancelDashboardEdit();
+            }, 800);
         } else {
-            showToast(result.message, 'warning');
+            showToast(result.message || 'Failed to save dashboard', 'error');
         }
     } catch (error) {
-        console.error('Error adding chart to dashboard:', error);
-        showToast('Failed to add chart to dashboard', 'error');
+        console.error('Error saving dashboard:', error);
+        showToast('Failed to save dashboard', 'error');
     }
+}
+
+function cancelDashboardEdit() {
+    // Clear editor state
+    editorState = {
+        dashboardId: null,
+        dashboardName: null,
+        currentCharts: [],
+        availableCharts: [],
+        draggedIndex: null
+    };
+
+    // Use switchView to properly navigate back to dashboards
+    switchView('dashboards');
 }
 
 // Switch Tabs
@@ -1184,7 +1447,7 @@ async function loadDashboards() {
             const headerRight = document.createElement('div');
             headerRight.style.cssText = 'display: flex; gap: 8px; align-items: center;';
             headerRight.innerHTML = `
-                <button class="icon-btn" onclick="event.stopPropagation(); openEditDashboardModal('${dashboard.id}', '${dashboard.name}')" title="Edit Dashboard - Add Charts">
+                <button class="icon-btn" onclick="event.stopPropagation(); openDashboardEditor('${dashboard.id}', '${dashboard.name}')" title="Edit Dashboard">
                     ✏️
                 </button>
                 <button class="icon-btn" onclick="event.stopPropagation(); openDashboardInTab('${dashboard.id}')" title="Open in new tab">
