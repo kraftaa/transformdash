@@ -68,7 +68,101 @@ function switchView(viewName) {
 // Load Overview Data
 async function loadOverview() {
     await loadModels(); // This will update the metrics
+    await loadDashboardsAndChartsCount();
     loadRecentRuns();
+    loadDataFreshness();
+    loadTableStats();
+}
+
+// Load Dashboards and Charts Count
+async function loadDashboardsAndChartsCount() {
+    try {
+        // Load dashboards
+        const dashboardsResponse = await fetch('/api/dashboards');
+        const dashboardsData = await dashboardsResponse.json();
+        const totalDashboards = dashboardsData.dashboards ? dashboardsData.dashboards.length : 0;
+        document.getElementById('total-dashboards').textContent = totalDashboards;
+
+        // Count total charts across all dashboards
+        let totalCharts = 0;
+        if (dashboardsData.dashboards) {
+            dashboardsData.dashboards.forEach(dashboard => {
+                if (dashboard.charts) {
+                    totalCharts += dashboard.charts.length;
+                }
+            });
+        }
+        document.getElementById('total-charts').textContent = totalCharts;
+    } catch (error) {
+        console.error('Error loading dashboards/charts count:', error);
+        document.getElementById('total-dashboards').textContent = '0';
+        document.getElementById('total-charts').textContent = '0';
+    }
+}
+
+// Load Data Freshness (Last Run Time)
+async function loadDataFreshness() {
+    try {
+        const response = await fetch('/api/runs?limit=1');
+        const data = await response.json();
+        const lastRunEl = document.getElementById('last-run-time');
+
+        if (data.runs && data.runs.length > 0) {
+            const lastRun = new Date(data.runs[0].timestamp);
+            const now = new Date();
+            const diffMs = now - lastRun;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+
+            if (diffMins < 1) {
+                lastRunEl.textContent = 'Just now';
+            } else if (diffMins < 60) {
+                lastRunEl.textContent = `${diffMins}m ago`;
+            } else if (diffHours < 24) {
+                lastRunEl.textContent = `${diffHours}h ago`;
+            } else {
+                lastRunEl.textContent = `${diffDays}d ago`;
+            }
+        } else {
+            lastRunEl.textContent = 'Never';
+        }
+    } catch (error) {
+        console.error('Error loading data freshness:', error);
+        document.getElementById('last-run-time').textContent = 'Unknown';
+    }
+}
+
+// Load Table Stats (Total Rows)
+async function loadTableStats() {
+    try {
+        // Query to get approximate total rows from all tables in gold schema
+        const response = await fetch('/api/query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                query: `
+                    SELECT SUM(n_live_tup)::bigint as total_rows
+                    FROM pg_stat_user_tables
+                    WHERE schemaname IN ('gold', 'silver', 'bronze', 'raw')
+                `
+            })
+        });
+
+        const data = await response.json();
+        const totalRowsEl = document.getElementById('total-rows');
+
+        if (data.data && data.data.length > 0 && data.data[0].total_rows) {
+            const totalRows = parseInt(data.data[0].total_rows);
+            // Format with commas
+            totalRowsEl.textContent = totalRows.toLocaleString();
+        } else {
+            totalRowsEl.textContent = '0';
+        }
+    } catch (error) {
+        console.error('Error loading table stats:', error);
+        document.getElementById('total-rows').textContent = '—';
+    }
 }
 
 // Load Recent Runs for Overview
@@ -83,19 +177,26 @@ async function loadRecentRuns() {
             return;
         }
 
-        container.innerHTML = data.runs.map(run => `
-            <div class="run-item" style="padding: 12px; border-bottom: 1px solid var(--color-border);">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <strong>${run.run_id}</strong>
-                        <span class="badge badge-${run.status === 'success' ? 'success' : 'error'}" style="margin-left: 8px;">
-                            ${run.status}
-                        </span>
+        container.innerHTML = data.runs.map(run => {
+            const status = run.status || 'completed';
+            const badgeClass = status === 'success' || status === 'completed' ? 'success' :
+                              status === 'error' || status === 'failed' ? 'error' : 'info';
+            const timestamp = run.timestamp ? new Date(run.timestamp).toLocaleString() : 'Unknown time';
+
+            return `
+                <div class="run-item" style="padding: 12px; border-bottom: 1px solid var(--color-border); cursor: pointer;" onclick="switchView('runs')">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong style="color: var(--color-text-primary);">${run.run_id}</strong>
+                            <span class="badge badge-${badgeClass}" style="margin-left: 8px; font-size: 0.75rem;">
+                                ${status}
+                            </span>
+                        </div>
+                        <small style="color: #888; font-size: 0.8rem;">${timestamp}</small>
                     </div>
-                    <small style="color: #888;">${new Date(run.timestamp).toLocaleString()}</small>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     } catch (error) {
         console.error('Error loading recent runs:', error);
     }
@@ -248,6 +349,8 @@ if (darkModeSetting === null || darkModeSetting === 'true') {
 }
 
 // Load Models
+let currentModelFilter = null; // Track current filter
+
 async function loadModels() {
     try {
         const response = await fetch('/api/models');
@@ -265,56 +368,7 @@ async function loadModels() {
         if (goldEl) goldEl.textContent = modelsData.filter(m => m.name.startsWith('fct_') || m.name.startsWith('dim_')).length;
 
         // Display models list (if we're in models view)
-        const modelsList = document.getElementById('models-list');
-        if (!modelsList) return; // Not in models view
-
-        if (modelsData.length === 0) {
-            modelsList.innerHTML = `
-                <div style="text-align: center; padding: 60px 20px; background: white; border-radius: 12px; border: 1px solid var(--color-border);">
-                    <div style="font-size: 4em; margin-bottom: 20px;">📦</div>
-                    <h3 style="margin-bottom: 10px;">No Models Found</h3>
-                    <p style="color: #888;">Add SQL or Python transformation models to the models/ directory to get started.</p>
-                </div>
-            `;
-        } else {
-            modelsList.innerHTML = modelsData.map(model => {
-                const layer = getModelLayer(model.name);
-                const layerColors = {
-                    'bronze': 'background: rgba(205, 127, 50, 0.1); color: #b06727;',
-                    'silver': 'background: rgba(192, 192, 192, 0.2); color: #6b7280;',
-                    'gold': 'background: rgba(255, 215, 0, 0.15); color: #e6c200;'
-                };
-
-                return `
-                    <div class="model-card" id="model-${model.name}">
-                        <div class="model-card-content" onclick="toggleModelCode('${model.name}')">
-                            <div class="model-info">
-                                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <span class="expand-icon" id="expand-model-${model.name}">▶</span>
-                                    <h4 class="model-name">${model.name}</h4>
-                                </div>
-                                <div class="model-badges">
-                                    <span class="badge badge-${layer}">${layer.toUpperCase()}</span>
-                                    <span class="badge badge-type">${model.type.toUpperCase()}</span>
-                                </div>
-                                ${model.depends_on.length > 0 ?
-                                    `<div class="model-dependencies"><strong>Depends on:</strong> ${model.depends_on.join(', ')}</div>` :
-                                    '<div class="model-dependencies">No dependencies</div>'}
-                            </div>
-                        </div>
-                        <div class="model-code-section" id="code-${model.name}" style="display: none;">
-                            <div class="model-code-actions">
-                                <input type="text" class="code-search" id="search-${model.name}" placeholder="Search in code..." onkeyup="searchModelCode('${model.name}')">
-                                <button class="action-btn-small" onclick="copyModelCode('${model.name}')">📋 Copy Code</button>
-                            </div>
-                            <div class="model-code-content" id="content-${model.name}">
-                                <div class="loading">Loading code...</div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
+        displayModels(modelsData, currentModelFilter);
 
     } catch (error) {
         console.error('Error loading models:', error);
@@ -330,6 +384,214 @@ async function loadModels() {
             `;
         }
     }
+}
+
+function filterModelsByLayer(layer) {
+    currentModelFilter = layer;
+    setTimeout(() => displayModels(modelsData, layer), 100);
+}
+
+// Find which dashboards/charts use a specific model
+async function findModelUsage(modelName) {
+    try {
+        const response = await fetch('/api/dashboards');
+        const data = await response.json();
+        const usage = [];
+
+        if (data.dashboards) {
+            data.dashboards.forEach(dashboard => {
+                if (dashboard.charts) {
+                    dashboard.charts.forEach(chart => {
+                        // Check if the chart uses this model
+                        if (chart.model === modelName || chart.model === `gold.${modelName}` ||
+                            chart.model === `silver.${modelName}` || chart.model === `bronze.${modelName}` ||
+                            chart.model === `raw.${modelName}`) {
+                            usage.push({
+                                dashboardId: dashboard.id,
+                                dashboardName: dashboard.name,
+                                chartId: chart.id,
+                                chartTitle: chart.title
+                            });
+                        }
+                    });
+                }
+            });
+        }
+
+        return usage;
+    } catch (error) {
+        console.error('Error finding model usage:', error);
+        return [];
+    }
+}
+
+async function displayModels(models, filterLayer = null) {
+    const modelsList = document.getElementById('models-list');
+    if (!modelsList) return; // Not in models view
+
+    if (models.length === 0) {
+        modelsList.innerHTML = `
+            <div style="text-align: center; padding: 60px 20px; background: white; border-radius: 12px; border: 1px solid var(--color-border);">
+                <div style="font-size: 4em; margin-bottom: 20px;">📦</div>
+                <h3 style="margin-bottom: 10px;">No Models Found</h3>
+                <p style="color: #888;">Add SQL or Python transformation models to the models/ directory to get started.</p>
+            </div>
+        `;
+        return;
+    }
+
+    // Group models by layer
+    const groupedModels = {
+        bronze: models.filter(m => getModelLayer(m.name) === 'bronze'),
+        silver: models.filter(m => getModelLayer(m.name) === 'silver'),
+        gold: models.filter(m => getModelLayer(m.name) === 'gold')
+    };
+
+    // Apply filter if specified
+    const layersToShow = filterLayer ? [filterLayer] : ['bronze', 'silver', 'gold'];
+
+    // Filter button styles
+    const filterButtons = `
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; align-items: center;">
+            <span style="font-weight: 600; color: #6b7280; margin-right: 0.5rem;">Filter:</span>
+            <button onclick="currentModelFilter = null; displayModels(modelsData, null)"
+                    class="btn ${!filterLayer ? 'btn-primary' : 'btn-secondary'}"
+                    style="padding: 0.4rem 0.8rem; font-size: 0.875rem;">
+                All Layers
+            </button>
+            <button onclick="filterModelsByLayer('bronze')"
+                    class="btn ${filterLayer === 'bronze' ? 'btn-primary' : 'btn-secondary'}"
+                    style="padding: 0.4rem 0.8rem; font-size: 0.875rem;">
+                🥉 Bronze
+            </button>
+            <button onclick="filterModelsByLayer('silver')"
+                    class="btn ${filterLayer === 'silver' ? 'btn-primary' : 'btn-secondary'}"
+                    style="padding: 0.4rem 0.8rem; font-size: 0.875rem;">
+                🥈 Silver
+            </button>
+            <button onclick="filterModelsByLayer('gold')"
+                    class="btn ${filterLayer === 'gold' ? 'btn-primary' : 'btn-secondary'}"
+                    style="padding: 0.4rem 0.8rem; font-size: 0.875rem;">
+                🥇 Gold
+            </button>
+        </div>
+    `;
+
+    let html = filterButtons;
+
+    layersToShow.forEach(layer => {
+        const layerModels = groupedModels[layer];
+        if (layerModels.length === 0) return;
+
+        const layerIcons = { bronze: '🥉', silver: '🥈', gold: '🥇' };
+        const layerColors = {
+            bronze: { bg: 'rgba(205, 127, 50, 0.1)', text: '#b06727' },
+            silver: { bg: 'rgba(192, 192, 192, 0.2)', text: '#6b7280' },
+            gold: { bg: 'rgba(255, 215, 0, 0.15)', text: '#e6c200' }
+        };
+
+        html += `
+            <div style="margin-bottom: 2rem;">
+                <h3 style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: ${layerColors[layer].text}; font-size: 1.25rem;">
+                    <span>${layerIcons[layer]}</span>
+                    <span>${layer.charAt(0).toUpperCase() + layer.slice(1)} Layer</span>
+                    <span style="font-size: 0.875rem; font-weight: normal; color: #9ca3af;">(${layerModels.length} models)</span>
+                </h3>
+                <div style="display: grid; gap: 1rem;">
+        `;
+
+        layerModels.forEach(model => {
+            html += `
+                <div class="model-card" id="model-${model.name}">
+                    <div class="model-card-content" onclick="toggleModelCode('${model.name}')">
+                        <div class="model-info">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span class="expand-icon" id="expand-model-${model.name}">▶</span>
+                                <h4 class="model-name">${model.name}</h4>
+                            </div>
+                            <div class="model-badges">
+                                <span class="badge badge-${layer}">${layer.toUpperCase()}</span>
+                                <span class="badge badge-type">${model.type.toUpperCase()}</span>
+                            </div>
+                            ${model.depends_on.length > 0 ?
+                                `<div class="model-dependencies"><strong>Depends on:</strong> ${model.depends_on.join(', ')}</div>` :
+                                '<div class="model-dependencies">No dependencies</div>'}
+                            <div class="model-usage" id="usage-${model.name}" style="margin-top: 0.5rem;">
+                                <em style="color: #888; font-size: 0.875rem;">Loading usage...</em>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="model-code-section" id="code-${model.name}" style="display: none;">
+                        <div class="model-code-actions">
+                            <input type="text" class="code-search" id="search-${model.name}" placeholder="Search in code..." onkeyup="searchModelCode('${model.name}')">
+                            <button class="action-btn-small" onclick="copyModelCode('${model.name}')">📋 Copy Code</button>
+                        </div>
+                        <div class="model-code-content" id="content-${model.name}">
+                            <div class="loading">Loading code...</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `
+                </div>
+            </div>
+        `;
+    });
+
+    modelsList.innerHTML = html;
+
+    // Load usage information for all models asynchronously
+    models.forEach(async (model) => {
+        const usage = await findModelUsage(model.name);
+        const usageEl = document.getElementById(`usage-${model.name}`);
+
+        if (usageEl) {
+            if (usage.length === 0) {
+                usageEl.innerHTML = '<em style="color: #888; font-size: 0.875rem;">Not used in any dashboards</em>';
+            } else {
+                // Group usage by dashboard
+                const dashboardMap = {};
+                usage.forEach(u => {
+                    if (!dashboardMap[u.dashboardId]) {
+                        dashboardMap[u.dashboardId] = {
+                            id: u.dashboardId,
+                            name: u.dashboardName,
+                            charts: []
+                        };
+                    }
+                    dashboardMap[u.dashboardId].charts.push(u.chartTitle);
+                });
+
+                const dashboards = Object.values(dashboardMap);
+                const totalCharts = usage.length;
+
+                usageEl.innerHTML = `
+                    <div style="font-size: 0.875rem;">
+                        <strong style="color: #374151;">Used in:</strong>
+                        ${dashboards.map(d => `
+                            <span style="display: inline-block; margin: 2px 4px 2px 0;">
+                                <a href="#" onclick="event.stopPropagation(); openDashboard('${d.id}'); return false;"
+                                   style="color: #667eea; text-decoration: none;"
+                                   onmouseover="this.style.textDecoration='underline'"
+                                   onmouseout="this.style.textDecoration='none'"
+                                   title="${d.charts.join(', ')}">
+                                    📊 ${d.name}
+                                </a>
+                                <span style="color: #888; font-size: 0.8rem;">(${d.charts.length})</span>
+                            </span>
+                        `).join('')}
+                    </div>
+                `;
+            }
+        }
+    });
+}
+
+// Navigate to a specific dashboard
+function openDashboard(dashboardId) {
+    window.location.href = `/dashboard/${dashboardId}`;
 }
 
 function getModelLayer(name) {
@@ -739,6 +1001,77 @@ function closeModal(modalId) {
     document.getElementById(modalId).style.display = 'none';
 }
 
+// Edit Dashboard - Add Charts
+let currentEditingDashboardId = null;
+
+async function openEditDashboardModal(dashboardId, dashboardName) {
+    currentEditingDashboardId = dashboardId;
+    document.getElementById('editDashboardModalTitle').textContent = `Edit Dashboard: ${dashboardName}`;
+
+    // Fetch all available charts
+    try {
+        const response = await fetch('/api/charts');
+        const data = await response.json();
+
+        const chartsList = document.getElementById('availableChartsList');
+        chartsList.innerHTML = '';
+
+        if (data.charts.length === 0) {
+            chartsList.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 2rem;">No charts available. Create charts first in the Charts view.</p>';
+        } else {
+            data.charts.forEach(chart => {
+                const chartCard = document.createElement('div');
+                chartCard.style.cssText = 'padding: 1rem; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center; background: white;';
+
+                chartCard.innerHTML = `
+                    <div>
+                        <div style="font-weight: 600; color: #111827; margin-bottom: 0.25rem;">${chart.title || chart.id}</div>
+                        <div style="font-size: 0.875rem; color: #6b7280;">
+                            ${chart.type} • ${chart.model} • ${chart.x_axis} vs ${chart.y_axis}
+                            ${chart.dashboardName ? `<br/>Current: ${chart.dashboardName}` : ''}
+                        </div>
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="addChartToDashboard('${chart.id}', '${dashboardId}')" style="white-space: nowrap;">
+                        Add to Dashboard
+                    </button>
+                `;
+
+                chartsList.appendChild(chartCard);
+            });
+        }
+
+        document.getElementById('editDashboardModal').style.display = 'flex';
+    } catch (error) {
+        console.error('Error loading charts:', error);
+        showToast('Failed to load charts', 'error');
+    }
+}
+
+async function addChartToDashboard(chartId, dashboardId) {
+    try {
+        const response = await fetch(`/api/dashboards/${dashboardId}/charts/add`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({chart_id: chartId})
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast(result.message, 'success');
+            // Reload dashboards to show the new chart
+            setTimeout(() => {
+                loadDashboards();
+            }, 500);
+        } else {
+            showToast(result.message, 'warning');
+        }
+    } catch (error) {
+        console.error('Error adding chart to dashboard:', error);
+        showToast('Failed to add chart to dashboard', 'error');
+    }
+}
+
 // Switch Tabs
 function switchTab(tabName) {
     // Update tab buttons
@@ -816,6 +1149,9 @@ async function loadDashboards() {
             const headerRight = document.createElement('div');
             headerRight.style.cssText = 'display: flex; gap: 8px; align-items: center;';
             headerRight.innerHTML = `
+                <button class="icon-btn" onclick="event.stopPropagation(); openEditDashboardModal('${dashboard.id}', '${dashboard.name}')" title="Edit Dashboard - Add Charts">
+                    ✏️
+                </button>
                 <button class="icon-btn" onclick="event.stopPropagation(); openDashboardInTab('${dashboard.id}')" title="Open in new tab">
                     🔗
                 </button>

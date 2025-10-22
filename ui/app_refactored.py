@@ -316,6 +316,82 @@ async def save_chart(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/dashboards/{dashboard_id}/charts/add")
+async def add_chart_to_dashboard(dashboard_id: str, request: Request):
+    """Add an existing chart to a specific dashboard"""
+    try:
+        import yaml
+        import logging
+
+        body = await request.json()
+        chart_id = body.get("chart_id")
+
+        if not chart_id:
+            raise HTTPException(status_code=400, detail="chart_id is required")
+
+        dashboards_file = models_dir / "dashboards.yml"
+
+        if not dashboards_file.exists():
+            raise HTTPException(status_code=404, detail="Dashboards file not found")
+
+        # Load dashboards
+        with open(dashboards_file, 'r') as f:
+            data = yaml.safe_load(f) or {}
+
+        # Find the chart from all dashboards
+        chart_to_add = None
+        for dashboard in data.get('dashboards', []):
+            for chart in dashboard.get('charts', []):
+                if chart.get('id') == chart_id:
+                    chart_to_add = chart.copy()
+                    break
+            if chart_to_add:
+                break
+
+        if not chart_to_add:
+            raise HTTPException(status_code=404, detail=f"Chart {chart_id} not found")
+
+        # Find target dashboard
+        target_dashboard = None
+        for dashboard in data.get('dashboards', []):
+            if dashboard.get('id') == dashboard_id:
+                target_dashboard = dashboard
+                break
+
+        if not target_dashboard:
+            raise HTTPException(status_code=404, detail=f"Dashboard {dashboard_id} not found")
+
+        # Add chart to target dashboard if it doesn't already exist
+        if 'charts' not in target_dashboard:
+            target_dashboard['charts'] = []
+
+        # Check if chart already exists in this dashboard
+        chart_exists = any(c.get('id') == chart_id for c in target_dashboard['charts'])
+
+        if chart_exists:
+            return {
+                "success": False,
+                "message": "Chart already exists in this dashboard"
+            }
+
+        target_dashboard['charts'].append(chart_to_add)
+
+        # Save back to file
+        with open(dashboards_file, 'w') as f:
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+        return {
+            "success": True,
+            "message": f"Chart added to dashboard '{target_dashboard.get('name', dashboard_id)}' successfully!"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error adding chart to dashboard: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/tables/{table_name}/columns")
 async def get_table_columns(table_name: str):
     """Get columns for a specific table"""

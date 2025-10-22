@@ -1,0 +1,43 @@
+version: 2
+dashboards:
+- id: sample-dashboard
+  name: Sample Dashboard
+  description: Sample dashboard using test database tables
+  charts:
+  - id: customers-by-segment
+    title: Customers by Segment
+    model: raw.customers
+    type: pie
+    x_axis: segment
+    y_axis: id
+    aggregation: count
+    description: Customer distribution by segment
+  - id: orders-by-status
+    title: Orders by Status
+    model: raw.orders
+    type: doughnut
+    x_axis: status
+    y_axis: id
+    aggregation: count
+    description: Order status distribution
+  - id: revenue-by-month
+    title: Revenue Over Time
+    model: raw.orders
+    type: line
+    x_axis: order_date
+    y_axis: total_amount
+    aggregation: sum
+    description: Total revenue trend
+  - id: products-by-category
+    title: Products by Category
+    model: raw.products
+    type: bar
+    x_axis: category
+    y_axis: id
+    aggregation: count
+    description: Product catalog distribution
+
+- id: custom_charts
+  name: Custom Charts
+  description: User-created charts
+  charts: []
