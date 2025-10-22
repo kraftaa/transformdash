@@ -40,6 +40,15 @@ dashboards:
     type: metric
     metric: on_time_percentage
     aggregation: avg
+  - id: orders-by-month
+    title: Orders by Month
+    model: fct_orders
+    type: line
+    x_axis: order_month
+    y_axis: order_id
+    aggregation: count
+    description: Monthly order volume showing seasonality
+    color_scheme: blue
 - id: orders-analytics
   name: Orders Analytics Dashboard
   description: Deep dive into order patterns and performance
