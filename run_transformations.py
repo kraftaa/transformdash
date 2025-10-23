@@ -28,6 +28,26 @@ def run_pipeline():
     models = loader.load_all_models()
     print(f"✓ Loaded {len(models)} models\n")
 
+    # Validate dependencies (catches circular dependencies)
+    print("🔍 Validating dependencies...")
+    try:
+        from transformations.dag import DAG
+        dag = DAG(models)
+        print("✓ No circular dependencies detected")
+        print(f"✓ Execution order determined for {len(models)} models\n")
+    except ValueError as e:
+        print(f"\n❌ DEPENDENCY VALIDATION FAILED")
+        print("=" * 60)
+        print(f"Error: {e}")
+        print("=" * 60)
+        print("\n💡 Common causes:")
+        print("  • Model A references Model B, and Model B references Model A")
+        print("  • Bronze layer referencing Silver/Gold layers")
+        print("  • Model referencing itself")
+        print("\n📋 Fix by ensuring dependencies flow in one direction:")
+        print("  Bronze (stg_*) → Silver (int_*) → Gold (fct_*)")
+        raise
+
     # Create engine and run
     engine = TransformationEngine(models)
     context = engine.run(verbose=True)

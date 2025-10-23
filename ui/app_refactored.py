@@ -843,6 +843,97 @@ async def get_dashboard_filters(dashboard_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/data-quality/orphaned-models")
+async def get_orphaned_models():
+    """
+    Detect orphaned database objects - tables/views that exist in the database
+    but are not defined in any dbt model files.
+
+    This helps identify:
+    - Old tables that should be cleaned up
+    - Manual tables created outside the dbt workflow
+    - Test tables that weren't removed
+    """
+    try:
+        from postgres import PostgresConnector
+        import logging
+
+        # Get all database objects in public schema
+        with PostgresConnector() as pg:
+            db_objects_query = """
+                SELECT tablename AS name, 'table' AS type
+                FROM pg_catalog.pg_tables
+                WHERE schemaname = 'public'
+                UNION ALL
+                SELECT matviewname AS name, 'materialized_view' AS type
+                FROM pg_catalog.pg_matviews
+                WHERE schemaname = 'public'
+                UNION ALL
+                SELECT viewname AS name, 'view' AS type
+                FROM pg_catalog.pg_views
+                WHERE schemaname = 'public'
+                    AND viewname NOT LIKE 'pg_%'
+                ORDER BY name
+            """
+            db_objects = pg.execute(db_objects_query, fetch=True)
+
+        # Get all model names from dbt
+        models = loader.load_all_models()
+        model_names = set(model.name for model in models)
+
+        # Also check sources from sources.yml
+        import yaml
+        sources_file = models_dir / "sources.yml"
+        raw_tables = set()
+
+        if sources_file.exists():
+            with open(sources_file, 'r') as f:
+                sources_config = yaml.safe_load(f) or {}
+                for source in sources_config.get('sources', []):
+                    for table in source.get('tables', []):
+                        raw_tables.add(table['name'])
+
+        # Find orphaned objects
+        orphaned = []
+        managed = []
+
+        for obj in db_objects:
+            obj_name = obj['name']
+            obj_type = obj['type']
+
+            is_model = obj_name in model_names
+            is_source = obj_name in raw_tables
+
+            if not is_model and not is_source:
+                orphaned.append({
+                    'name': obj_name,
+                    'type': obj_type,
+                    'reason': 'Not defined in any model or source'
+                })
+            else:
+                managed.append({
+                    'name': obj_name,
+                    'type': obj_type,
+                    'managed_by': 'dbt_model' if is_model else 'raw_source'
+                })
+
+        return {
+            'orphaned': orphaned,
+            'managed': managed,
+            'summary': {
+                'total_objects': len(db_objects),
+                'orphaned_count': len(orphaned),
+                'managed_count': len(managed),
+                'status': 'clean' if len(orphaned) == 0 else 'needs_attention'
+            }
+        }
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error detecting orphaned models: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     print("\n🚀 Starting TransformDash Web UI...")
