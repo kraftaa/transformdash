@@ -19,7 +19,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
     <!-- Styles -->
-    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/styles.css?v=20251023g">
 </head>
 <body>
     <!-- Sidebar Navigation -->
@@ -506,6 +506,20 @@
                                     <option value="max">MAX</option>
                                 </select>
                             </div>
+
+                            <!-- Filters Section -->
+                            <div style="margin-bottom: 1rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--color-border);">
+                                <label style="display: block; margin-bottom: 0.75rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">
+                                    🔍 Filters
+                                    <span style="font-weight: normal; color: var(--color-text-muted); font-size: 0.8rem;">(optional)</span>
+                                </label>
+                                <div id="filtersContainer" style="margin-bottom: 0.75rem;">
+                                    <p style="color: var(--color-text-muted); font-size: 0.8rem; margin: 0;">No filters added</p>
+                                </div>
+                                <button type="button" onclick="addFilter()" class="btn btn-secondary" style="width: 100%; font-size: 0.875rem;">
+                                    + Add Filter
+                                </button>
+                            </div>
                         </div>
 
                         <!-- Table Chart Fields (hidden by default) -->
@@ -697,6 +711,6 @@
     <div id="toast-container" class="toast-container"></div>
 
     <!-- Scripts -->
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=20251023g"></script>
 </body>
 </html>

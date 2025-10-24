@@ -305,14 +305,41 @@ function saveBranding() {
     alert('Branding saved!');
 }
 
-function createNewDashboard() {
-    alert('Dashboard creation feature coming soon!');
-}
+async function createNewDashboard() {
+    const dashboardName = prompt('Enter a name for your new dashboard:');
 
-function runTransformations() {
-    // Reuse existing function
-    if (typeof window.runTransformations === 'function') {
-        window.runTransformations();
+    if (!dashboardName || dashboardName.trim() === '') {
+        return; // User cancelled or entered empty name
+    }
+
+    const dashboardDescription = prompt('Enter a description (optional):', '') || '';
+
+    try {
+        const response = await fetch('/api/dashboards', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name: dashboardName.trim(),
+                description: dashboardDescription.trim()
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            showToast(result.message || 'Dashboard created successfully!', 'success');
+            // Reload dashboards to show the new one
+            await loadDashboards();
+            // Open the new dashboard in edit mode
+            if (result.dashboard) {
+                openDashboardEditor(result.dashboard.id, result.dashboard.name);
+            }
+        } else {
+            showToast(result.detail || 'Failed to create dashboard', 'error');
+        }
+    } catch (error) {
+        console.error('Error creating dashboard:', error);
+        showToast('Failed to create dashboard', 'error');
     }
 }
 
@@ -321,8 +348,38 @@ function runTransformations() {
 // ============================================
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Load overview by default
-    switchView('overview');
+    // Check if we need to open dashboard editor from URL parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const editDashboardId = urlParams.get('edit');
+
+    if (editDashboardId) {
+        // Remove the edit parameter from URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        // Load dashboards first, then open the editor WITHOUT switching to overview first
+        loadDashboards().then(() => {
+            // Find the dashboard by ID
+            fetch('/api/dashboards')
+                .then(res => res.json())
+                .then(data => {
+                    const dashboard = data.dashboards.find(d => d.id === editDashboardId);
+                    if (dashboard) {
+                        // Directly open the editor without showing overview
+                        openDashboardEditor(dashboard.id, dashboard.name);
+                    } else {
+                        switchView('overview');
+                        showToast('Dashboard not found', 'error');
+                    }
+                })
+                .catch(err => {
+                    console.error('Error loading dashboard:', err);
+                    switchView('overview');
+                });
+        });
+    } else {
+        // Load overview by default
+        switchView('overview');
+    }
 
     // Close search results when clicking outside
     document.addEventListener('click', function(event) {
@@ -1185,12 +1242,26 @@ async function renderChartPreview(canvasId, chartConfig) {
             return;
         }
 
+        // Skip charts with calculation fields (they don't have x/y axes)
+        if (chartConfig.calculation) {
+            const ctx = canvas.getContext('2d');
+            ctx.font = '11px sans-serif';
+            ctx.fillStyle = '#999';
+            ctx.textAlign = 'center';
+            ctx.fillText('Calculated metric', canvas.width / 2, canvas.height / 2);
+            return;
+        }
+
         // Fetch chart data
         const queryPayload = {
             table: chartConfig.model,
+            type: chartConfig.type,
             x_axis: chartConfig.x_axis,
             y_axis: chartConfig.y_axis,
-            aggregation: chartConfig.aggregation || 'count'
+            metric: chartConfig.metric,
+            metrics: chartConfig.metrics,
+            aggregation: chartConfig.aggregation || 'count',
+            filters: chartConfig.filters || {}
         };
 
         const response = await fetch('/api/query', {
@@ -1268,6 +1339,10 @@ function addChartToEditor(chart) {
 }
 
 function removeChartFromEditor(index) {
+    if (!editorState.currentCharts || index < 0 || index >= editorState.currentCharts.length) {
+        console.error(`Invalid index ${index} for currentCharts`, editorState.currentCharts);
+        return;
+    }
     const chart = editorState.currentCharts[index];
     editorState.currentCharts.splice(index, 1);
     renderEditorCharts();
@@ -1366,7 +1441,18 @@ function cancelDashboardEdit() {
         draggedIndex: null
     };
 
-    // Use switchView to properly navigate back to dashboards
+    // Hide editor view and reset inline styles
+    const editorView = document.getElementById('dashboard-editor-view');
+    if (editorView) {
+        editorView.style.display = 'none';
+        editorView.classList.remove('active');
+    }
+
+    // Reset all view inline styles and use switchView to navigate back
+    document.querySelectorAll('.view-content').forEach(view => {
+        view.style.display = '';  // Remove inline display style
+    });
+
     switchView('dashboards');
 }
 
@@ -1682,11 +1768,28 @@ async function renderDashboardChart(chartConfig, container, filters = {}) {
         const chartWrapper = document.createElement('div');
         chartWrapper.style.cssText = 'background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);';
 
-        // Chart title
+        // Chart title with edit button
+        const titleContainer = document.createElement('div');
+        titleContainer.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;';
+
         const title = document.createElement('h4');
-        title.style.cssText = 'margin: 0 0 10px 0; color: #333; font-size: 1.1em;';
+        title.style.cssText = 'margin: 0; color: #333; font-size: 1.1em;';
         title.textContent = chartConfig.title;
-        chartWrapper.appendChild(title);
+
+        const editBtn = document.createElement('button');
+        editBtn.style.cssText = 'background: none; border: none; cursor: pointer; color: #667eea; font-size: 1.2em; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;';
+        editBtn.innerHTML = '✏️';
+        editBtn.title = 'Edit chart';
+        editBtn.onclick = (e) => {
+            e.stopPropagation();
+            editChart(chartConfig);
+        };
+        editBtn.onmouseover = function() { this.style.background = '#f0f0f0'; };
+        editBtn.onmouseout = function() { this.style.background = 'none'; };
+
+        titleContainer.appendChild(title);
+        titleContainer.appendChild(editBtn);
+        chartWrapper.appendChild(titleContainer);
 
         // Chart description (if available)
         if (chartConfig.description) {
@@ -2134,11 +2237,19 @@ async function loadAllCharts() {
                     <span class="chart-badge chart-badge-type">${chart.type}</span>
                     <span class="chart-badge chart-badge-model">${chart.model}</span>
                 </div>
+                <button class="chart-item-edit-btn" title="Edit chart">✏️</button>
             `;
 
             // Click to show chart in modal
             card.onclick = () => {
                 showChartModal(chart);
+            };
+
+            // Edit button click handler (stop propagation to prevent modal)
+            const editBtn = card.querySelector('.chart-item-edit-btn');
+            editBtn.onclick = (e) => {
+                e.stopPropagation();
+                editChart(chart);
             };
 
             chartsList.appendChild(card);
@@ -2382,6 +2493,170 @@ function removeTableColumn(columnId) {
         .catch(error => console.error('Error:', error));
 }
 
+// ============================================
+// FILTER MANAGEMENT
+// ============================================
+
+let chartFilters = [];
+
+function addFilter() {
+    const table = document.getElementById('chartTable').value;
+
+    if (!table) {
+        showToast('Please select a data source first', 'error');
+        return;
+    }
+
+    // Fetch available columns for the selected table
+    fetch(`/api/tables/${table}/columns`)
+        .then(response => response.json())
+        .then(data => {
+            const filterId = `filter-${Date.now()}`;
+            const filter = {
+                id: filterId,
+                field: '',
+                operator: '=',
+                value: '',
+                columns: data.columns || []
+            };
+
+            chartFilters.push(filter);
+            renderFilters();
+        })
+        .catch(error => {
+            console.error('Error loading columns:', error);
+            showToast('Failed to load columns', 'error');
+        });
+}
+
+function removeFilter(filterId) {
+    chartFilters = chartFilters.filter(f => f.id !== filterId);
+    renderFilters();
+}
+
+function updateFilter(filterId, field, operator, value) {
+    const filter = chartFilters.find(f => f.id === filterId);
+    if (filter) {
+        if (field !== undefined) filter.field = field;
+        if (operator !== undefined) filter.operator = operator;
+        if (value !== undefined) filter.value = value;
+    }
+}
+
+function renderFilters() {
+    const container = document.getElementById('filtersContainer');
+
+    if (chartFilters.length === 0) {
+        container.innerHTML = '<p style="color: var(--color-text-muted); font-size: 0.8rem; margin: 0;">No filters added</p>';
+        return;
+    }
+
+    container.innerHTML = chartFilters.map(filter => `
+        <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: var(--color-bg-primary); border: 1px solid var(--color-border); border-radius: var(--radius-md);">
+            <div style="display: grid; grid-template-columns: 1fr 80px 1fr auto; gap: 0.5rem; align-items: center;">
+                <select class="input" style="font-size: 0.8rem; padding: 0.4rem;"
+                        onchange="updateFilter('${filter.id}', this.value, undefined, undefined); renderFilters();">
+                    <option value="">Field...</option>
+                    ${filter.columns.map(col => `
+                        <option value="${col}" ${filter.field === col ? 'selected' : ''}>${col}</option>
+                    `).join('')}
+                </select>
+
+                <select class="input" style="font-size: 0.8rem; padding: 0.4rem;"
+                        onchange="updateFilter('${filter.id}', undefined, this.value, undefined);">
+                    <option value="=" ${filter.operator === '=' ? 'selected' : ''}>=</option>
+                    <option value="!=" ${filter.operator === '!=' ? 'selected' : ''}>!=</option>
+                    <option value=">" ${filter.operator === '>' ? 'selected' : ''}>&gt;</option>
+                    <option value="<" ${filter.operator === '<' ? 'selected' : ''}>&lt;</option>
+                    <option value=">=" ${filter.operator === '>=' ? 'selected' : ''}>&gt;=</option>
+                    <option value="<=" ${filter.operator === '<=' ? 'selected' : ''}>&lt;=</option>
+                    <option value="LIKE" ${filter.operator === 'LIKE' ? 'selected' : ''}>LIKE</option>
+                </select>
+
+                <input type="text" class="input" placeholder="Value..."
+                       style="font-size: 0.8rem; padding: 0.4rem;"
+                       value="${filter.value}"
+                       onchange="updateFilter('${filter.id}', undefined, undefined, this.value);">
+
+                <button onclick="removeFilter('${filter.id}')"
+                        style="background: none; border: none; color: var(--color-error); cursor: pointer; padding: 0.25rem; font-size: 1.2rem;"
+                        title="Remove filter">
+                    ×
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function getActiveFilters() {
+    // Return filters that have all fields filled
+    return chartFilters
+        .filter(f => f.field && f.operator && f.value)
+        .map(f => ({
+            field: f.field,
+            operator: f.operator,
+            value: f.value
+        }));
+}
+
+// Edit an existing chart
+async function editChart(chartConfig) {
+    // Switch to chart builder view
+    switchView('chart-builder');
+
+    // Pre-fill the form with chart data
+    document.getElementById('chartTitle').value = chartConfig.title || '';
+    document.getElementById('chartTable').value = chartConfig.model || '';
+
+    // Load table columns to populate the dropdowns
+    await loadTableColumns();
+
+    // Set chart type
+    document.getElementById('chartType').value = chartConfig.type || 'bar';
+
+    // Wait for columns to load, then set x and y axes
+    setTimeout(() => {
+        if (chartConfig.x_axis) {
+            document.getElementById('chartXAxis').value = chartConfig.x_axis;
+        }
+        if (chartConfig.y_axis) {
+            document.getElementById('chartYAxis').value = chartConfig.y_axis;
+        }
+        if (chartConfig.aggregation) {
+            document.getElementById('chartAggregation').value = chartConfig.aggregation;
+        }
+
+        // Load filters if present
+        chartFilters = [];
+        if (chartConfig.filters && Array.isArray(chartConfig.filters)) {
+            chartConfig.filters.forEach(filter => {
+                const filterId = `filter-${Date.now()}-${Math.random()}`;
+                chartFilters.push({
+                    id: filterId,
+                    field: filter.field || '',
+                    operator: filter.operator || '=',
+                    value: filter.value || '',
+                    columns: [] // Will be populated when rendering
+                });
+            });
+
+            // Fetch columns for filters
+            const table = document.getElementById('chartTable').value;
+            if (table) {
+                fetch(`/api/tables/${table}/columns`)
+                    .then(response => response.json())
+                    .then(data => {
+                        chartFilters.forEach(f => f.columns = data.columns || []);
+                        renderFilters();
+                    })
+                    .catch(error => console.error('Error loading columns for filters:', error));
+            }
+        }
+    }, 300);
+
+    showToast('Chart loaded for editing', 'info');
+}
+
 async function createChart() {
     const title = document.getElementById('chartTitle').value || 'Chart';
     const table = document.getElementById('chartTable').value;
@@ -2400,11 +2675,20 @@ async function createChart() {
     document.getElementById('chartError').style.display = 'none';
 
     try {
+        // Get active filters
+        const filters = getActiveFilters();
+
         // Query data
         const response = await fetch('/api/query', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ table, x_axis: xAxis, y_axis: yAxis, aggregation })
+            body: JSON.stringify({
+                table,
+                x_axis: xAxis,
+                y_axis: yAxis,
+                aggregation,
+                filters: filters.length > 0 ? filters : undefined
+            })
         });
 
         const data = await response.json();
@@ -2539,19 +2823,29 @@ async function saveChart() {
             actualType = 'bar';
         }
 
+        // Get active filters
+        const filters = getActiveFilters();
+
         // Save chart configuration
+        const chartConfig = {
+            id: chartId,
+            title: title,
+            type: chartType,  // Save the original type
+            model: table,
+            x_axis: xAxis,
+            y_axis: yAxis,
+            aggregation: aggregation
+        };
+
+        // Only add filters if there are any
+        if (filters.length > 0) {
+            chartConfig.filters = filters;
+        }
+
         const response = await fetch('/api/charts/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                id: chartId,
-                title: title,
-                type: chartType,  // Save the original type
-                model: table,
-                x_axis: xAxis,
-                y_axis: yAxis,
-                aggregation: aggregation
-            })
+            body: JSON.stringify(chartConfig)
         });
 
         if (!response.ok) {

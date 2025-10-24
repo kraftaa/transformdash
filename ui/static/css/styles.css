@@ -2034,12 +2034,44 @@ body.dark-mode .code-block {
     cursor: pointer;
     transition: all var(--transition-base);
     box-shadow: var(--shadow-sm);
+    position: relative;
 }
 
 .chart-item-card:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
     border-color: var(--color-primary-light);
+}
+
+.chart-item-edit-btn {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    background: transparent;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+    font-size: 1.2rem;
+    opacity: 0;
+    z-index: 10;
+}
+
+.chart-item-card:hover .chart-item-edit-btn {
+    opacity: 1;
+}
+
+.chart-item-edit-btn:hover {
+    background: var(--color-gray-100);
+    color: var(--color-primary);
+    transform: scale(1.1);
+}
+
+body.dark-mode .chart-item-edit-btn:hover {
+    background: var(--color-gray-700);
+    color: var(--color-primary-light);
 }
 
 .chart-item-icon {

@@ -223,6 +223,9 @@
                 <button class="action-btn back-btn" onclick="window.close()">
                     ← Back
                 </button>
+                <button class="action-btn" onclick="editDashboard()">
+                    ✏️ Edit Dashboard
+                </button>
                 <button class="action-btn" onclick="exportPDF()">
                     📄 Export PDF
                 </button>
@@ -327,8 +330,24 @@
             for (const chartConfig of dashboard.charts) {
                 const chartDiv = document.createElement('div');
                 chartDiv.className = 'chart-container';
+
+                // Build filter display HTML if chart has filters (skip invalid ones)
+                let filtersHTML = '';
+                if (chartConfig.filters && chartConfig.filters.length > 0) {
+                    const validFilters = chartConfig.filters.filter(f =>
+                        f.value !== 'CURRENT_YEAR' && f.value !== 'CURRENT_MONTH'
+                    );
+                    if (validFilters.length > 0) {
+                        const filterLabels = validFilters.map(f =>
+                            `<span style="display: inline-block; padding: 3px 8px; background: #e0e7ff; border-radius: 4px; font-size: 0.75rem; margin: 2px;">${f.field} ${f.operator} ${f.value}</span>`
+                        ).join(' ');
+                        filtersHTML = `<div style="margin-bottom: 8px; color: #6366f1; font-size: 0.85rem;">🔍 Filters: ${filterLabels}</div>`;
+                    }
+                }
+
                 chartDiv.innerHTML = `
                     <h3 class="chart-title">${chartConfig.title}</h3>
+                    ${filtersHTML}
                     <canvas id="chart-${chartConfig.id}"></canvas>
                 `;
                 grid.appendChild(chartDiv);
@@ -337,40 +356,141 @@
             }
         }
 
+        function getChartColors(chartConfig, dataLength) {
+            const colorSchemes = {
+                blue: '#3b82f6',
+                green: '#10b981',
+                red: '#ef4444',
+                purple: '#8b5cf6',
+                orange: '#f59e0b',
+                teal: '#14b8a6'
+            };
+
+            // Use custom colors if provided
+            if (chartConfig.colors && chartConfig.colors.length > 0) {
+                return {
+                    background: chartConfig.colors.map(c => c + 'cc'),
+                    border: chartConfig.colors
+                };
+            }
+
+            // Use color scheme
+            const baseColor = colorSchemes[chartConfig.color_scheme] || colorSchemes.blue;
+
+            if (['pie', 'doughnut'].includes(chartConfig.type)) {
+                // Generate multiple colors for pie/doughnut
+                const colors = [];
+                for (let i = 0; i < dataLength; i++) {
+                    const hue = (i * 360 / dataLength) % 360;
+                    colors.push(`hsl(${hue}, 70%, 60%)`);
+                }
+                return {
+                    background: colors.map(c => c.replace('60%', '60%, 0.8')),
+                    border: colors
+                };
+            }
+
+            // Single color for bar/line charts
+            return {
+                background: baseColor + 'cc',
+                border: baseColor
+            };
+        }
+
         async function renderChart(chartConfig) {
             try {
-                const response = await fetch('/api/query', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        model: chartConfig.model,
+                // Merge chart's built-in filters with user-selected filters
+                // Convert to dictionary format expected by backend
+                const filterDict = {};
+
+                // Add chart's built-in filters first
+                const chartFilters = chartConfig.filters || [];
+                chartFilters.forEach(filter => {
+                    // Skip if this filter field has a user-selected value (user overrides)
+                    if (currentFilters.hasOwnProperty(filter.field)) {
+                        return;
+                    }
+                    // Skip invalid filter values like CURRENT_YEAR
+                    if (filter.value === 'CURRENT_YEAR' || filter.value === 'CURRENT_MONTH') {
+                        return;
+                    }
+                    // Only add simple equality filters (operator '=')
+                    if (filter.operator === '=' && filter.value) {
+                        filterDict[filter.field] = filter.value;
+                    }
+                });
+
+                // Add user-selected filters (these override chart filters)
+                Object.keys(currentFilters).forEach(key => {
+                    if (currentFilters[key]) {
+                        filterDict[key] = currentFilters[key];
+                    }
+                });
+
+                // Build query payload based on chart type
+                let queryPayload;
+                if (chartConfig.type === 'metric') {
+                    // For metric charts, use x_axis and y_axis with the metric field
+                    const metricField = chartConfig.metric;
+                    queryPayload = {
+                        table: chartConfig.model,
                         type: chartConfig.type,
-                        metric: chartConfig.metric,
+                        x_axis: metricField,
+                        y_axis: metricField,
+                        aggregation: chartConfig.aggregation || 'sum',
+                        filters: Object.keys(filterDict).length > 0 ? filterDict : undefined
+                    };
+                } else {
+                    // For regular charts
+                    queryPayload = {
+                        table: chartConfig.model,
+                        type: chartConfig.type,
                         x_axis: chartConfig.x_axis,
                         y_axis: chartConfig.y_axis,
                         aggregation: chartConfig.aggregation || 'sum',
-                        filters: currentFilters
-                    })
+                        filters: Object.keys(filterDict).length > 0 ? filterDict : undefined
+                    };
+                }
+
+                const response = await fetch('/api/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(queryPayload)
                 });
 
                 const data = await response.json();
 
                 if (chartConfig.type === 'metric') {
-                    // Render metric
+                    // Render metric - handle both direct value and values array
                     const canvas = document.getElementById(`chart-${chartConfig.id}`);
-                    const ctx = canvas.getContext('2d');
-                    const value = data.value || 0;
+
+                    let value = 0;
+                    if (data.value !== undefined) {
+                        // Direct value from metric endpoint
+                        value = data.value;
+                    } else if (data.values && data.values.length > 0) {
+                        // Sum values array
+                        value = data.values.reduce((a, b) => a + b, 0);
+                    }
 
                     canvas.style.display = 'none';
-                    canvas.parentElement.innerHTML += `
-                        <div style="text-align: center; font-size: 3rem; font-weight: 700; color: #667eea; padding: 40px 0;">
+                    const metricDiv = document.createElement('div');
+                    metricDiv.style.cssText = 'text-align: center; padding: 30px 0;';
+                    metricDiv.innerHTML = `
+                        <div style="font-size: 3rem; font-weight: 700; color: #667eea;">
                             ${typeof value === 'number' ? value.toLocaleString() : value}
                         </div>
+                        <div style="font-size: 0.9rem; color: #888; margin-top: 8px;">
+                            ${chartConfig.aggregation?.toUpperCase() || 'TOTAL'}
+                        </div>
                     `;
+                    canvas.parentElement.appendChild(metricDiv);
                 } else {
-                    // Render chart
+                    // Render chart with proper colors
                     const canvas = document.getElementById(`chart-${chartConfig.id}`);
                     const ctx = canvas.getContext('2d');
+
+                    const colors = getChartColors(chartConfig, (data.labels || []).length);
 
                     new Chart(ctx, {
                         type: chartConfig.type,
@@ -379,16 +499,52 @@
                             datasets: [{
                                 label: chartConfig.title,
                                 data: data.values || [],
-                                backgroundColor: 'rgba(102, 126, 234, 0.2)',
-                                borderColor: 'rgba(102, 126, 234, 1)',
-                                borderWidth: 2
+                                backgroundColor: colors.background,
+                                borderColor: colors.border,
+                                borderWidth: 2,
+                                tension: 0.4
                             }]
                         },
                         options: {
                             responsive: true,
                             maintainAspectRatio: true,
                             plugins: {
-                                legend: { display: false }
+                                legend: {
+                                    display: ['pie', 'doughnut'].includes(chartConfig.type),
+                                    labels: {
+                                        color: '#374151',
+                                        font: {
+                                            size: 12,
+                                            weight: '500'
+                                        }
+                                    }
+                                },
+                                tooltip: {
+                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                    titleColor: '#fff',
+                                    bodyColor: '#fff',
+                                    borderColor: '#667eea',
+                                    borderWidth: 1
+                                }
+                            },
+                            scales: ['pie', 'doughnut'].includes(chartConfig.type) ? {} : {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        color: '#6b7280'
+                                    },
+                                    grid: {
+                                        color: '#e5e7eb'
+                                    }
+                                },
+                                x: {
+                                    ticks: {
+                                        color: '#6b7280'
+                                    },
+                                    grid: {
+                                        color: '#e5e7eb'
+                                    }
+                                }
                             }
                         }
                     });
@@ -407,6 +563,11 @@
 
             // Reload dashboard with new filters
             loadDashboard();
+        }
+
+        function editDashboard() {
+            // Navigate to the main app and open the dashboard editor
+            window.location.href = `/?edit=${dashboardId}`;
         }
 
         async function exportPDF() {

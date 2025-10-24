@@ -194,6 +194,82 @@ async def get_dashboards():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/dashboards")
+async def create_dashboard(request: Request):
+    """Create a new dashboard"""
+    try:
+        import yaml
+        import logging
+        import re
+
+        body = await request.json()
+        dashboard_name = body.get("name", "").strip()
+        dashboard_description = body.get("description", "").strip()
+
+        if not dashboard_name:
+            raise HTTPException(status_code=400, detail="Dashboard name is required")
+
+        # Generate dashboard ID from name (lowercase, replace spaces with hyphens)
+        dashboard_id = re.sub(r'[^a-z0-9]+', '-', dashboard_name.lower()).strip('-')
+
+        dashboards_file = models_dir / "dashboards.yml"
+
+        # Load existing dashboards or create new structure
+        if dashboards_file.exists():
+            with open(dashboards_file, 'r') as f:
+                data = yaml.safe_load(f) or {}
+        else:
+            data = {}
+
+        if 'dashboards' not in data:
+            data['dashboards'] = []
+
+        # Check if dashboard with this name or ID already exists
+        existing_names = [d.get('name', '').lower() for d in data['dashboards']]
+        existing_ids = [d.get('id') for d in data['dashboards']]
+
+        if dashboard_name.lower() in existing_names:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Dashboard with name '{dashboard_name}' already exists. Please choose a different name."
+            )
+
+        if dashboard_id in existing_ids:
+            # This shouldn't happen if name is unique, but just in case
+            raise HTTPException(
+                status_code=400,
+                detail=f"Dashboard ID conflict. Please choose a different name."
+            )
+
+        # Create new dashboard
+        new_dashboard = {
+            "id": dashboard_id,
+            "name": dashboard_name,
+            "description": dashboard_description or f"Custom dashboard: {dashboard_name}",
+            "charts": []
+        }
+
+        data['dashboards'].append(new_dashboard)
+
+        # Save to file
+        with open(dashboards_file, 'w') as f:
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+        logging.info(f"Created new dashboard: {dashboard_id}")
+
+        return {
+            "success": True,
+            "message": f"Dashboard '{dashboard_name}' created successfully!",
+            "dashboard": new_dashboard
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error creating dashboard: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/charts")
 async def get_all_charts():
     """Get all charts from all dashboards"""

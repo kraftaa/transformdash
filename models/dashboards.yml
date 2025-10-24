@@ -3,6 +3,9 @@ dashboards:
 - id: executive-dashboard
   name: Executive Dashboard
   description: High-level KPIs across all business areas
+  filters:
+  - field: sale_year
+    label: Sale Year
   charts:
   - id: total-revenue-ytd
     title: Total Revenue YTD
@@ -410,11 +413,111 @@ dashboards:
 - id: custom_charts
   name: Custom Charts
   description: User-created charts
+  charts: []
+- id: test-dashboard1
+  name: Test dashboard1
+  description: testing
   charts:
-  - id: test
-    title: Test
-    type: bar
-    model: test
-    x_axis: x
-    y_axis: y
+  - id: total-revenue-ytd
+    title: Total Revenue YTD
+    model: fct_sales_performance
+    type: metric
+    metric: revenue
     aggregation: sum
+    filters:
+    - field: sale_year
+      operator: '='
+      value: CURRENT_YEAR
+    dashboardName: Executive Dashboard
+    dashboardId: executive-dashboard
+  - id: order-volume-by-tier
+    title: Order Volume by Value Tier
+    model: fct_orders
+    type: doughnut
+    x_axis: order_value_tier
+    y_axis: order_id
+    aggregation: count
+    dashboardName: Executive Dashboard
+    dashboardId: executive-dashboard
+  - id: on-time-delivery-rate
+    title: On-Time Delivery Rate
+    model: fct_shipping_logistics
+    type: metric
+    metric: on_time_percentage
+    aggregation: avg
+    dashboardName: Executive Dashboard
+    dashboardId: executive-dashboard
+- id: test1
+  name: test1
+  description: test
+  charts: []
+- id: test
+  name: test
+  description: test
+  charts: []
+- id: test-1
+  name: test
+  description: test
+  charts:
+  - id: total-revenue-ytd
+    title: Total Revenue YTD
+    model: fct_sales_performance
+    type: metric
+    metric: revenue
+    aggregation: sum
+    filters:
+    - field: sale_year
+      operator: '='
+      value: CURRENT_YEAR
+    dashboardName: Executive Dashboard
+    dashboardId: executive-dashboard
+  - id: order-volume-by-tier
+    title: Order Volume by Value Tier
+    model: fct_orders
+    type: doughnut
+    x_axis: order_value_tier
+    y_axis: order_id
+    aggregation: count
+    dashboardName: Executive Dashboard
+    dashboardId: executive-dashboard
+  - id: inventory-value-summary
+    title: Total Inventory Value
+    model: fct_inventory_metrics
+    type: metric
+    metric: total_inventory_value
+    aggregation: sum
+    dashboardName: Executive Dashboard
+    dashboardId: executive-dashboard
+- id: test-2
+  name: test
+  description: test
+  charts:
+  - id: total-revenue-ytd
+    title: Total Revenue YTD
+    model: fct_sales_performance
+    type: metric
+    metric: revenue
+    aggregation: sum
+    filters:
+    - field: sale_year
+      operator: '='
+      value: CURRENT_YEAR
+    dashboardName: Executive Dashboard
+    dashboardId: executive-dashboard
+  - id: order-volume-by-tier
+    title: Order Volume by Value Tier
+    model: fct_orders
+    type: doughnut
+    x_axis: order_value_tier
+    y_axis: order_id
+    aggregation: count
+    dashboardName: Executive Dashboard
+    dashboardId: executive-dashboard
+  - id: on-time-delivery-rate
+    title: On-Time Delivery Rate
+    model: fct_shipping_logistics
+    type: metric
+    metric: on_time_percentage
+    aggregation: avg
+    dashboardName: Executive Dashboard
+    dashboardId: executive-dashboard
