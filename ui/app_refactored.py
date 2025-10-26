@@ -747,6 +747,130 @@ async def query_data(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/tables/list")
+async def list_tables():
+    """List all tables/views in the database for SQL Query Lab"""
+    try:
+        from postgres import PostgresConnector
+        import logging
+
+        with PostgresConnector() as pg:
+            # Get all tables and views with row counts
+            query = """
+                SELECT
+                    t.tablename as name,
+                    'table' as type,
+                    pg_size_pretty(pg_total_relation_size(quote_ident(t.tablename)::regclass)) as size
+                FROM pg_catalog.pg_tables t
+                WHERE t.schemaname = 'public'
+                UNION ALL
+                SELECT
+                    v.viewname as name,
+                    'view' as type,
+                    '-' as size
+                FROM pg_catalog.pg_views v
+                WHERE v.schemaname = 'public'
+                    AND v.viewname NOT LIKE 'pg_%'
+                UNION ALL
+                SELECT
+                    m.matviewname as name,
+                    'materialized_view' as type,
+                    pg_size_pretty(pg_total_relation_size(quote_ident(m.matviewname)::regclass)) as size
+                FROM pg_catalog.pg_matviews m
+                WHERE m.schemaname = 'public'
+                ORDER BY name
+            """
+            result = pg.execute(query, fetch=True)
+
+            tables = []
+            for row in result:
+                tables.append({
+                    'name': row['name'],
+                    'type': row['type'],
+                    'size': row['size']
+                })
+
+            logging.info(f"Found {len(tables)} database objects")
+            return {"tables": tables}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error listing tables: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/query/execute")
+async def execute_query(request: Request):
+    """Execute a SQL query and return results for SQL Query Lab"""
+    try:
+        from postgres import PostgresConnector
+        import logging
+
+        body = await request.json()
+        sql = body.get('sql', '').strip()
+
+        if not sql:
+            raise HTTPException(status_code=400, detail="SQL query is required")
+
+        # Safety check: only allow SELECT queries
+        sql_upper = sql.upper().strip()
+        if not sql_upper.startswith('SELECT') and not sql_upper.startswith('WITH'):
+            raise HTTPException(
+                status_code=400,
+                detail="Only SELECT queries and CTEs (WITH) are allowed in SQL Query Lab"
+            )
+
+        # Additional safety: block dangerous keywords
+        dangerous_keywords = ['DROP', 'DELETE', 'TRUNCATE', 'ALTER', 'CREATE', 'INSERT', 'UPDATE']
+        for keyword in dangerous_keywords:
+            if keyword in sql_upper:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Query contains forbidden keyword: {keyword}"
+                )
+
+        with PostgresConnector() as pg:
+            # Execute query and convert to dataframe
+            df = pg.query_to_dataframe(sql)
+
+            # Convert to JSON-friendly format
+            # Handle NaN and Inf values
+            import math
+
+            columns = df.columns.tolist()
+            rows = []
+
+            for _, row in df.iterrows():
+                row_data = {}
+                for col in columns:
+                    value = row[col]
+                    # Convert NaN, Inf, and -Inf to None for JSON compatibility
+                    if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+                        row_data[col] = None
+                    # Convert pandas Timestamp to string
+                    elif hasattr(value, 'isoformat'):
+                        row_data[col] = value.isoformat()
+                    else:
+                        row_data[col] = value
+                rows.append(row_data)
+
+            logging.info(f"Query executed successfully: {len(rows)} rows returned")
+
+            return {
+                "success": True,
+                "columns": columns,
+                "rows": rows,
+                "row_count": len(rows)
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error executing query: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Query execution failed: {str(e)}")
+
+
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
@@ -1013,7 +1137,7 @@ async def get_orphaned_models():
 if __name__ == "__main__":
     import uvicorn
     print("\n🚀 Starting TransformDash Web UI...")
-    print("📊 Dashboard: http://localhost:8080")
-    print("📖 API Docs: http://localhost:8080/docs")
+    print("📊 Dashboard: http://localhost:8000")
+    print("📖 API Docs: http://localhost:8000/docs")
     print("\n")
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

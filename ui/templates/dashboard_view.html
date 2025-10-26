@@ -188,6 +188,28 @@
             color: #e53e3e;
         }
 
+        /* Chart menu styles */
+        .chart-menu-btn:hover {
+            background: #f3f4f6 !important;
+        }
+
+        .chart-menu-dropdown button:hover {
+            background: #f3f4f6 !important;
+        }
+
+        body.dark-mode .chart-menu-dropdown {
+            background: #2d3748;
+            border-color: #4a5568;
+        }
+
+        body.dark-mode .chart-menu-dropdown button {
+            color: #e5e7eb !important;
+        }
+
+        body.dark-mode .chart-menu-dropdown button:hover {
+            background: #374151 !important;
+        }
+
         /* Dark mode */
         body.dark-mode {
             background: #1a202c;
@@ -306,7 +328,8 @@
                 const filterData = await response.json();
 
                 container.innerHTML = dashboard.filters.map(filter => {
-                    const options = filterData[filter.field] || [];
+                    const filterInfo = filterData.filters[filter.field];
+                    const options = filterInfo ? filterInfo.values : [];
                     return `
                         <div class="filter-group">
                             <label class="filter-label">${filter.label}</label>
@@ -328,6 +351,9 @@
             grid.innerHTML = '';
 
             for (const chartConfig of dashboard.charts) {
+                // Store chart config for menu actions
+                currentChartConfigs[chartConfig.id] = chartConfig;
+
                 const chartDiv = document.createElement('div');
                 chartDiv.className = 'chart-container';
 
@@ -345,8 +371,19 @@
                     }
                 }
 
+                // Add three-dot menu for chart actions
                 chartDiv.innerHTML = `
-                    <h3 class="chart-title">${chartConfig.title}</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                        <h3 class="chart-title" style="margin: 0;">${chartConfig.title}</h3>
+                        <div class="chart-menu" style="position: relative;">
+                            <button class="chart-menu-btn" onclick="toggleChartMenu('${chartConfig.id}')" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; color: #6b7280; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;">⋮</button>
+                            <div id="menu-${chartConfig.id}" class="chart-menu-dropdown" style="display: none; position: absolute; right: 0; top: 100%; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 160px; z-index: 1000;">
+                                <button onclick="editChartFromDashboard('${chartConfig.id}')" style="width: 100%; text-align: left; padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 0.875rem; color: #374151; transition: background 0.2s; border-radius: 8px 8px 0 0;">✏️ Edit Chart</button>
+                                <button onclick="showChartQuery('${chartConfig.id}')" style="width: 100%; text-align: left; padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 0.875rem; color: #374151; transition: background 0.2s;">📋 View Query</button>
+                                <button onclick="refreshChart('${chartConfig.id}')" style="width: 100%; text-align: left; padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 0.875rem; color: #374151; transition: background 0.2s; border-radius: 0 0 8px 8px;">🔄 Refresh</button>
+                            </div>
+                        </div>
+                    </div>
                     ${filtersHTML}
                     <canvas id="chart-${chartConfig.id}"></canvas>
                 `;
@@ -403,24 +440,11 @@
                 // Convert to dictionary format expected by backend
                 const filterDict = {};
 
-                // Add chart's built-in filters first
-                const chartFilters = chartConfig.filters || [];
-                chartFilters.forEach(filter => {
-                    // Skip if this filter field has a user-selected value (user overrides)
-                    if (currentFilters.hasOwnProperty(filter.field)) {
-                        return;
-                    }
-                    // Skip invalid filter values like CURRENT_YEAR
-                    if (filter.value === 'CURRENT_YEAR' || filter.value === 'CURRENT_MONTH') {
-                        return;
-                    }
-                    // Only add simple equality filters (operator '=')
-                    if (filter.operator === '=' && filter.value) {
-                        filterDict[filter.field] = filter.value;
-                    }
-                });
+                // IMPORTANT: Chart-level filters should NOT be applied automatically
+                // Only apply user-selected filters from the dashboard filter dropdowns
+                // This ensures "All" means no filter is applied
 
-                // Add user-selected filters (these override chart filters)
+                // Add user-selected filters ONLY
                 Object.keys(currentFilters).forEach(key => {
                     if (currentFilters[key]) {
                         filterDict[key] = currentFilters[key];
@@ -430,16 +454,17 @@
                 // Build query payload based on chart type
                 let queryPayload;
                 if (chartConfig.type === 'metric') {
-                    // For metric charts, use x_axis and y_axis with the metric field
-                    const metricField = chartConfig.metric;
+                    // For metric charts, send x_axis and y_axis (NOT type: 'metric')
+                    // The backend will GROUP BY, and we'll sum the results on the frontend
+                    const metricField = chartConfig.metric || chartConfig.y_axis;
                     queryPayload = {
                         table: chartConfig.model,
-                        type: chartConfig.type,
                         x_axis: metricField,
                         y_axis: metricField,
                         aggregation: chartConfig.aggregation || 'sum',
                         filters: Object.keys(filterDict).length > 0 ? filterDict : undefined
                     };
+                    console.log('Metric chart query payload:', queryPayload);
                 } else {
                     // For regular charts
                     queryPayload = {
@@ -459,6 +484,7 @@
                 });
 
                 const data = await response.json();
+                console.log('Response data:', data);
 
                 if (chartConfig.type === 'metric') {
                     // Render metric - handle both direct value and values array
@@ -468,9 +494,11 @@
                     if (data.value !== undefined) {
                         // Direct value from metric endpoint
                         value = data.value;
+                        console.log('Using data.value:', value);
                     } else if (data.values && data.values.length > 0) {
                         // Sum values array
                         value = data.values.reduce((a, b) => a + b, 0);
+                        console.log('Summing values array:', data.values, 'Total:', value);
                     }
 
                     canvas.style.display = 'none';
@@ -568,6 +596,107 @@
         function editDashboard() {
             // Navigate to the main app and open the dashboard editor
             window.location.href = `/?edit=${dashboardId}`;
+        }
+
+        // Chart menu functions
+        let currentChartConfigs = {};
+
+        function toggleChartMenu(chartId) {
+            const menu = document.getElementById(`menu-${chartId}`);
+            // Close all other menus
+            document.querySelectorAll('.chart-menu-dropdown').forEach(m => {
+                if (m.id !== `menu-${chartId}`) m.style.display = 'none';
+            });
+            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // Close menus when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.chart-menu')) {
+                document.querySelectorAll('.chart-menu-dropdown').forEach(m => {
+                    m.style.display = 'none';
+                });
+            }
+        });
+
+        function editChartFromDashboard(chartId) {
+            const chartConfig = currentChartConfigs[chartId];
+            if (chartConfig) {
+                // Store chart config in sessionStorage so main app can load it
+                sessionStorage.setItem('editChart', JSON.stringify(chartConfig));
+                // Navigate to main app with edit flag
+                window.location.href = `/?action=editChart`;
+            }
+        }
+
+        async function showChartQuery(chartId) {
+            const chartConfig = currentChartConfigs[chartId];
+            if (!chartConfig) return;
+
+            // Build the filters applied to this chart
+            const filterDict = {};
+            Object.keys(currentFilters).forEach(key => {
+                if (currentFilters[key]) filterDict[key] = currentFilters[key];
+            });
+
+            // Generate SQL query approximation
+            let sqlQuery = '';
+            const agg = (chartConfig.aggregation || 'sum').toUpperCase();
+            const table = chartConfig.model;
+
+            if (chartConfig.type === 'metric') {
+                // Metric chart: single aggregate value
+                const metricField = chartConfig.metric || chartConfig.y_axis;
+                sqlQuery = `SELECT ${agg}(${metricField}) AS value\nFROM public.${table}`;
+
+                if (Object.keys(filterDict).length > 0) {
+                    const whereClauses = Object.entries(filterDict).map(([field, value]) =>
+                        `  ${field} = '${value}'`
+                    ).join(' AND\n');
+                    sqlQuery += `\nWHERE\n${whereClauses}`;
+                }
+            } else {
+                // Regular chart: grouped data
+                const xAxis = chartConfig.x_axis;
+                const yAxis = chartConfig.y_axis;
+
+                sqlQuery = `SELECT\n  ${xAxis} AS label,\n  ${agg}(${yAxis}) AS value\nFROM public.${table}`;
+
+                const whereClauses = [`  ${xAxis} IS NOT NULL`];
+                Object.entries(filterDict).forEach(([field, value]) => {
+                    whereClauses.push(`  ${field} = '${value}'`);
+                });
+
+                sqlQuery += `\nWHERE\n${whereClauses.join(' AND\n')}`;
+                sqlQuery += `\nGROUP BY ${xAxis}\nORDER BY ${xAxis}\nLIMIT 50`;
+            }
+
+            // Show query in a better format
+            const queryInfo = `Chart: ${chartConfig.title}\n\n${sqlQuery}`;
+            alert(queryInfo);
+        }
+
+        async function refreshChart(chartId) {
+            const chartConfig = currentChartConfigs[chartId];
+            if (!chartConfig) return;
+
+            // Find the chart container and re-render
+            const canvas = document.getElementById(`chart-${chartId}`);
+            if (canvas) {
+                // Clear the canvas parent
+                const parent = canvas.parentElement;
+                const chartContent = parent.querySelector('canvas').parentElement;
+
+                // Remove old metric divs if any
+                parent.querySelectorAll('div').forEach(div => {
+                    if (div.style.textAlign === 'center' && div.style.padding) {
+                        div.remove();
+                    }
+                });
+
+                // Re-render
+                await renderChart(chartConfig);
+            }
         }
 
         async function exportPDF() {

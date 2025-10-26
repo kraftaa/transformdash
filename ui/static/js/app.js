@@ -351,8 +351,29 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check if we need to open dashboard editor from URL parameter
     const urlParams = new URLSearchParams(window.location.search);
     const editDashboardId = urlParams.get('edit');
+    const action = urlParams.get('action');
 
-    if (editDashboardId) {
+    // Check if we need to edit a chart from dashboard view
+    if (action === 'editChart') {
+        // Remove the action parameter from URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        // Get chart config from sessionStorage
+        const chartConfigStr = sessionStorage.getItem('editChart');
+        if (chartConfigStr) {
+            sessionStorage.removeItem('editChart');
+            try {
+                const chartConfig = JSON.parse(chartConfigStr);
+                // Call editChart after a short delay to ensure DOM is ready
+                setTimeout(() => editChart(chartConfig), 100);
+            } catch (e) {
+                console.error('Error parsing chart config:', e);
+                switchView('overview');
+            }
+        } else {
+            switchView('overview');
+        }
+    } else if (editDashboardId) {
         // Remove the edit parameter from URL
         window.history.replaceState({}, document.title, window.location.pathname);
 
@@ -1787,8 +1808,21 @@ async function renderDashboardChart(chartConfig, container, filters = {}) {
         editBtn.onmouseover = function() { this.style.background = '#f0f0f0'; };
         editBtn.onmouseout = function() { this.style.background = 'none'; };
 
+        // Add View Query button
+        const viewQueryBtn = document.createElement('button');
+        viewQueryBtn.style.cssText = 'background: none; border: none; cursor: pointer; color: #667eea; font-size: 1.2em; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;';
+        viewQueryBtn.innerHTML = '🔍';
+        viewQueryBtn.title = 'View SQL Query';
+        viewQueryBtn.onclick = (e) => {
+            e.stopPropagation();
+            showChartQuery(chartConfig);
+        };
+        viewQueryBtn.onmouseover = function() { this.style.background = '#f0f0f0'; };
+        viewQueryBtn.onmouseout = function() { this.style.background = 'none'; };
+
         titleContainer.appendChild(title);
         titleContainer.appendChild(editBtn);
+        titleContainer.appendChild(viewQueryBtn);
         chartWrapper.appendChild(titleContainer);
 
         // Chart description (if available)
@@ -2030,8 +2064,8 @@ async function renderMetricChart(canvas, chartConfig, filters = {}) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 table: chartConfig.model,
-                x_axis: metricField,
-                y_axis: metricField,
+                type: 'metric',  // Important: tell backend this is a metric chart
+                metric: metricField,
                 aggregation: chartConfig.aggregation || 'sum',
                 filters: filters  // Pass filters to backend
             })
@@ -2215,8 +2249,8 @@ async function loadAllCharts() {
             }
         });
 
-        // Display each chart as a card
-        allCharts.forEach(chart => {
+        // Display each chart as a card with preview
+        allCharts.forEach(async (chart, index) => {
             const card = document.createElement('div');
             card.className = 'chart-item-card';
 
@@ -2229,7 +2263,12 @@ async function loadAllCharts() {
                 metric: '🔢'
             };
 
+            // Create preview canvas with unique ID (include index to avoid duplicates)
+            const canvasId = `chart-preview-${chart.dashboardId}-${chart.id}-${index}`;
             card.innerHTML = `
+                <div class="chart-item-preview" style="height: 150px; margin-bottom: 12px; background: var(--color-bg-secondary); border-radius: 8px; padding: 8px; display: flex; align-items: center; justify-content: center;">
+                    <canvas id="${canvasId}" style="max-height: 140px;"></canvas>
+                </div>
                 <div class="chart-item-icon">${typeIcons[chart.type] || '📊'}</div>
                 <div class="chart-item-title">${chart.title}</div>
                 <div class="chart-item-dashboard">${chart.dashboardName}</div>
@@ -2240,19 +2279,22 @@ async function loadAllCharts() {
                 <button class="chart-item-edit-btn" title="Edit chart">✏️</button>
             `;
 
-            // Click to show chart in modal
-            card.onclick = () => {
-                showChartModal(chart);
-            };
-
-            // Edit button click handler (stop propagation to prevent modal)
+            // Edit button click handler
             const editBtn = card.querySelector('.chart-item-edit-btn');
             editBtn.onclick = (e) => {
                 e.stopPropagation();
                 editChart(chart);
             };
 
+            // Click on card to edit chart (opens in chart builder)
+            card.onclick = () => {
+                editChart(chart);
+            };
+
             chartsList.appendChild(card);
+
+            // Render preview chart
+            renderChartPreview(canvasId, chart);
         });
 
         // Show total count
@@ -2264,6 +2306,185 @@ async function loadAllCharts() {
     } catch (error) {
         console.error('Error loading charts:', error);
         document.getElementById('all-charts-list').innerHTML = '<p style="color: #ef4444;">Failed to load charts</p>';
+    }
+}
+
+// Store chart instances to prevent canvas reuse errors
+const chartInstances = {};
+
+// Render chart preview thumbnail
+async function renderChartPreview(canvasId, chartConfig) {
+    try {
+        console.log(`[${chartConfig.id}] Starting preview for "${chartConfig.title}" (${chartConfig.type})`);
+
+        // Handle metric type differently - no API call needed for correct display
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) {
+            console.warn(`[${chartConfig.id}] Canvas not found:`, canvasId);
+            return;
+        }
+
+        if (chartConfig.type === 'metric') {
+            // For metric type, query with the metric field
+            const metricField = chartConfig.metric || chartConfig.calculation || chartConfig.y_axis;
+
+            if (!metricField) {
+                console.warn(`[${chartConfig.id}] No metric field found, skipping`);
+                const parent = canvas.parentElement;
+                if (parent) {
+                    parent.innerHTML = '<div style="color: #888; font-size: 0.8rem;">Config missing metric field</div>';
+                }
+                return;
+            }
+
+            const payload = {
+                table: chartConfig.model,
+                type: 'metric',
+                metric: metricField,
+                aggregation: chartConfig.aggregation || 'sum'
+            };
+
+            console.log('Metric preview request:', payload);
+
+            const response = await fetch('/api/query', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`[${chartConfig.id}] ❌ Metric API error:`, response.status, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log(`[${chartConfig.id}] ✅ Metric data loaded:`, data);
+
+            // Don't render metric in canvas, show text instead
+            const parent = canvas.parentElement;
+            if (!parent) {
+                console.warn(`[${chartConfig.id}] Canvas parent not found for`, canvasId);
+                return;
+            }
+
+            // Get metric value - backend returns 'value' field for metrics
+            const metricValue = data.value ?? (data.values && data.values.length > 0 ? data.values.reduce((a, b) => a + b, 0) : 0);
+
+            parent.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+                    <div style="font-size: 2rem; font-weight: 700; color: #667eea;">
+                        ${typeof metricValue === 'number' ? metricValue.toLocaleString() : metricValue}
+                    </div>
+                    <div style="font-size: 0.75rem; color: #888; margin-top: 4px;">
+                        ${(chartConfig.aggregation || 'sum').toUpperCase()}
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        // For regular charts, query data
+        const payload = {
+            table: chartConfig.model,
+            type: chartConfig.type || 'bar',  // Include chart type
+            x_axis: chartConfig.x_axis
+        };
+
+        // Handle multi-metric charts (has metrics array)
+        if (chartConfig.metrics && Array.isArray(chartConfig.metrics)) {
+            payload.metrics = chartConfig.metrics;
+            console.log('Multi-metric chart preview request:', payload);
+        } else {
+            // Regular chart with single y_axis
+            payload.y_axis = chartConfig.y_axis;
+            payload.aggregation = chartConfig.aggregation || 'sum';
+        }
+
+        // Only add filters if they exist and are non-empty
+        if (chartConfig.filters && Object.keys(chartConfig.filters).length > 0) {
+            payload.filters = chartConfig.filters;
+        }
+
+        console.log('Chart preview request:', payload);
+
+        const response = await fetch('/api/query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[${chartConfig.id}] ❌ Chart API error:`, response.status, errorText);
+            throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log(`[${chartConfig.id}] ✅ Chart data loaded:`, data);
+
+        // Destroy existing chart instance if it exists
+        if (chartInstances[canvasId]) {
+            chartInstances[canvasId].destroy();
+            delete chartInstances[canvasId];
+        }
+
+        const ctx = canvas.getContext('2d');
+
+        // Handle multi-metric charts (datasets array)
+        let datasets;
+        if (data.datasets && Array.isArray(data.datasets)) {
+            // Multi-metric chart: use the datasets from API
+            datasets = data.datasets.map((dataset, i) => ({
+                label: dataset.label,
+                data: dataset.data,
+                backgroundColor: `hsla(${i * 60}, 70%, 60%, 0.8)`,
+                borderColor: `hsl(${i * 60}, 70%, 60%)`,
+                borderWidth: 1.5,
+                tension: 0.4
+            }));
+        } else {
+            // Single metric chart: use values array
+            datasets = [{
+                label: chartConfig.title,
+                data: data.values || [],
+                backgroundColor: chartConfig.type === 'pie' || chartConfig.type === 'doughnut'
+                    ? ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
+                    : 'rgba(102, 126, 234, 0.8)',
+                borderColor: 'rgba(102, 126, 234, 1)',
+                borderWidth: 1.5,
+                tension: 0.4
+            }];
+        }
+
+        // Create Chart.js preview and store instance
+        chartInstances[canvasId] = new Chart(ctx, {
+            type: chartConfig.type,
+            data: {
+                labels: data.labels || [],
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: false }
+                },
+                scales: chartConfig.type === 'pie' || chartConfig.type === 'doughnut' ? {} : {
+                    x: { display: false },
+                    y: { display: false, beginAtZero: true }
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error rendering chart preview:', error);
+        const canvas = document.getElementById(canvasId);
+        if (canvas) {
+            const parent = canvas.parentElement;
+            parent.innerHTML = '<div style="color: #888; font-size: 0.8rem;">Preview unavailable</div>';
+        }
     }
 }
 
@@ -2599,37 +2820,359 @@ function getActiveFilters() {
         }));
 }
 
+// Global variable to track the chart being edited
+let currentEditingChartId = null;
+
+// SQL Query Lab Functions
+async function loadDatabaseSchema() {
+    try {
+        const response = await fetch('/api/tables/list');
+        const tables = await response.json();
+
+        const browser = document.getElementById('schema-browser');
+        if (!tables || tables.length === 0) {
+            browser.innerHTML = '<p style="color: #888; font-size: 0.85rem;">No tables found</p>';
+            return;
+        }
+
+        let html = '<div style="font-size: 0.85rem;">';
+        for (const table of tables) {
+            html += `
+                <div style="margin-bottom: 12px; padding: 8px; background: #f8f9fa; border-radius: 6px; cursor: pointer; transition: background 0.2s;"
+                     onclick="insertTableName('${table.name}')"
+                     onmouseover="this.style.background='#e9ecef'"
+                     onmouseout="this.style.background='#f8f9fa'">
+                    <div style="font-weight: 600; color: #495057; margin-bottom: 4px;">📋 ${table.name}</div>
+                    <div style="font-size: 0.75rem; color: #6c757d;">${table.row_count || '?'} rows</div>
+                </div>
+            `;
+        }
+        html += '</div>';
+        browser.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading schema:', error);
+        document.getElementById('schema-browser').innerHTML = '<p style="color: #f44; font-size: 0.85rem;">Error loading tables</p>';
+    }
+}
+
+function insertTableName(tableName) {
+    const editor = document.getElementById('sql-editor');
+    const cursorPos = editor.selectionStart;
+    const textBefore = editor.value.substring(0, cursorPos);
+    const textAfter = editor.value.substring(cursorPos);
+    editor.value = textBefore + tableName + textAfter;
+    editor.focus();
+    editor.setSelectionRange(cursorPos + tableName.length, cursorPos + tableName.length);
+}
+
+function clearQuery() {
+    document.getElementById('sql-editor').value = '';
+    document.getElementById('query-error').style.display = 'none';
+}
+
+async function executeQuery() {
+    const sql = document.getElementById('sql-editor').value.trim();
+    if (!sql) {
+        alert('Please enter a SQL query');
+        return;
+    }
+
+    const resultsDiv = document.getElementById('query-results');
+    const errorDiv = document.getElementById('query-error');
+    const statsDiv = document.getElementById('query-stats');
+
+    // Clear previous results/errors
+    errorDiv.style.display = 'none';
+    resultsDiv.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #667eea;"><div style="text-align: center;"><div style="font-size: 2rem; margin-bottom: 8px;">⏳</div><div>Executing query...</div></div></div>';
+
+    const startTime = Date.now();
+
+    try {
+        const response = await fetch('/api/query/execute', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sql })
+        });
+
+        const executionTime = Date.now() - startTime;
+
+        if (!response.ok) {
+            const error = await response.json();
+            errorDiv.textContent = error.detail || 'Query execution failed';
+            errorDiv.style.display = 'block';
+            resultsDiv.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999;">Query failed</div>';
+            return;
+        }
+
+        const data = await response.json();
+
+        // Show stats
+        statsDiv.textContent = `${data.rows.length} rows returned in ${executionTime}ms`;
+
+        // Render results table
+        if (data.rows.length === 0) {
+            resultsDiv.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999;">No rows returned</div>';
+            return;
+        }
+
+        const columns = data.columns || Object.keys(data.rows[0]);
+        let html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;"><thead><tr>';
+
+        // Headers
+        columns.forEach(col => {
+            html += `<th style="padding: 10px; text-align: left; background: #f8f9fa; border-bottom: 2px solid #dee2e6; font-weight: 600; position: sticky; top: 0;">${col}</th>`;
+        });
+        html += '</tr></thead><tbody>';
+
+        // Rows
+        data.rows.forEach((row, i) => {
+            html += `<tr style="border-bottom: 1px solid #eee; ${i % 2 === 0 ? 'background: #fafafa;' : ''}">`;
+            columns.forEach(col => {
+                const value = row[col] === null ? '<span style="color: #999; font-style: italic;">null</span>' : row[col];
+                html += `<td style="padding: 8px 10px;">${value}</td>`;
+            });
+            html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+        resultsDiv.innerHTML = html;
+
+    } catch (error) {
+        console.error('Error executing query:', error);
+        errorDiv.textContent = 'Network error: ' + error.message;
+        errorDiv.style.display = 'block';
+        resultsDiv.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999;">Query failed</div>';
+    }
+}
+
+// Load schema when switching to query lab view
+document.addEventListener('DOMContentLoaded', function() {
+    const originalSwitchView = window.switchView;
+    window.switchView = function(viewName) {
+        originalSwitchView(viewName);
+        if (viewName === 'query-lab') {
+            loadDatabaseSchema();
+        }
+    };
+});
+
+// Show the SQL query for a chart
+function showChartQuery(chartConfig) {
+    // Build the SQL query based on chart configuration
+    let sql = '';
+
+    if (chartConfig.type === 'metric') {
+        // Metric query
+        const metricField = chartConfig.metric || chartConfig.y_axis;
+        const agg = (chartConfig.aggregation || 'sum').toUpperCase();
+        sql = `SELECT ${agg}(${metricField}) as value\nFROM public.${chartConfig.model}`;
+
+        // Add filters
+        if (chartConfig.filters && Array.isArray(chartConfig.filters) && chartConfig.filters.length > 0) {
+            const whereClauses = chartConfig.filters.map(f => {
+                if (f.value === 'CURRENT_YEAR') {
+                    return `${f.field} = EXTRACT(YEAR FROM CURRENT_DATE)`;
+                } else if (f.value === 'CURRENT_MONTH') {
+                    return `${f.field} = EXTRACT(MONTH FROM CURRENT_DATE)`;
+                } else {
+                    return `${f.field} ${f.operator} '${f.value}'`;
+                }
+            });
+            sql += `\nWHERE ` + whereClauses.join(' AND ');
+        }
+    } else if (chartConfig.metrics && Array.isArray(chartConfig.metrics)) {
+        // Multi-metric query
+        const metricSelects = chartConfig.metrics.map(m => {
+            const agg = (m.aggregation || 'sum').toUpperCase();
+            return `${agg}(${m.field}) as ${m.field}`;
+        }).join(',\n      ');
+
+        sql = `SELECT\n    ${chartConfig.x_axis} as label,\n      ${metricSelects}\nFROM public.${chartConfig.model}`;
+        sql += `\nWHERE ${chartConfig.x_axis} IS NOT NULL`;
+
+        // Add filters
+        if (chartConfig.filters && Array.isArray(chartConfig.filters) && chartConfig.filters.length > 0) {
+            const whereClauses = chartConfig.filters.map(f => `${f.field} ${f.operator} '${f.value}'`);
+            sql += ' AND ' + whereClauses.join(' AND ');
+        }
+
+        sql += `\nGROUP BY ${chartConfig.x_axis}\nORDER BY ${chartConfig.x_axis}\nLIMIT 50`;
+    } else {
+        // Regular chart query
+        const agg = (chartConfig.aggregation || 'sum').toUpperCase();
+        sql = `SELECT\n    ${chartConfig.x_axis} as label,\n    ${agg}(${chartConfig.y_axis}) as value\nFROM public.${chartConfig.model}`;
+        sql += `\nWHERE ${chartConfig.x_axis} IS NOT NULL`;
+
+        // Add filters
+        if (chartConfig.filters && Array.isArray(chartConfig.filters) && chartConfig.filters.length > 0) {
+            const whereClauses = chartConfig.filters.map(f => {
+                if (f.value === 'CURRENT_YEAR') {
+                    return `${f.field} = EXTRACT(YEAR FROM CURRENT_DATE)`;
+                } else if (f.value === 'CURRENT_MONTH') {
+                    return `${f.field} = EXTRACT(MONTH FROM CURRENT_DATE)`;
+                } else {
+                    return `${f.field} ${f.operator} '${f.value}'`;
+                }
+            });
+            sql += ' AND ' + whereClauses.join(' AND ');
+        }
+
+        sql += `\nGROUP BY ${chartConfig.x_axis}\nORDER BY ${chartConfig.x_axis}\nLIMIT 50`;
+    }
+
+    // Show in a modal/alert
+    const message = `SQL Query for "${chartConfig.title}":\n\n${sql}\n\n📋 Query copied to clipboard!`;
+
+    // Copy to clipboard
+    navigator.clipboard.writeText(sql).then(() => {
+        alert(message);
+    }).catch(() => {
+        alert(`SQL Query for "${chartConfig.title}":\n\n${sql}`);
+    });
+}
+
 // Edit an existing chart
 async function editChart(chartConfig) {
-    // Switch to chart builder view
+    console.log('editChart called with:', chartConfig);
+
+    // Store the chart ID for saving later
+    currentEditingChartId = chartConfig.id;
+
+    // Switch to chart builder view first
     switchView('chart-builder');
 
+    // Wait for view to render, then populate form
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Immediately clear any existing chart preview to avoid showing old content
+    const chartPlaceholder = document.getElementById('chartPlaceholder');
+    const chartCanvas = document.getElementById('chartCanvas');
+    const chartTableContainer = document.getElementById('chartTableContainer');
+
+    if (chartPlaceholder) chartPlaceholder.style.display = 'block';
+    if (chartCanvas) chartCanvas.style.display = 'none';
+    if (chartTableContainer) {
+        chartTableContainer.style.display = 'none';
+        chartTableContainer.innerHTML = '';
+    }
+
+    // Destroy any existing chart on the canvas
+    if (chartCanvas) {
+        const existingChart = Chart.getChart(chartCanvas);
+        if (existingChart) {
+            existingChart.destroy();
+        }
+    }
+
     // Pre-fill the form with chart data
-    document.getElementById('chartTitle').value = chartConfig.title || '';
-    document.getElementById('chartTable').value = chartConfig.model || '';
+    const titleEl = document.getElementById('chartTitle');
+    const tableEl = document.getElementById('chartTable');
+
+    if (!titleEl || !tableEl) {
+        console.error('Form elements not found!');
+        return;
+    }
+
+    titleEl.value = chartConfig.title || '';
+
+    // Add the table option if it doesn't exist in the select
+    const tableName = chartConfig.model;
+    if (tableName) {
+        const existingOption = Array.from(tableEl.options).find(opt => opt.value === tableName);
+        if (!existingOption) {
+            console.log(`Adding missing table option: ${tableName}`);
+            const newOption = document.createElement('option');
+            newOption.value = tableName;
+            newOption.textContent = tableName;
+            tableEl.appendChild(newOption);
+        }
+    }
+
+    tableEl.value = tableName || '';
+
+    console.log('Set title to:', chartConfig.title);
+    console.log('Set table to:', tableName);
+
+    // Verify the values were actually set
+    console.log('Verification - Title field value:', titleEl.value);
+    console.log('Verification - Table field value:', tableEl.value);
 
     // Load table columns to populate the dropdowns
     await loadTableColumns();
 
-    // Set chart type
-    document.getElementById('chartType').value = chartConfig.type || 'bar';
+    // Verify table value after loadTableColumns
+    console.log('After loadTableColumns - Table field value:', document.getElementById('chartTable')?.value);
 
-    // Wait for columns to load, then set x and y axes
-    setTimeout(() => {
-        if (chartConfig.x_axis) {
-            document.getElementById('chartXAxis').value = chartConfig.x_axis;
-        }
-        if (chartConfig.y_axis) {
-            document.getElementById('chartYAxis').value = chartConfig.y_axis;
-        }
-        if (chartConfig.aggregation) {
-            document.getElementById('chartAggregation').value = chartConfig.aggregation;
+    // Wait for columns to load, then set everything including chart type
+    setTimeout(async () => {
+        const xAxisEl = document.getElementById('chartXAxis');
+        const yAxisEl = document.getElementById('chartYAxis');
+        const aggregationEl = document.getElementById('chartAggregation');
+        const chartTypeEl = document.getElementById('chartType');
+
+        console.log('Form elements found:', {
+            xAxis: !!xAxisEl,
+            yAxis: !!yAxisEl,
+            aggregation: !!aggregationEl,
+            chartType: !!chartTypeEl
+        });
+
+        // Set chart type in the timeout to ensure it's after all DOM updates
+        if (chartTypeEl) {
+            const chartType = chartConfig.type || 'bar';
+
+            // Add the chart type option if it doesn't exist (e.g., 'metric')
+            const existingOption = Array.from(chartTypeEl.options).find(opt => opt.value === chartType);
+            if (!existingOption) {
+                console.log(`Adding missing chart type option: ${chartType}`);
+                const newOption = document.createElement('option');
+                newOption.value = chartType;
+                newOption.textContent = chartType === 'metric' ? '🔢 Metric' : chartType;
+                chartTypeEl.appendChild(newOption);
+            }
+
+            chartTypeEl.value = chartType;
+            console.log('Set chart type to:', chartType);
+            console.log('Verification - Chart type field value:', chartTypeEl.value);
+        } else {
+            console.error('Chart type element not found!');
         }
 
-        // Load filters if present
+        // For metric charts, use the metric field for both x and y axis
+        if (chartConfig.type === 'metric') {
+            const metricField = chartConfig.metric || chartConfig.y_axis;
+            if (metricField && xAxisEl && yAxisEl) {
+                xAxisEl.value = metricField;
+                yAxisEl.value = metricField;
+                console.log('Set metric chart axes to:', metricField);
+            }
+        } else {
+            // For regular charts, use x_axis and y_axis
+            if (chartConfig.x_axis && xAxisEl) {
+                xAxisEl.value = chartConfig.x_axis;
+                console.log('Set X axis to:', chartConfig.x_axis);
+            }
+            if (chartConfig.y_axis && yAxisEl) {
+                yAxisEl.value = chartConfig.y_axis;
+                console.log('Set Y axis to:', chartConfig.y_axis);
+            }
+        }
+
+        if (chartConfig.aggregation && aggregationEl) {
+            aggregationEl.value = chartConfig.aggregation;
+            console.log('Set aggregation to:', chartConfig.aggregation);
+        }
+
+        // Load filters if present (skip special values like CURRENT_YEAR)
         chartFilters = [];
         if (chartConfig.filters && Array.isArray(chartConfig.filters)) {
             chartConfig.filters.forEach(filter => {
+                // Skip filters with special template values
+                if (filter.value === 'CURRENT_YEAR' || filter.value === 'CURRENT_MONTH') {
+                    console.log('Skipping template filter:', filter);
+                    return;
+                }
+
                 const filterId = `filter-${Date.now()}-${Math.random()}`;
                 chartFilters.push({
                     id: filterId,
@@ -2652,7 +3195,30 @@ async function editChart(chartConfig) {
                     .catch(error => console.error('Error loading columns for filters:', error));
             }
         }
-    }, 300);
+
+        // Automatically preview the chart with existing data
+        // Wait a bit more to ensure dropdowns are populated
+        setTimeout(async () => {
+            console.log('Auto-previewing chart...');
+
+            // Verify form values before creating chart
+            const currentTable = document.getElementById('chartTable')?.value;
+            const currentXAxis = document.getElementById('chartXAxis')?.value;
+            const currentYAxis = document.getElementById('chartYAxis')?.value;
+
+            console.log('Current form values:', {
+                table: currentTable,
+                xAxis: currentXAxis,
+                yAxis: currentYAxis
+            });
+
+            if (currentTable && currentXAxis && currentYAxis) {
+                await createChart();
+            } else {
+                console.warn('Form not fully populated yet, skipping auto-preview');
+            }
+        }, 200);
+    }, 600);
 
     showToast('Chart loaded for editing', 'info');
 }
@@ -2665,31 +3231,70 @@ async function createChart() {
     const yAxis = document.getElementById('chartYAxis').value;
     const aggregation = document.getElementById('chartAggregation').value;
 
+    console.log('createChart called with:', { table, chartType, xAxis, yAxis, aggregation });
+
     // Validation
     if (!table || !xAxis || !yAxis) {
-        document.getElementById('chartError').style.display = 'block';
-        document.getElementById('chartError').textContent = 'Please select table, X-axis, and Y-axis';
+        const errorEl = document.getElementById('chartError');
+        if (errorEl) {
+            errorEl.style.display = 'block';
+            errorEl.textContent = 'Please select table, X-axis, and Y-axis';
+        }
+        console.warn('Validation failed:', { table, xAxis, yAxis });
         return;
     }
 
-    document.getElementById('chartError').style.display = 'none';
+    const errorEl = document.getElementById('chartError');
+    if (errorEl) {
+        errorEl.style.display = 'none';
+    }
 
     try {
         // Get active filters
         const filters = getActiveFilters();
 
+        // Build query payload
+        const payload = {
+            table,
+            type: chartType,
+            x_axis: xAxis,
+            y_axis: yAxis,
+            aggregation
+        };
+
+        // For metric charts, add metric field
+        if (chartType === 'metric') {
+            payload.metric = xAxis; // For metrics, x and y are the same
+        }
+
+        // Add filters if present - convert array to dict format
+        if (filters.length > 0) {
+            const filterDict = {};
+            filters.forEach(f => {
+                if (f.operator === '=') {
+                    filterDict[f.field] = f.value;
+                }
+                // TODO: Handle other operators (>, <, LIKE, etc.)
+            });
+            if (Object.keys(filterDict).length > 0) {
+                payload.filters = filterDict;
+            }
+        }
+
+        console.log('Chart builder query payload:', payload);
+
         // Query data
         const response = await fetch('/api/query', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                table,
-                x_axis: xAxis,
-                y_axis: yAxis,
-                aggregation,
-                filters: filters.length > 0 ? filters : undefined
-            })
+            body: JSON.stringify(payload)
         });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Chart builder API error:', response.status, errorText);
+            throw new Error(`API returned ${response.status}: ${errorText}`);
+        }
 
         const data = await response.json();
 
@@ -2698,8 +3303,27 @@ async function createChart() {
         document.getElementById('chartCanvas').style.display = 'none';
         document.getElementById('chartTableContainer').style.display = 'none';
 
-        // Handle table chart type
-        if (chartType === 'table') {
+        // Handle metric chart type
+        if (chartType === 'metric') {
+            const metricContainer = document.getElementById('chartTableContainer');
+            metricContainer.style.display = 'block';
+
+            // Get metric value - backend returns 'value' field for metrics
+            const metricValue = data.value ?? (data.values && data.values.length > 0 ? data.values.reduce((a, b) => a + b, 0) : 0);
+
+            console.log('Metric value for chart builder:', metricValue);
+
+            metricContainer.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; background: var(--color-bg-secondary); border-radius: 12px;">
+                    <div style="font-size: 4rem; font-weight: 700; color: #667eea; margin-bottom: 16px;">
+                        ${metricValue.toLocaleString()}
+                    </div>
+                    <div style="font-size: 1.2rem; color: #888; text-transform: uppercase; letter-spacing: 1px;">
+                        ${aggregation} ${title}
+                    </div>
+                </div>
+            `;
+        } else if (chartType === 'table') {
             const tableContainer = document.getElementById('chartTableContainer');
             tableContainer.style.display = 'block';
 
@@ -2721,11 +3345,20 @@ async function createChart() {
             tableContainer.innerHTML = tableHTML;
         } else {
             // Show canvas for chart types
-            document.getElementById('chartCanvas').style.display = 'block';
+            const canvasEl = document.getElementById('chartCanvas');
+            canvasEl.style.display = 'block';
 
             // Destroy existing chart if any
             if (currentChart) {
                 currentChart.destroy();
+                currentChart = null;
+            }
+
+            // Also destroy any chart attached to this canvas by Chart.js
+            const existingChart = Chart.getChart(canvasEl);
+            if (existingChart) {
+                console.log('Destroying existing chart on canvas');
+                existingChart.destroy();
             }
 
             // Determine actual Chart.js type and options
@@ -2814,8 +3447,11 @@ async function saveChart() {
     saveBtn.disabled = true;
 
     try {
-        // Generate chart ID
-        const chartId = `chart_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // Use existing chart ID if editing, otherwise generate new one
+        const chartId = currentEditingChartId || `chart_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const isEditing = !!currentEditingChartId;
+
+        console.log(isEditing ? `Updating existing chart: ${chartId}` : `Creating new chart: ${chartId}`);
 
         // Convert bar-stacked to bar for storage (with metadata to indicate stacking)
         let actualType = chartType;
@@ -2836,6 +3472,11 @@ async function saveChart() {
             y_axis: yAxis,
             aggregation: aggregation
         };
+
+        // For metric charts, add the metric field
+        if (chartType === 'metric') {
+            chartConfig.metric = xAxis; // For metrics, x and y are the same
+        }
 
         // Only add filters if there are any
         if (filters.length > 0) {

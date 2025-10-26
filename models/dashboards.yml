@@ -413,7 +413,42 @@ dashboards:
 - id: custom_charts
   name: Custom Charts
   description: User-created charts
-  charts: []
+  charts:
+  - id: chart_1761504675431_0crgtg7lv
+    title: Total Revenue YTD
+    type: metric
+    model: fct_sales_performance
+    x_axis: revenue
+    y_axis: revenue
+    aggregation: sum
+  - id: chart_1761504806228_dsdw96p90
+    title: Total Inventory Value
+    type: metric
+    model: fct_inventory_metrics
+    x_axis: avg_unit_price
+    y_axis: total_inventory_value
+    aggregation: sum
+  - id: chart_1761504828383_377edyruy
+    title: Total Inventory Value
+    type: metric
+    model: fct_inventory_metrics
+    x_axis: total_inventory_value
+    y_axis: total_units
+    aggregation: sum
+  - id: chart_1761504863042_mgl6bj3o7
+    title: Total Inventory Value
+    type: metric
+    model: fct_inventory_metrics
+    x_axis: total_inventory_value
+    y_axis: avg_unit_price
+    aggregation: sum
+  - id: chart_1761504867867_kz8o6g7u5
+    title: Total Inventory Value
+    type: metric
+    model: fct_inventory_metrics
+    x_axis: total_inventory_value
+    y_axis: avg_unit_price
+    aggregation: sum
 - id: test-dashboard1
   name: Test dashboard1
   description: testing
