@@ -2827,7 +2827,8 @@ let currentEditingChartId = null;
 async function loadDatabaseSchema() {
     try {
         const response = await fetch('/api/tables/list');
-        const tables = await response.json();
+        const data = await response.json();
+        const tables = data.tables || data; // Handle both {tables: [...]} and [...]
 
         const browser = document.getElementById('schema-browser');
         if (!tables || tables.length === 0) {
@@ -2837,13 +2838,18 @@ async function loadDatabaseSchema() {
 
         let html = '<div style="font-size: 0.85rem;">';
         for (const table of tables) {
+            const tableName = table.name || table;
+            const tableType = table.type || 'table';
+            const tableSize = table.size || '';
+            const icon = tableType === 'view' ? '👁️' : tableType === 'materialized_view' ? '💾' : '📋';
+
             html += `
                 <div style="margin-bottom: 12px; padding: 8px; background: #f8f9fa; border-radius: 6px; cursor: pointer; transition: background 0.2s;"
-                     onclick="insertTableName('${table.name}')"
+                     onclick="previewTable('${tableName}')"
                      onmouseover="this.style.background='#e9ecef'"
                      onmouseout="this.style.background='#f8f9fa'">
-                    <div style="font-weight: 600; color: #495057; margin-bottom: 4px;">📋 ${table.name}</div>
-                    <div style="font-size: 0.75rem; color: #6c757d;">${table.row_count || '?'} rows</div>
+                    <div style="font-weight: 600; color: #495057; margin-bottom: 4px;">${icon} ${tableName}</div>
+                    <div style="font-size: 0.75rem; color: #6c757d;">${tableType}${tableSize ? ' • ' + tableSize : ''}</div>
                 </div>
             `;
         }
@@ -2863,6 +2869,15 @@ function insertTableName(tableName) {
     editor.value = textBefore + tableName + textAfter;
     editor.focus();
     editor.setSelectionRange(cursorPos + tableName.length, cursorPos + tableName.length);
+}
+
+async function previewTable(tableName) {
+    // Set the SQL editor with preview query
+    const previewQuery = `SELECT * FROM ${tableName} LIMIT 10;`;
+    document.getElementById('sql-editor').value = previewQuery;
+
+    // Automatically execute the query to show preview
+    await executeQuery();
 }
 
 function clearQuery() {
@@ -2916,20 +2931,37 @@ async function executeQuery() {
         }
 
         const columns = data.columns || Object.keys(data.rows[0]);
-        let html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;"><thead><tr>';
 
-        // Headers
-        columns.forEach(col => {
-            html += `<th style="padding: 10px; text-align: left; background: #f8f9fa; border-bottom: 2px solid #dee2e6; font-weight: 600; position: sticky; top: 0;">${col}</th>`;
+        // Store column order globally for drag-and-drop
+        if (!window.queryResultColumns) {
+            window.queryResultColumns = columns;
+        } else {
+            window.queryResultColumns = columns;
+        }
+
+        let html = '<table id="results-table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem;"><thead><tr>';
+
+        // Headers with drag-and-drop
+        columns.forEach((col, index) => {
+            html += `<th draggable="true"
+                         data-col-index="${index}"
+                         data-col-name="${col}"
+                         ondragstart="handleColumnDragStart(event)"
+                         ondragover="handleColumnDragOver(event)"
+                         ondrop="handleColumnDrop(event)"
+                         ondragend="handleColumnDragEnd(event)"
+                         style="padding: 10px; text-align: left; background: #f8f9fa; border-bottom: 2px solid #dee2e6; font-weight: 600; position: sticky; top: 0; color: #333; cursor: move; user-select: none;">
+                         <span style="margin-right: 4px;">⋮⋮</span>${col}
+                     </th>`;
         });
         html += '</tr></thead><tbody>';
 
         // Rows
         data.rows.forEach((row, i) => {
-            html += `<tr style="border-bottom: 1px solid #eee; ${i % 2 === 0 ? 'background: #fafafa;' : ''}">`;
+            html += `<tr style="border-bottom: 1px solid #eee; ${i % 2 === 0 ? 'background: #fafafa;' : 'background: white;'}">`;
             columns.forEach(col => {
                 const value = row[col] === null ? '<span style="color: #999; font-style: italic;">null</span>' : row[col];
-                html += `<td style="padding: 8px 10px;">${value}</td>`;
+                html += `<td style="padding: 8px 10px; color: #333;">${value}</td>`;
             });
             html += '</tr>';
         });
@@ -2937,12 +2969,101 @@ async function executeQuery() {
         html += '</tbody></table>';
         resultsDiv.innerHTML = html;
 
+        // Store the data globally for re-rendering after column reorder
+        window.currentQueryData = data;
+
     } catch (error) {
         console.error('Error executing query:', error);
         errorDiv.textContent = 'Network error: ' + error.message;
         errorDiv.style.display = 'block';
         resultsDiv.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999;">Query failed</div>';
     }
+}
+
+// Column drag-and-drop handlers for SQL results table
+let draggedColumnIndex = null;
+
+function handleColumnDragStart(event) {
+    draggedColumnIndex = parseInt(event.target.dataset.colIndex);
+    event.target.style.opacity = '0.5';
+    event.dataTransfer.effectAllowed = 'move';
+}
+
+function handleColumnDragOver(event) {
+    if (event.preventDefault) {
+        event.preventDefault();
+    }
+    event.dataTransfer.dropEffect = 'move';
+    event.target.style.borderLeft = '3px solid #667eea';
+    return false;
+}
+
+function handleColumnDrop(event) {
+    if (event.stopPropagation) {
+        event.stopPropagation();
+    }
+    event.preventDefault();
+
+    const targetColumnIndex = parseInt(event.target.dataset.colIndex);
+
+    if (draggedColumnIndex !== null && draggedColumnIndex !== targetColumnIndex) {
+        // Reorder columns array
+        const columns = [...window.queryResultColumns];
+        const draggedColumn = columns[draggedColumnIndex];
+        columns.splice(draggedColumnIndex, 1);
+        columns.splice(targetColumnIndex, 0, draggedColumn);
+        window.queryResultColumns = columns;
+
+        // Re-render table with new column order
+        rerenderResultsTable(columns);
+    }
+
+    event.target.style.borderLeft = '';
+    return false;
+}
+
+function handleColumnDragEnd(event) {
+    event.target.style.opacity = '1';
+    // Remove all border highlights
+    document.querySelectorAll('#results-table th').forEach(th => {
+        th.style.borderLeft = '';
+    });
+}
+
+function rerenderResultsTable(columns) {
+    const data = window.currentQueryData;
+    if (!data || !data.rows) return;
+
+    const resultsDiv = document.getElementById('query-results');
+    let html = '<table id="results-table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem;"><thead><tr>';
+
+    // Headers with new order
+    columns.forEach((col, index) => {
+        html += `<th draggable="true"
+                     data-col-index="${index}"
+                     data-col-name="${col}"
+                     ondragstart="handleColumnDragStart(event)"
+                     ondragover="handleColumnDragOver(event)"
+                     ondrop="handleColumnDrop(event)"
+                     ondragend="handleColumnDragEnd(event)"
+                     style="padding: 10px; text-align: left; background: #f8f9fa; border-bottom: 2px solid #dee2e6; font-weight: 600; position: sticky; top: 0; color: #333; cursor: move; user-select: none;">
+                     <span style="margin-right: 4px;">⋮⋮</span>${col}
+                 </th>`;
+    });
+    html += '</tr></thead><tbody>';
+
+    // Rows with new column order
+    data.rows.forEach((row, i) => {
+        html += `<tr style="border-bottom: 1px solid #eee; ${i % 2 === 0 ? 'background: #fafafa;' : 'background: white;'}">`;
+        columns.forEach(col => {
+            const value = row[col] === null ? '<span style="color: #999; font-style: italic;">null</span>' : row[col];
+            html += `<td style="padding: 8px 10px; color: #333;">${value}</td>`;
+        });
+        html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    resultsDiv.innerHTML = html;
 }
 
 // Load schema when switching to query lab view
@@ -3163,38 +3284,9 @@ async function editChart(chartConfig) {
             console.log('Set aggregation to:', chartConfig.aggregation);
         }
 
-        // Load filters if present (skip special values like CURRENT_YEAR)
+        // Clear filters when editing a chart (don't inherit dashboard filters)
         chartFilters = [];
-        if (chartConfig.filters && Array.isArray(chartConfig.filters)) {
-            chartConfig.filters.forEach(filter => {
-                // Skip filters with special template values
-                if (filter.value === 'CURRENT_YEAR' || filter.value === 'CURRENT_MONTH') {
-                    console.log('Skipping template filter:', filter);
-                    return;
-                }
-
-                const filterId = `filter-${Date.now()}-${Math.random()}`;
-                chartFilters.push({
-                    id: filterId,
-                    field: filter.field || '',
-                    operator: filter.operator || '=',
-                    value: filter.value || '',
-                    columns: [] // Will be populated when rendering
-                });
-            });
-
-            // Fetch columns for filters
-            const table = document.getElementById('chartTable').value;
-            if (table) {
-                fetch(`/api/tables/${table}/columns`)
-                    .then(response => response.json())
-                    .then(data => {
-                        chartFilters.forEach(f => f.columns = data.columns || []);
-                        renderFilters();
-                    })
-                    .catch(error => console.error('Error loading columns for filters:', error));
-            }
-        }
+        renderFilters();
 
         // Automatically preview the chart with existing data
         // Wait a bit more to ensure dropdowns are populated

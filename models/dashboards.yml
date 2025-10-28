@@ -389,11 +389,12 @@ dashboards:
     aggregation: avg
     description: Overall delivery performance
   - id: customer-satisfaction-proxy
-    title: Return Rate %
+    title: Total Returns
     model: fct_customer_returns
     type: metric
-    calculation: (return_count / total_orders) * 100
-    description: Proxy for customer satisfaction
+    metric: return_count
+    aggregation: sum
+    description: Total number of returns
   - id: inventory-turnover
     title: Inventory Health
     model: fct_inventory_metrics
