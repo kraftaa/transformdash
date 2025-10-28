@@ -2824,9 +2824,83 @@ function getActiveFilters() {
 let currentEditingChartId = null;
 
 // SQL Query Lab Functions
-async function loadDatabaseSchema() {
+async function loadDatabases() {
     try {
-        const response = await fetch('/api/tables/list');
+        const response = await fetch('/api/databases/list');
+        const data = await response.json();
+        const databases = data.databases || [];
+
+        const selector = document.getElementById('database-selector');
+        selector.innerHTML = '';
+
+        if (databases.length === 0) {
+            selector.innerHTML = '<option value="">No databases found</option>';
+            return;
+        }
+
+        databases.forEach(db => {
+            const option = document.createElement('option');
+            option.value = db;
+            option.textContent = db;
+            // Select the transformdash database by default if it exists
+            if (db === 'transformdash') {
+                option.selected = true;
+            }
+            selector.appendChild(option);
+        });
+
+        // Load schemas for the selected database
+        await loadSchemas();
+    } catch (error) {
+        console.error('Error loading databases:', error);
+        const selector = document.getElementById('database-selector');
+        selector.innerHTML = '<option value="">Error loading databases</option>';
+    }
+}
+
+async function onDatabaseChange() {
+    // When database changes, reload schemas
+    await loadSchemas();
+}
+
+async function loadSchemas() {
+    try {
+        const response = await fetch('/api/schemas/list');
+        const data = await response.json();
+        const schemas = data.schemas || [];
+
+        const selector = document.getElementById('schema-selector');
+        selector.innerHTML = '';
+
+        if (schemas.length === 0) {
+            selector.innerHTML = '<option value="">No schemas found</option>';
+            return;
+        }
+
+        schemas.forEach(schema => {
+            const option = document.createElement('option');
+            option.value = schema;
+            option.textContent = schema;
+            selector.appendChild(option);
+        });
+
+        // Load tables for the first schema
+        if (schemas.length > 0) {
+            await loadDatabaseSchema(schemas[0]);
+        }
+    } catch (error) {
+        console.error('Error loading schemas:', error);
+    }
+}
+
+async function onSchemaChange() {
+    const schema = document.getElementById('schema-selector').value;
+    await loadDatabaseSchema(schema);
+}
+
+async function loadDatabaseSchema(schema = 'public') {
+    try {
+        const response = await fetch(`/api/tables/list?schema=${schema}`);
         const data = await response.json();
         const tables = data.tables || data; // Handle both {tables: [...]} and [...]
 
@@ -2844,12 +2918,28 @@ async function loadDatabaseSchema() {
             const icon = tableType === 'view' ? '👁️' : tableType === 'materialized_view' ? '💾' : '📋';
 
             html += `
-                <div style="margin-bottom: 12px; padding: 8px; background: #f8f9fa; border-radius: 6px; cursor: pointer; transition: background 0.2s;"
-                     onclick="previewTable('${tableName}')"
-                     onmouseover="this.style.background='#e9ecef'"
-                     onmouseout="this.style.background='#f8f9fa'">
-                    <div style="font-weight: 600; color: #495057; margin-bottom: 4px;">${icon} ${tableName}</div>
-                    <div style="font-size: 0.75rem; color: #6c757d;">${tableType}${tableSize ? ' • ' + tableSize : ''}</div>
+                <div style="margin-bottom: 12px; background: #f8f9fa; border-radius: 6px; overflow: hidden;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; cursor: pointer; transition: background 0.2s;"
+                         onclick="toggleTableDetails('${tableName}')"
+                         onmouseover="this.style.background='#e9ecef'"
+                         onmouseout="this.style.background='#f8f9fa'">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: #495057; margin-bottom: 4px;">
+                                <span id="expand-icon-${tableName}" style="display: inline-block; width: 12px; transition: transform 0.2s;">▶</span>
+                                ${icon} ${tableName}
+                            </div>
+                            <div style="font-size: 0.75rem; color: #6c757d;">${tableType}${tableSize ? ' • ' + tableSize : ''}</div>
+                        </div>
+                        <div style="position: relative;">
+                            <button onclick="event.stopPropagation(); showTableMenu('${tableName}', event)"
+                                    style="background: none; border: none; color: #667eea; cursor: pointer; font-size: 1.2rem; padding: 4px 8px;">
+                                ⋮
+                            </button>
+                        </div>
+                    </div>
+                    <div id="table-details-${tableName}" style="display: none; padding: 0 8px 8px 8px; background: white; border-top: 1px solid #e9ecef;">
+                        <div style="font-size: 0.75rem; color: #888; margin: 8px 0 4px 0;">Loading columns...</div>
+                    </div>
                 </div>
             `;
         }
@@ -2859,6 +2949,106 @@ async function loadDatabaseSchema() {
         console.error('Error loading schema:', error);
         document.getElementById('schema-browser').innerHTML = '<p style="color: #f44; font-size: 0.85rem;">Error loading tables</p>';
     }
+}
+
+async function toggleTableDetails(tableName) {
+    const detailsDiv = document.getElementById(`table-details-${tableName}`);
+    const expandIcon = document.getElementById(`expand-icon-${tableName}`);
+
+    if (detailsDiv.style.display === 'none') {
+        // Expand and load columns
+        detailsDiv.style.display = 'block';
+        expandIcon.style.transform = 'rotate(90deg)';
+
+        // Load columns if not already loaded
+        if (!detailsDiv.dataset.loaded) {
+            try {
+                const response = await fetch(`/api/tables/${tableName}/columns`);
+                const data = await response.json();
+                const columns = data.columns || [];
+
+                if (columns.length === 0) {
+                    detailsDiv.innerHTML = '<div style="font-size: 0.75rem; color: #888; padding: 4px 0;">No columns found</div>';
+                } else {
+                    let html = '<div style="margin-top: 8px;">';
+                    columns.forEach(col => {
+                        const typeColor = col.type.includes('int') ? '#10b981' :
+                                        col.type.includes('char') || col.type.includes('text') ? '#667eea' :
+                                        col.type.includes('date') || col.type.includes('time') ? '#f59e0b' :
+                                        '#6c757d';
+                        html += `
+                            <div style="padding: 4px 8px; margin-bottom: 4px; background: #fafafa; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 0.75rem; color: #495057; font-family: 'Monaco', 'Menlo', monospace;">${col.name}</span>
+                                <span style="font-size: 0.7rem; color: ${typeColor}; font-weight: 600; padding: 2px 6px; background: white; border-radius: 3px;">${col.type}</span>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    detailsDiv.innerHTML = html;
+                }
+                detailsDiv.dataset.loaded = 'true';
+            } catch (error) {
+                console.error('Error loading columns:', error);
+                detailsDiv.innerHTML = '<div style="font-size: 0.75rem; color: #f44; padding: 4px 0;">Error loading columns</div>';
+            }
+        }
+    } else {
+        // Collapse
+        detailsDiv.style.display = 'none';
+        expandIcon.style.transform = 'rotate(0deg)';
+    }
+}
+
+function showTableMenu(tableName, event) {
+    // Remove any existing menu
+    const existingMenu = document.getElementById('table-context-menu');
+    if (existingMenu) existingMenu.remove();
+
+    // Create menu
+    const menu = document.createElement('div');
+    menu.id = 'table-context-menu';
+    menu.style.cssText = `
+        position: fixed;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        min-width: 150px;
+        padding: 4px 0;
+    `;
+
+    menu.innerHTML = `
+        <div onclick="previewTable('${tableName}'); document.getElementById('table-context-menu').remove();"
+             style="padding: 8px 16px; cursor: pointer; font-size: 0.85rem; color: #333;"
+             onmouseover="this.style.background='#f0f0f0'"
+             onmouseout="this.style.background='white'">
+            👁️ Preview (10 rows)
+        </div>
+        <div onclick="insertTableName('${tableName}'); document.getElementById('table-context-menu').remove();"
+             style="padding: 8px 16px; cursor: pointer; font-size: 0.85rem; color: #333;"
+             onmouseover="this.style.background='#f0f0f0'"
+             onmouseout="this.style.background='white'">
+            📝 Insert name
+        </div>
+    `;
+
+    // Position menu near the button
+    const rect = event.target.getBoundingClientRect();
+    menu.style.left = `${rect.left - 100}px`;
+    menu.style.top = `${rect.bottom + 5}px`;
+
+    document.body.appendChild(menu);
+
+    // Close menu when clicking outside
+    setTimeout(() => {
+        document.addEventListener('click', function closeMenu(e) {
+            if (!menu.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        });
+    }, 0);
 }
 
 function insertTableName(tableName) {
@@ -2883,6 +3073,96 @@ async function previewTable(tableName) {
 function clearQuery() {
     document.getElementById('sql-editor').value = '';
     document.getElementById('query-error').style.display = 'none';
+}
+
+function exportToCSV() {
+    if (!window.currentQueryData || !window.currentQueryData.rows || window.currentQueryData.rows.length === 0) {
+        alert('No data to export');
+        return;
+    }
+
+    const data = window.currentQueryData;
+    const columns = window.queryResultColumns || data.columns;
+
+    // Create CSV content
+    let csv = columns.join(',') + '\n';
+
+    data.rows.forEach(row => {
+        const rowData = columns.map(col => {
+            let value = row[col];
+            // Handle null
+            if (value === null || value === undefined) {
+                return '';
+            }
+            // Convert to string and escape quotes
+            value = String(value).replace(/"/g, '""');
+            // Wrap in quotes if contains comma, newline, or quote
+            if (value.includes(',') || value.includes('\n') || value.includes('"')) {
+                return `"${value}"`;
+            }
+            return value;
+        });
+        csv += rowData.join(',') + '\n';
+    });
+
+    // Create download link
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `query_results_${Date.now()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function printResults() {
+    if (!window.currentQueryData || !window.currentQueryData.rows || window.currentQueryData.rows.length === 0) {
+        alert('No data to print');
+        return;
+    }
+
+    const data = window.currentQueryData;
+    const columns = window.queryResultColumns || data.columns;
+
+    // Create a new window for printing
+    const printWindow = window.open('', '', 'height=600,width=800');
+    printWindow.document.write('<html><head><title>Query Results</title>');
+    printWindow.document.write('<style>');
+    printWindow.document.write('body { font-family: Arial, sans-serif; margin: 20px; }');
+    printWindow.document.write('table { width: 100%; border-collapse: collapse; }');
+    printWindow.document.write('th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }');
+    printWindow.document.write('th { background-color: #f8f9fa; font-weight: 600; }');
+    printWindow.document.write('tr:nth-child(even) { background-color: #fafafa; }');
+    printWindow.document.write('@media print { body { margin: 0; } }');
+    printWindow.document.write('</style></head><body>');
+    printWindow.document.write('<h2>Query Results</h2>');
+    printWindow.document.write(`<p>${data.rows.length} rows</p>`);
+    printWindow.document.write('<table><thead><tr>');
+
+    columns.forEach(col => {
+        printWindow.document.write(`<th>${col}</th>`);
+    });
+
+    printWindow.document.write('</tr></thead><tbody>');
+
+    data.rows.forEach(row => {
+        printWindow.document.write('<tr>');
+        columns.forEach(col => {
+            const value = row[col] === null ? '<em>null</em>' : row[col];
+            printWindow.document.write(`<td>${value}</td>`);
+        });
+        printWindow.document.write('</tr>');
+    });
+
+    printWindow.document.write('</tbody></table>');
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+        printWindow.print();
+    }, 250);
 }
 
 async function executeQuery() {
@@ -2924,9 +3204,13 @@ async function executeQuery() {
         // Show stats
         statsDiv.textContent = `${data.rows.length} rows returned in ${executionTime}ms`;
 
+        // Show export buttons
+        document.getElementById('export-buttons').style.display = 'flex';
+
         // Render results table
         if (data.rows.length === 0) {
             resultsDiv.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999;">No rows returned</div>';
+            document.getElementById('export-buttons').style.display = 'none';
             return;
         }
 
@@ -2939,10 +3223,16 @@ async function executeQuery() {
             window.queryResultColumns = columns;
         }
 
-        let html = '<table id="results-table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem;"><thead><tr>';
+        // Initialize column widths if not set
+        if (!window.columnWidths) {
+            window.columnWidths = {};
+        }
 
-        // Headers with drag-and-drop
+        let html = '<table id="results-table" style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem;"><thead><tr>';
+
+        // Headers with drag-and-drop and resize
         columns.forEach((col, index) => {
+            const width = window.columnWidths[col] || 150;
             html += `<th draggable="true"
                          data-col-index="${index}"
                          data-col-name="${col}"
@@ -2950,8 +3240,12 @@ async function executeQuery() {
                          ondragover="handleColumnDragOver(event)"
                          ondrop="handleColumnDrop(event)"
                          ondragend="handleColumnDragEnd(event)"
-                         style="padding: 10px; text-align: left; background: #f8f9fa; border-bottom: 2px solid #dee2e6; font-weight: 600; position: sticky; top: 0; color: #333; cursor: move; user-select: none;">
+                         style="padding: 10px; text-align: left; background: #f8f9fa; border-bottom: 2px solid #dee2e6; font-weight: 600; position: sticky; top: 0; color: #333; cursor: move; user-select: none; min-width: ${width}px; max-width: ${width}px; width: ${width}px; position: relative;">
                          <span style="margin-right: 4px;">⋮⋮</span>${col}
+                         <div class="col-resizer" data-col-name="${col}"
+                              onmousedown="startColumnResize(event, '${col}')"
+                              style="position: absolute; right: 0; top: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 10;">
+                         </div>
                      </th>`;
         });
         html += '</tr></thead><tbody>';
@@ -2960,8 +3254,9 @@ async function executeQuery() {
         data.rows.forEach((row, i) => {
             html += `<tr style="border-bottom: 1px solid #eee; ${i % 2 === 0 ? 'background: #fafafa;' : 'background: white;'}">`;
             columns.forEach(col => {
+                const width = window.columnWidths[col] || 150;
                 const value = row[col] === null ? '<span style="color: #999; font-style: italic;">null</span>' : row[col];
-                html += `<td style="padding: 8px 10px; color: #333;">${value}</td>`;
+                html += `<td style="padding: 8px 10px; color: #333; min-width: ${width}px; max-width: ${width}px; width: ${width}px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${value}</td>`;
             });
             html += '</tr>';
         });
@@ -2982,8 +3277,87 @@ async function executeQuery() {
 
 // Column drag-and-drop handlers for SQL results table
 let draggedColumnIndex = null;
+let isResizingColumn = false;
+let resizingColumnName = null;
+let startX = 0;
+let startWidth = 0;
+
+function startColumnResize(event, colName) {
+    event.stopPropagation();
+    event.preventDefault();
+
+    isResizingColumn = true;
+    resizingColumnName = colName;
+    startX = event.clientX;
+    startWidth = window.columnWidths[colName] || 150;
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    // Prevent drag-and-drop while resizing
+    const th = event.target.closest('th');
+    if (th) {
+        th.draggable = false;
+    }
+}
+
+document.addEventListener('mousemove', (event) => {
+    if (!isResizingColumn || !resizingColumnName) return;
+
+    const diff = event.clientX - startX;
+    const newWidth = Math.max(80, startWidth + diff); // Min width 80px
+
+    window.columnWidths[resizingColumnName] = newWidth;
+
+    // Update all cells in this column
+    const table = document.getElementById('results-table');
+    if (table) {
+        const colIndex = window.queryResultColumns.indexOf(resizingColumnName);
+        if (colIndex >= 0) {
+            // Update header
+            const headers = table.querySelectorAll('thead th');
+            if (headers[colIndex]) {
+                headers[colIndex].style.minWidth = newWidth + 'px';
+                headers[colIndex].style.maxWidth = newWidth + 'px';
+                headers[colIndex].style.width = newWidth + 'px';
+            }
+
+            // Update all cells in this column
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells[colIndex]) {
+                    cells[colIndex].style.minWidth = newWidth + 'px';
+                    cells[colIndex].style.maxWidth = newWidth + 'px';
+                    cells[colIndex].style.width = newWidth + 'px';
+                }
+            });
+        }
+    }
+});
+
+document.addEventListener('mouseup', (event) => {
+    if (isResizingColumn) {
+        isResizingColumn = false;
+        resizingColumnName = null;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+
+        // Re-enable drag-and-drop
+        const headers = document.querySelectorAll('#results-table thead th');
+        headers.forEach(th => {
+            th.draggable = true;
+        });
+    }
+});
 
 function handleColumnDragStart(event) {
+    // Don't start drag if we're resizing
+    if (isResizingColumn) {
+        event.preventDefault();
+        return;
+    }
+
     draggedColumnIndex = parseInt(event.target.dataset.colIndex);
     event.target.style.opacity = '0.5';
     event.dataTransfer.effectAllowed = 'move';
@@ -3037,8 +3411,9 @@ function rerenderResultsTable(columns) {
     const resultsDiv = document.getElementById('query-results');
     let html = '<table id="results-table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem;"><thead><tr>';
 
-    // Headers with new order
+    // Headers with new order and widths
     columns.forEach((col, index) => {
+        const width = window.columnWidths[col] || 150;
         html += `<th draggable="true"
                      data-col-index="${index}"
                      data-col-name="${col}"
@@ -3046,18 +3421,23 @@ function rerenderResultsTable(columns) {
                      ondragover="handleColumnDragOver(event)"
                      ondrop="handleColumnDrop(event)"
                      ondragend="handleColumnDragEnd(event)"
-                     style="padding: 10px; text-align: left; background: #f8f9fa; border-bottom: 2px solid #dee2e6; font-weight: 600; position: sticky; top: 0; color: #333; cursor: move; user-select: none;">
+                     style="padding: 10px; text-align: left; background: #f8f9fa; border-bottom: 2px solid #dee2e6; font-weight: 600; position: sticky; top: 0; color: #333; cursor: move; user-select: none; min-width: ${width}px; max-width: ${width}px; width: ${width}px; position: relative;">
                      <span style="margin-right: 4px;">⋮⋮</span>${col}
+                     <div class="col-resizer" data-col-name="${col}"
+                          onmousedown="startColumnResize(event, '${col}')"
+                          style="position: absolute; right: 0; top: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 10;">
+                     </div>
                  </th>`;
     });
     html += '</tr></thead><tbody>';
 
-    // Rows with new column order
+    // Rows with new column order and widths
     data.rows.forEach((row, i) => {
         html += `<tr style="border-bottom: 1px solid #eee; ${i % 2 === 0 ? 'background: #fafafa;' : 'background: white;'}">`;
         columns.forEach(col => {
+            const width = window.columnWidths[col] || 150;
             const value = row[col] === null ? '<span style="color: #999; font-style: italic;">null</span>' : row[col];
-            html += `<td style="padding: 8px 10px; color: #333;">${value}</td>`;
+            html += `<td style="padding: 8px 10px; color: #333; min-width: ${width}px; max-width: ${width}px; width: ${width}px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${value}</td>`;
         });
         html += '</tr>';
     });
@@ -3072,10 +3452,76 @@ document.addEventListener('DOMContentLoaded', function() {
     window.switchView = function(viewName) {
         originalSwitchView(viewName);
         if (viewName === 'query-lab') {
-            loadDatabaseSchema();
+            loadDatabases();
+            initializeResizers();
         }
     };
 });
+
+// Initialize panel resizers
+function initializeResizers() {
+    // Horizontal resizer (sidebar width)
+    const hResizer = document.getElementById('h-resizer');
+    const sidebar = document.getElementById('sql-sidebar');
+
+    if (hResizer && sidebar) {
+        let isResizing = false;
+
+        hResizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+
+            const newWidth = e.clientX - sidebar.getBoundingClientRect().left;
+            if (newWidth >= 200 && newWidth <= 500) {
+                sidebar.style.width = newWidth + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            }
+        });
+    }
+
+    // Vertical resizer (editor height)
+    const vResizer = document.getElementById('v-resizer');
+    const editorPanel = document.getElementById('sql-editor-panel');
+
+    if (vResizer && editorPanel) {
+        let isResizing = false;
+
+        vResizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'row-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+
+            const newHeight = e.clientY - editorPanel.getBoundingClientRect().top;
+            if (newHeight >= 150 && newHeight <= 600) {
+                editorPanel.style.height = newHeight + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            }
+        });
+    }
+}
 
 // Show the SQL query for a chart
 function showChartQuery(chartConfig) {

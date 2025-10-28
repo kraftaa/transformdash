@@ -747,47 +747,89 @@ async def query_data(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/databases/list")
+async def list_databases():
+    """List all databases"""
+    try:
+        from postgres import PostgresConnector
+        import logging
+
+        with PostgresConnector() as pg:
+            query = """
+                SELECT datname as name
+                FROM pg_database
+                WHERE datistemplate = false
+                ORDER BY datname
+            """
+            result = pg.execute(query, fetch=True)
+            databases = [row['name'] for row in result]
+            logging.info(f"Found {len(databases)} databases")
+            return {"databases": databases}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error listing databases: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/schemas/list")
+async def list_schemas():
+    """List all schemas in current database"""
+    try:
+        from postgres import PostgresConnector
+        import logging
+
+        with PostgresConnector() as pg:
+            query = """
+                SELECT schema_name as name
+                FROM information_schema.schemata
+                WHERE schema_name NOT LIKE 'pg_%'
+                  AND schema_name != 'information_schema'
+                ORDER BY schema_name
+            """
+            result = pg.execute(query, fetch=True)
+            schemas = [row['name'] for row in result]
+            logging.info(f"Found {len(schemas)} schemas")
+            return {"schemas": schemas}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error listing schemas: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/tables/list")
-async def list_tables():
+async def list_tables(schema: str = "public"):
     """List all tables/views in the database for SQL Query Lab"""
     try:
         from postgres import PostgresConnector
         import logging
 
         with PostgresConnector() as pg:
-            # Get all tables and views with row counts
+            # Get all tables and views
             query = """
                 SELECT
                     t.tablename as name,
-                    'table' as type,
-                    pg_size_pretty(pg_total_relation_size(quote_ident(t.tablename)::regclass)) as size
+                    'table' as type
                 FROM pg_catalog.pg_tables t
-                WHERE t.schemaname = 'public'
+                WHERE t.schemaname = %s
                 UNION ALL
                 SELECT
                     v.viewname as name,
-                    'view' as type,
-                    '-' as size
+                    'view' as type
                 FROM pg_catalog.pg_views v
-                WHERE v.schemaname = 'public'
-                    AND v.viewname NOT LIKE 'pg_%'
-                UNION ALL
-                SELECT
-                    m.matviewname as name,
-                    'materialized_view' as type,
-                    pg_size_pretty(pg_total_relation_size(quote_ident(m.matviewname)::regclass)) as size
-                FROM pg_catalog.pg_matviews m
-                WHERE m.schemaname = 'public'
+                WHERE v.schemaname = %s
+                    AND v.viewname NOT LIKE 'pg_%%'
                 ORDER BY name
             """
-            result = pg.execute(query, fetch=True)
+            result = pg.execute(query, (schema, schema), fetch=True)
 
             tables = []
             for row in result:
                 tables.append({
-                    'name': row['name'],
-                    'type': row['type'],
-                    'size': row['size']
+                    'name': str(row['name']),
+                    'type': str(row['type']),
+                    'size': '-'
                 })
 
             logging.info(f"Found {len(tables)} database objects")
@@ -834,24 +876,47 @@ async def execute_query(request: Request):
             df = pg.query_to_dataframe(sql)
 
             # Convert to JSON-friendly format
-            # Handle NaN and Inf values
             import math
+            import numpy as np
+            import json as json_lib
 
             columns = df.columns.tolist()
+
+            # Replace NaN and Inf with None before converting to dict
+            df = df.replace([np.inf, -np.inf], None)
+            df = df.where(df.notna(), None)
+
+            # Convert to list of dictionaries
+            rows_raw = df.to_dict('records')
             rows = []
 
-            for _, row in df.iterrows():
+            for row_dict in rows_raw:
                 row_data = {}
-                for col in columns:
-                    value = row[col]
-                    # Convert NaN, Inf, and -Inf to None for JSON compatibility
-                    if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+                for col, value in row_dict.items():
+                    # Handle None
+                    if value is None:
                         row_data[col] = None
                     # Convert pandas Timestamp to string
                     elif hasattr(value, 'isoformat'):
                         row_data[col] = value.isoformat()
-                    else:
+                    # Handle numpy arrays (convert to list)
+                    elif isinstance(value, np.ndarray):
+                        row_data[col] = value.tolist()
+                    # Convert numpy scalar types to Python native types
+                    elif isinstance(value, (np.integer, np.floating)):
+                        row_data[col] = value.item()
+                    elif isinstance(value, np.bool_):
+                        row_data[col] = bool(value)
+                    # Handle Python native types
+                    elif isinstance(value, (int, float, str, bool)):
                         row_data[col] = value
+                    else:
+                        # For any other type, try JSON serialization or convert to string
+                        try:
+                            json_lib.dumps(value)
+                            row_data[col] = value
+                        except (TypeError, ValueError):
+                            row_data[col] = str(value)
                 rows.append(row_data)
 
             logging.info(f"Query executed successfully: {len(rows)} rows returned")
