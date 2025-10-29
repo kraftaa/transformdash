@@ -1,6 +1,17 @@
 version: 2
 dashboards:
-  - id: my-dashboard
-    name: My Dashboard
-    description: My custom dashboard
-    charts: []
+- id: my-dashboard
+  name: My Dashboard
+  description: My custom dashboard
+  charts: []
+- id: custom_charts
+  name: Custom Charts
+  description: User-created charts
+  charts:
+  - id: chart_1761779988181_vxq34x90v
+    title: Total Revenue YTD
+    type: bar
+    model: fct_customer_returns
+    x_axis: return_date
+    y_axis: affected_orders
+    aggregation: sum

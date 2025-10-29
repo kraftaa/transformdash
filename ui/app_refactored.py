@@ -604,21 +604,25 @@ async def query_data(request: Request):
         y_axis = body.get('y_axis')
         aggregation = body.get('aggregation', 'sum')
         filters = body.get('filters', {})
+        schema = body.get('schema', 'public')
+        connection_id = body.get('connection_id')
 
-        logging.info(f"Extracted table/model: {table}")
+        logging.info(f"Extracted table/model: {table}, schema: {schema}, connection_id: {connection_id}")
 
         if not table:
             logging.error(f"No table found! Body was: {body}")
             raise HTTPException(status_code=400, detail="Missing table/model parameter")
 
-        with PostgresConnector() as pg:
+        from connection_manager import connection_manager
+
+        with connection_manager.get_connection(connection_id) as pg:
             # First, get available columns for this table
             col_query = """
                 SELECT column_name
                 FROM information_schema.columns
-                WHERE table_schema = 'public' AND table_name = %s
+                WHERE table_schema = %s AND table_name = %s
             """
-            col_result = pg.execute(col_query, (table,), fetch=True)
+            col_result = pg.execute(col_query, (schema, table), fetch=True)
             available_columns = {row['column_name'] for row in col_result}
 
             # Handle metric type charts (single value)
@@ -637,7 +641,7 @@ async def query_data(request: Request):
                 agg_func = aggregation.upper()
                 query = f"""
                     SELECT {agg_func}({metric}) as value
-                    FROM public.{table}
+                    FROM {schema}.{table}
                     {where_sql}
                 """
 
@@ -685,7 +689,7 @@ async def query_data(request: Request):
                     SELECT
                         {x_axis} as label,
                         {', '.join(metric_selects)}
-                    FROM public.{table}
+                    FROM {schema}.{table}
                     {where_sql}
                     GROUP BY {x_axis}
                     ORDER BY {x_axis}
@@ -738,7 +742,7 @@ async def query_data(request: Request):
                 SELECT
                     {x_axis} as label,
                     {agg_func}({y_axis}) as value
-                FROM public.{table}
+                FROM {schema}.{table}
                 {where_sql}
                 GROUP BY {x_axis}
                 ORDER BY {x_axis}
@@ -844,17 +848,19 @@ async def list_tables(schema: str = "public", connection_id: str = None):
 
         # Get connection from connection manager
         with connection_manager.get_connection(connection_id) as pg:
-            # Get all tables and views
+            # Get all tables and views with their sizes
             query = """
                 SELECT
                     t.tablename as name,
-                    'table' as type
+                    'table' as type,
+                    pg_size_pretty(pg_total_relation_size(quote_ident(t.schemaname) || '.' || quote_ident(t.tablename))) as size
                 FROM pg_catalog.pg_tables t
                 WHERE t.schemaname = %s
                 UNION ALL
                 SELECT
                     v.viewname as name,
-                    'view' as type
+                    'view' as type,
+                    '-' as size
                 FROM pg_catalog.pg_views v
                 WHERE v.schemaname = %s
                     AND v.viewname NOT LIKE 'pg_%%'
@@ -867,7 +873,7 @@ async def list_tables(schema: str = "public", connection_id: str = None):
                 tables.append({
                     'name': str(row['name']),
                     'type': str(row['type']),
-                    'size': '-'
+                    'size': str(row['size']) if row['size'] else '-'
                 })
 
             logging.info(f"Found {len(tables)} database objects in connection {connection_id or 'default'}.{schema}")
@@ -1107,7 +1113,7 @@ async def export_dashboard_data(dashboard_id: str, request: Request):
                     SELECT
                         {x_axis} as label,
                         {agg_func}({y_axis}) as value
-                    FROM public.{table}
+                    FROM {schema}.{table}
                     {where_sql}
                     GROUP BY {x_axis}
                     ORDER BY {x_axis}

@@ -177,13 +177,12 @@ async function loadTableStats() {
         const data = await response.json();
         const totalRowsEl = document.getElementById('total-rows');
 
-        // For now, just show the number of models as a placeholder
-        // In a real implementation, you'd query actual row counts
-        if (data.models) {
-            const modelCount = data.models.length;
+        // data is an array directly, not wrapped in an object
+        if (Array.isArray(data) && data.length > 0) {
+            const modelCount = data.length;
             totalRowsEl.textContent = `${modelCount} models`;
         } else {
-            totalRowsEl.textContent = '—';
+            totalRowsEl.textContent = '0 models';
         }
     } catch (error) {
         console.error('Error loading table stats:', error);
@@ -1505,6 +1504,9 @@ function switchTab(tabName) {
         loadDashboards();
     } else if (tabName === 'charts') {
         loadAllCharts();
+    } else if (tabName === 'chart-builder') {
+        loadChartConnections();
+        loadChartDashboards();
     }
 }
 
@@ -2536,6 +2538,43 @@ async function loadChartConnections() {
     }
 }
 
+// Load available dashboards into the chart builder dropdown
+async function loadChartDashboards() {
+    try {
+        const response = await fetch('/api/dashboards');
+        const data = await response.json();
+
+        const dashboardSelect = document.getElementById('chartDashboard');
+        if (!dashboardSelect) return;
+
+        // Keep the placeholder and "Create New" option
+        dashboardSelect.innerHTML = '<option value="">Select dashboard...</option><option value="__new__">➕ Create New Dashboard</option>';
+
+        if (data.dashboards && data.dashboards.length > 0) {
+            data.dashboards.forEach(dashboard => {
+                const option = document.createElement('option');
+                option.value = dashboard.id;
+                option.textContent = dashboard.name;
+                dashboardSelect.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading dashboards for chart builder:', error);
+    }
+}
+
+// Handle dashboard selection change
+function handleDashboardSelection() {
+    const dashboardSelect = document.getElementById('chartDashboard');
+    const newDashboardFields = document.getElementById('newDashboardFields');
+
+    if (dashboardSelect.value === '__new__') {
+        newDashboardFields.style.display = 'block';
+    } else {
+        newDashboardFields.style.display = 'none';
+    }
+}
+
 // Load available schemas for selected connection
 async function loadChartSchemas() {
     const connectionId = document.getElementById('chartConnection').value;
@@ -2583,8 +2622,9 @@ async function loadChartTables() {
         if (data.tables && data.tables.length > 0) {
             data.tables.forEach(table => {
                 const option = document.createElement('option');
-                option.value = table;
-                option.textContent = table;
+                // table is an object with {name, type, size}, not a string
+                option.value = table.name;
+                option.textContent = table.name;
                 tableSelect.appendChild(option);
             });
         }
@@ -4162,22 +4202,24 @@ async function editChart(chartConfig) {
 
 async function createChart() {
     const title = document.getElementById('chartTitle').value || 'Chart';
+    const connection = document.getElementById('chartConnection').value;
+    const schema = document.getElementById('chartSchema').value;
     const table = document.getElementById('chartTable').value;
     const chartType = document.getElementById('chartType').value;
     const xAxis = document.getElementById('chartXAxis').value;
     const yAxis = document.getElementById('chartYAxis').value;
     const aggregation = document.getElementById('chartAggregation').value;
 
-    console.log('createChart called with:', { table, chartType, xAxis, yAxis, aggregation });
+    console.log('createChart called with:', { connection, schema, table, chartType, xAxis, yAxis, aggregation });
 
     // Validation
-    if (!table || !xAxis || !yAxis) {
+    if (!connection || !schema || !table || !xAxis || !yAxis) {
         const errorEl = document.getElementById('chartError');
         if (errorEl) {
             errorEl.style.display = 'block';
-            errorEl.textContent = 'Please select table, X-axis, and Y-axis';
+            errorEl.textContent = 'Please select connection, schema, table, X-axis, and Y-axis';
         }
-        console.warn('Validation failed:', { table, xAxis, yAxis });
+        console.warn('Validation failed:', { connection, schema, table, xAxis, yAxis });
         return;
     }
 
@@ -4190,9 +4232,12 @@ async function createChart() {
         // Get active filters
         const filters = getActiveFilters();
 
-        // Build query payload
+        // Build query payload with connection and schema
+        // Note: Don't prefix table with schema - backend adds it
         const payload = {
-            table,
+            table: table,
+            connection_id: connection,
+            schema: schema,
             type: chartType,
             x_axis: xAxis,
             y_axis: yAxis,
@@ -4371,11 +4416,31 @@ async function saveChart() {
     const xAxis = document.getElementById('chartXAxis').value;
     const yAxis = document.getElementById('chartYAxis').value;
     const aggregation = document.getElementById('chartAggregation').value;
+    const dashboardSelect = document.getElementById('chartDashboard');
+    let dashboardId = dashboardSelect.value;
 
     // Validation
+    if (!dashboardId) {
+        alert('Please select a dashboard');
+        return;
+    }
     if (!table || !xAxis || !yAxis) {
         alert('Please fill in all required fields before saving');
         return;
+    }
+
+    // Handle "Create New Dashboard" option
+    if (dashboardId === '__new__') {
+        const newDashboardName = document.getElementById('newDashboardName').value;
+        const newDashboardDescription = document.getElementById('newDashboardDescription').value;
+
+        if (!newDashboardName) {
+            alert('Please enter a name for the new dashboard');
+            return;
+        }
+
+        // Create new dashboard ID
+        dashboardId = newDashboardName.toLowerCase().replace(/[^a-z0-9]+/g, '_');
     }
 
     const saveBtn = document.getElementById('saveChartBtn');
@@ -4407,7 +4472,8 @@ async function saveChart() {
             model: table,
             x_axis: xAxis,
             y_axis: yAxis,
-            aggregation: aggregation
+            aggregation: aggregation,
+            dashboard_id: dashboardId
         };
 
         // For metric charts, add the metric field
@@ -4418,6 +4484,12 @@ async function saveChart() {
         // Only add filters if there are any
         if (filters.length > 0) {
             chartConfig.filters = filters;
+        }
+
+        // If creating a new dashboard, include dashboard details
+        if (dashboardSelect.value === '__new__') {
+            chartConfig.dashboard_name = document.getElementById('newDashboardName').value;
+            chartConfig.dashboard_description = document.getElementById('newDashboardDescription').value;
         }
 
         const response = await fetch('/api/charts/save', {

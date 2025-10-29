@@ -461,6 +461,25 @@
                         <h3 style="margin-bottom: 1.25rem; color: var(--color-text-primary);">📈 Chart Builder</h3>
 
                         <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Dashboard</label>
+                            <select id="chartDashboard" onchange="handleDashboardSelection()" class="input">
+                                <option value="">Select dashboard...</option>
+                                <option value="__new__">➕ Create New Dashboard</option>
+                            </select>
+                        </div>
+
+                        <div id="newDashboardFields" style="display: none; margin-bottom: 1rem; padding: 1rem; background: var(--color-bg-hover); border-radius: var(--radius-md); border: 1px dashed var(--color-border);">
+                            <div style="margin-bottom: 0.75rem;">
+                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">New Dashboard Name</label>
+                                <input type="text" id="newDashboardName" placeholder="My Dashboard" class="input">
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Description</label>
+                                <input type="text" id="newDashboardDescription" placeholder="Dashboard description" class="input">
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 1rem;">
                             <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Chart Title</label>
                             <input type="text" id="chartTitle" placeholder="My Chart" class="input">
                         </div>
@@ -829,6 +848,6 @@
     <div id="toast-container" class="toast-container"></div>
 
     <!-- Scripts -->
-    <script src="/static/js/app.js?v=20251023g"></script>
+    <script src="/static/js/app.js?v=20251029k"></script>
 </body>
 </html>
