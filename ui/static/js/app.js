@@ -2865,7 +2865,9 @@ async function onDatabaseChange() {
 
 async function loadSchemas() {
     try {
-        const response = await fetch('/api/schemas/list');
+        const database = document.getElementById('database-selector').value;
+        const url = database ? `/api/schemas/list?database=${encodeURIComponent(database)}` : '/api/schemas/list';
+        const response = await fetch(url);
         const data = await response.json();
         const schemas = data.schemas || [];
 
@@ -2877,10 +2879,14 @@ async function loadSchemas() {
             return;
         }
 
-        schemas.forEach(schema => {
+        schemas.forEach((schema, index) => {
             const option = document.createElement('option');
             option.value = schema;
             option.textContent = schema;
+            // Select first schema by default
+            if (index === 0) {
+                option.selected = true;
+            }
             selector.appendChild(option);
         });
 
@@ -2900,7 +2906,11 @@ async function onSchemaChange() {
 
 async function loadDatabaseSchema(schema = 'public') {
     try {
-        const response = await fetch(`/api/tables/list?schema=${schema}`);
+        const database = document.getElementById('database-selector').value;
+        const url = database
+            ? `/api/tables/list?schema=${encodeURIComponent(schema)}&database=${encodeURIComponent(database)}`
+            : `/api/tables/list?schema=${encodeURIComponent(schema)}`;
+        const response = await fetch(url);
         const data = await response.json();
         const tables = data.tables || data; // Handle both {tables: [...]} and [...]
 
@@ -2963,7 +2973,12 @@ async function toggleTableDetails(tableName) {
         // Load columns if not already loaded
         if (!detailsDiv.dataset.loaded) {
             try {
-                const response = await fetch(`/api/tables/${tableName}/columns`);
+                const database = document.getElementById('database-selector').value;
+                const schema = document.getElementById('schema-selector').value;
+                const url = database && schema
+                    ? `/api/tables/${encodeURIComponent(tableName)}/columns?schema=${encodeURIComponent(schema)}&database=${encodeURIComponent(database)}`
+                    : `/api/tables/${encodeURIComponent(tableName)}/columns?schema=${encodeURIComponent(schema || 'public')}`;
+                const response = await fetch(url);
                 const data = await response.json();
                 const columns = data.columns || [];
 
@@ -3062,8 +3077,12 @@ function insertTableName(tableName) {
 }
 
 async function previewTable(tableName) {
-    // Set the SQL editor with preview query
-    const previewQuery = `SELECT * FROM ${tableName} LIMIT 10;`;
+    // Get current schema to qualify the table name
+    const schema = document.getElementById('schema-selector')?.value;
+
+    // Set the SQL editor with preview query (schema-qualified if schema is selected)
+    const qualifiedTableName = schema ? `${schema}.${tableName}` : tableName;
+    const previewQuery = `SELECT * FROM ${qualifiedTableName} LIMIT 10;`;
     document.getElementById('sql-editor').value = previewQuery;
 
     // Automatically execute the query to show preview
@@ -3182,11 +3201,15 @@ async function executeQuery() {
 
     const startTime = Date.now();
 
+    // Get selected database and schema
+    const database = document.getElementById('database-selector')?.value;
+    const schema = document.getElementById('schema-selector')?.value;
+
     try {
         const response = await fetch('/api/query/execute', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sql })
+            body: JSON.stringify({ sql, database, schema })
         });
 
         const executionTime = Date.now() - startTime;
@@ -3267,11 +3290,125 @@ async function executeQuery() {
         // Store the data globally for re-rendering after column reorder
         window.currentQueryData = data;
 
+        // Save to query history
+        saveQueryToHistory(sql);
+
     } catch (error) {
         console.error('Error executing query:', error);
         errorDiv.textContent = 'Network error: ' + error.message;
         errorDiv.style.display = 'block';
         resultsDiv.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #999;">Query failed</div>';
+    }
+}
+
+// Query History Management
+function saveQueryToHistory(sql) {
+    if (!sql || sql.trim().length === 0) return;
+
+    try {
+        let history = JSON.parse(localStorage.getItem('sqlQueryHistory') || '[]');
+
+        // Add query with timestamp
+        history.unshift({
+            query: sql,
+            timestamp: new Date().toISOString(),
+            database: document.getElementById('database-selector')?.value || 'transformdash',
+            schema: document.getElementById('schema-selector')?.value || 'public'
+        });
+
+        // Keep only last 20 queries
+        history = history.slice(0, 20);
+
+        localStorage.setItem('sqlQueryHistory', JSON.stringify(history));
+        renderQueryHistory();
+    } catch (error) {
+        console.error('Error saving query history:', error);
+    }
+}
+
+function loadQueryHistory() {
+    try {
+        return JSON.parse(localStorage.getItem('sqlQueryHistory') || '[]');
+    } catch (error) {
+        console.error('Error loading query history:', error);
+        return [];
+    }
+}
+
+function renderQueryHistory() {
+    const history = loadQueryHistory();
+    const historyList = document.getElementById('query-history-list');
+
+    if (!historyList) return;
+
+    if (history.length === 0) {
+        historyList.innerHTML = '<div style="padding: 12px; color: #999; font-size: 0.85rem;">No query history yet</div>';
+        return;
+    }
+
+    let html = '';
+    history.forEach((item, index) => {
+        const date = new Date(item.timestamp);
+        const timeStr = date.toLocaleTimeString();
+        const dateStr = date.toLocaleDateString();
+        const preview = item.query.length > 60 ? item.query.substring(0, 60) + '...' : item.query;
+
+        html += `
+            <div style="padding: 8px 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-size: 0.75rem; color: #888; margin-bottom: 4px;">${dateStr} ${timeStr} • ${item.database}.${item.schema}</div>
+                    <div style="font-size: 0.85rem; color: #333; font-family: 'Monaco', 'Menlo', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${preview}</div>
+                </div>
+                <div style="display: flex; gap: 4px; flex-shrink: 0;">
+                    <button onclick="copyQueryFromHistory(${index})" title="Copy" style="padding: 4px 8px; font-size: 0.75rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;">📋</button>
+                    <button onclick="runQueryFromHistory(${index})" title="Run" style="padding: 4px 8px; font-size: 0.75rem; border: 1px solid #667eea; background: #667eea; color: white; border-radius: 4px; cursor: pointer;">▶️</button>
+                </div>
+            </div>
+        `;
+    });
+
+    historyList.innerHTML = html;
+}
+
+function copyQueryFromHistory(index) {
+    const history = loadQueryHistory();
+    if (index >= 0 && index < history.length) {
+        const query = history[index].query;
+        navigator.clipboard.writeText(query).then(() => {
+            showToast('Query copied to clipboard!');
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+        });
+    }
+}
+
+async function runQueryFromHistory(index) {
+    const history = loadQueryHistory();
+    if (index >= 0 && index < history.length) {
+        const item = history[index];
+        document.getElementById('sql-editor').value = item.query;
+
+        // Optionally switch to the database/schema from history
+        // Uncomment if you want to auto-switch context:
+        // document.getElementById('database-selector').value = item.database;
+        // await onDatabaseChange();
+        // document.getElementById('schema-selector').value = item.schema;
+
+        await executeQuery();
+    }
+}
+
+function toggleQueryHistory() {
+    const panel = document.getElementById('query-history-panel');
+    const icon = document.getElementById('history-toggle-icon');
+
+    if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        icon.textContent = '🔽';
+        renderQueryHistory();
+    } else {
+        panel.style.display = 'none';
+        icon.textContent = '🔼';
     }
 }
 

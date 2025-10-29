@@ -595,7 +595,7 @@
                         <div style="margin-bottom: 12px;">
                             <label style="font-size: 0.75rem; color: #666; display: block; margin-bottom: 4px;">Schema:</label>
                             <select id="schema-selector" onchange="onSchemaChange()" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.85rem; background: white;">
-                                <option value="public">public</option>
+                                <option value="">Loading...</option>
                             </select>
                         </div>
 
@@ -610,7 +610,18 @@
                     </div>
 
                     <!-- Query Editor and Results -->
-                    <div style="display: flex; flex-direction: column; gap: 0; flex: 1; min-width: 400px;">
+                    <div style="display: flex; flex-direction: column; gap: 12px; flex: 1; min-width: 400px;">
+                        <!-- Query History Panel -->
+                        <div style="background: white; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleQueryHistory()">
+                                <h3 style="margin: 0; font-size: 0.9rem; color: #667eea;">📜 Query History</h3>
+                                <span id="history-toggle-icon" style="font-size: 0.9rem;">🔼</span>
+                            </div>
+                            <div id="query-history-panel" style="display: none; margin-top: 12px; max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 6px;">
+                                <div id="query-history-list"></div>
+                            </div>
+                        </div>
+
                         <!-- SQL Editor -->
                         <div id="sql-editor-panel" style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 280px; min-height: 150px; display: flex; flex-direction: column;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">

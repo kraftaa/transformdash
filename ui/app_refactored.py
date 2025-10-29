@@ -548,22 +548,37 @@ async def update_dashboard(dashboard_id: str, request: Request):
 
 
 @app.get("/api/tables/{table_name}/columns")
-async def get_table_columns(table_name: str):
-    """Get columns for a specific table"""
+async def get_table_columns(table_name: str, schema: str = "public", database: str = None):
+    """Get columns for a specific table or view"""
     try:
         from postgres import PostgresConnector
-        with PostgresConnector() as pg:
+        import logging
+
+        # Connect to specified database or default
+        with PostgresConnector(dbname=database) as pg:
+            # Use pg_attribute for more reliable column information
             query = """
-                SELECT column_name, data_type
-                FROM information_schema.columns
-                WHERE table_schema = 'public'
-                AND table_name = %s
-                ORDER BY ordinal_position
+                SELECT
+                    a.attname as column_name,
+                    pg_catalog.format_type(a.atttypid, a.atttypmod) as data_type
+                FROM pg_catalog.pg_attribute a
+                JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
+                JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+                WHERE n.nspname = %s
+                AND c.relname = %s
+                AND a.attnum > 0
+                AND NOT a.attisdropped
+                ORDER BY a.attnum
             """
-            result = pg.execute(query, (table_name,), fetch=True)
+            logging.info(f"Fetching columns for {database or 'default'}.{schema}.{table_name}")
+            result = pg.execute(query, (schema, table_name), fetch=True)
             columns = [{"name": row['column_name'], "type": row['data_type']} for row in result]
+            logging.info(f"Found {len(columns)} columns for {schema}.{table_name}")
             return {"columns": columns}
     except Exception as e:
+        import logging
+        import traceback
+        logging.error(f"Error fetching columns: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -773,23 +788,24 @@ async def list_databases():
 
 
 @app.get("/api/schemas/list")
-async def list_schemas():
-    """List all schemas in current database"""
+async def list_schemas(database: str = None):
+    """List all schemas in specified database"""
     try:
         from postgres import PostgresConnector
         import logging
 
-        with PostgresConnector() as pg:
+        # Connect to specified database or default
+        with PostgresConnector(dbname=database) as pg:
             query = """
-                SELECT schema_name as name
-                FROM information_schema.schemata
-                WHERE schema_name NOT LIKE 'pg_%'
-                  AND schema_name != 'information_schema'
-                ORDER BY schema_name
+                SELECT nspname as name
+                FROM pg_namespace
+                WHERE nspname NOT LIKE 'pg_%'
+                  AND nspname != 'information_schema'
+                ORDER BY nspname
             """
             result = pg.execute(query, fetch=True)
             schemas = [row['name'] for row in result]
-            logging.info(f"Found {len(schemas)} schemas")
+            logging.info(f"Found {len(schemas)} schemas in database {database or 'default'}")
             return {"schemas": schemas}
 
     except Exception as e:
@@ -799,13 +815,14 @@ async def list_schemas():
 
 
 @app.get("/api/tables/list")
-async def list_tables(schema: str = "public"):
+async def list_tables(schema: str = "public", database: str = None):
     """List all tables/views in the database for SQL Query Lab"""
     try:
         from postgres import PostgresConnector
         import logging
 
-        with PostgresConnector() as pg:
+        # Connect to specified database or default
+        with PostgresConnector(dbname=database) as pg:
             # Get all tables and views
             query = """
                 SELECT
@@ -832,7 +849,7 @@ async def list_tables(schema: str = "public"):
                     'size': '-'
                 })
 
-            logging.info(f"Found {len(tables)} database objects")
+            logging.info(f"Found {len(tables)} database objects in {database or 'default'}.{schema}")
             return {"tables": tables}
 
     except Exception as e:
@@ -850,6 +867,8 @@ async def execute_query(request: Request):
 
         body = await request.json()
         sql = body.get('sql', '').strip()
+        database = body.get('database')
+        schema = body.get('schema', 'public')
 
         if not sql:
             raise HTTPException(status_code=400, detail="SQL query is required")
@@ -871,7 +890,15 @@ async def execute_query(request: Request):
                     detail=f"Query contains forbidden keyword: {keyword}"
                 )
 
-        with PostgresConnector() as pg:
+        logging.info(f"Executing query in database={database or 'default'}, schema={schema}")
+
+        # Connect to specified database or default
+        with PostgresConnector(dbname=database) as pg:
+            # Set search path to use the selected schema
+            if schema:
+                pg.execute(f"SET search_path TO {schema}, public")
+                logging.info(f"Set search_path to {schema}, public")
+
             # Execute query and convert to dataframe
             df = pg.query_to_dataframe(sql)
 

@@ -1,0 +1,33 @@
+version: 1
+connections:
+  - id: transformdash
+    name: "TransformDash (Default)"
+    host: localhost
+    port: 5432
+    database: transformdash
+    user: postgres
+    password: ""
+    default: true
+    description: "Default TransformDash database"
+
+  - id: sci_rx_production
+    name: "SciRx Production"
+    host: localhost
+    port: 5432
+    database: sci_rx_production
+    user: postgres
+    password: ""
+    default: false
+    description: "SciRx production database"
+
+# Add more connections as needed
+# Example:
+#  - id: analytics
+#    name: "Analytics DB"
+#    host: analytics.example.com
+#    port: 5432
+#    database: analytics
+#    user: analytics_user
+#    password: your_password
+#    default: false
+#    description: "Analytics database"
