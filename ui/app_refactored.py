@@ -999,6 +999,54 @@ async def execute_query(request: Request):
         raise HTTPException(status_code=500, detail=f"Query execution failed: {str(e)}")
 
 
+@app.post("/api/views/create")
+async def create_view(request: Request):
+    """Create a database view from a SQL query"""
+    try:
+        body = await request.json()
+        connection_id = body.get('connection_id')
+        schema = body.get('schema', 'public')
+        view_name = body.get('view_name')
+        query = body.get('query', '').strip()
+
+        if not view_name:
+            raise HTTPException(status_code=400, detail="View name is required")
+        if not query:
+            raise HTTPException(status_code=400, detail="Query is required")
+
+        # Validate view name (alphanumeric and underscores only)
+        import re
+        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', view_name):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid view name. Use only letters, numbers, and underscores."
+            )
+
+        # Get connection from connection manager
+        from connection_manager import connection_manager
+        with connection_manager.get_connection(connection_id) as pg:
+            # Create the view
+            create_view_sql = f"CREATE OR REPLACE VIEW {schema}.{view_name} AS\n{query}"
+            logging.info(f"Creating view: {create_view_sql}")
+            pg.execute(create_view_sql)
+
+            logging.info(f"View {schema}.{view_name} created successfully")
+
+            return {
+                "success": True,
+                "message": f"View {schema}.{view_name} created successfully",
+                "view_name": view_name,
+                "schema": schema
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error creating view: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to create view: {str(e)}")
+
+
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint"""

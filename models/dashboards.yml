@@ -450,6 +450,13 @@ dashboards:
     x_axis: total_inventory_value
     y_axis: avg_unit_price
     aggregation: sum
+  - id: total-revenue-ytd
+    title: Total Revenue YTD
+    type: metric
+    model: fct_sales_performance
+    x_axis: revenue
+    y_axis: revenue
+    aggregation: sum
 - id: test-dashboard1
   name: Test dashboard1
   description: testing

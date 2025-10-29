@@ -3094,6 +3094,68 @@ function clearQuery() {
     document.getElementById('query-error').style.display = 'none';
 }
 
+async function saveAsView() {
+    // Get the current SQL query
+    const sql = document.getElementById('sql-editor')?.value.trim();
+    if (!sql) {
+        alert('No query to save as view');
+        return;
+    }
+
+    // Prompt for view name
+    const viewName = prompt('Enter a name for the view (will be created in the selected schema):');
+    if (!viewName) {
+        return;
+    }
+
+    // Validate view name (alphanumeric and underscores only)
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(viewName)) {
+        alert('Invalid view name. Use only letters, numbers, and underscores, and start with a letter or underscore.');
+        return;
+    }
+
+    // Get selected connection and schema
+    const connectionId = document.getElementById('connection-selector')?.value;
+    const schema = document.getElementById('schema-selector')?.value;
+
+    if (!connectionId || !schema) {
+        alert('Please select a connection and schema first');
+        return;
+    }
+
+    // Confirm with user
+    const fullViewName = `${schema}.${viewName}`;
+    if (!confirm(`Create view "${fullViewName}" in database "${connectionId}"?\n\nThis will execute:\nCREATE OR REPLACE VIEW ${fullViewName} AS\n${sql}`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/views/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                connection_id: connectionId,
+                schema: schema,
+                view_name: viewName,
+                query: sql
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            alert(`✅ View "${fullViewName}" created successfully!`);
+            // Refresh the tables list to show the new view
+            await loadDatabaseSchema(schema);
+        } else {
+            alert(`❌ Failed to create view: ${result.detail || result.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error creating view:', error);
+        alert(`❌ Network error: ${error.message}`);
+    }
+}
+
 function exportToCSV() {
     if (!window.currentQueryData || !window.currentQueryData.rows || window.currentQueryData.rows.length === 0) {
         alert('No data to export');
@@ -3278,7 +3340,14 @@ async function executeQuery() {
             html += `<tr style="border-bottom: 1px solid #eee; ${i % 2 === 0 ? 'background: #fafafa;' : 'background: white;'}">`;
             columns.forEach(col => {
                 const width = window.columnWidths[col] || 150;
-                const value = row[col] === null ? '<span style="color: #999; font-style: italic;">null</span>' : row[col];
+                let value = row[col];
+                // Format the value for display
+                if (value === null) {
+                    value = '<span style="color: #999; font-style: italic;">null</span>';
+                } else if (typeof value === 'object') {
+                    // For objects (JSONB, arrays, etc.), stringify them
+                    value = JSON.stringify(value);
+                }
                 html += `<td style="padding: 8px 10px; color: #333; min-width: ${width}px; max-width: ${width}px; width: ${width}px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${value}</td>`;
             });
             html += '</tr>';
@@ -3573,7 +3642,14 @@ function rerenderResultsTable(columns) {
         html += `<tr style="border-bottom: 1px solid #eee; ${i % 2 === 0 ? 'background: #fafafa;' : 'background: white;'}">`;
         columns.forEach(col => {
             const width = window.columnWidths[col] || 150;
-            const value = row[col] === null ? '<span style="color: #999; font-style: italic;">null</span>' : row[col];
+            let value = row[col];
+            // Format the value for display
+            if (value === null) {
+                value = '<span style="color: #999; font-style: italic;">null</span>';
+            } else if (typeof value === 'object') {
+                // For objects (JSONB, arrays, etc.), stringify them
+                value = JSON.stringify(value);
+            }
             html += `<td style="padding: 8px 10px; color: #333; min-width: ${width}px; max-width: ${width}px; width: ${width}px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${value}</td>`;
         });
         html += '</tr>';
