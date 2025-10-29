@@ -455,9 +455,9 @@
                 </div>
 
                 <!-- Chart Builder Section -->
-                <div style="display: grid; grid-template-columns: 350px 1fr; gap: 1.5rem; margin-bottom: 3rem;">
+                <div style="display: grid; grid-template-columns: 480px 1fr; gap: 1.5rem; height: calc(100vh - 180px);">
                     <!-- Chart Builder Panel -->
-                    <div style="background: var(--color-bg-surface); border: 1px solid var(--color-border); padding: 1.5rem; border-radius: var(--radius-lg); overflow-y: auto; max-height: 600px;">
+                    <div style="background: var(--color-bg-surface); border: 1px solid var(--color-border); padding: 1.5rem; border-radius: var(--radius-lg); overflow-y: auto; height: 100%;">
                         <h3 style="margin-bottom: 1.25rem; color: var(--color-text-primary);">📈 Chart Builder</h3>
 
                         <div style="margin-bottom: 1rem;">
@@ -466,13 +466,23 @@
                         </div>
 
                         <div style="margin-bottom: 1rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Data Source</label>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Connection</label>
+                            <select id="chartConnection" onchange="loadChartSchemas()" class="input">
+                                <option value="">Select connection...</option>
+                            </select>
+                        </div>
+
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Schema</label>
+                            <select id="chartSchema" onchange="loadChartTables()" class="input">
+                                <option value="">Select schema...</option>
+                            </select>
+                        </div>
+
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Table</label>
                             <select id="chartTable" onchange="loadTableColumns()" class="input">
                                 <option value="">Select table...</option>
-                                <option value="fct_orders">fct_orders (Gold Layer)</option>
-                                <option value="int_customer_orders">int_customer_orders (Silver)</option>
-                                <option value="stg_customers">stg_customers (Bronze)</option>
-                                <option value="stg_orders">stg_orders (Bronze)</option>
                             </select>
                         </div>
 
@@ -491,15 +501,21 @@
                         <!-- Regular Chart Fields (hidden for table type) -->
                         <div id="regularChartFields">
                             <div style="margin-bottom: 1rem;">
-                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">X-Axis (Labels)</label>
-                                <select id="chartXAxis" class="input">
+                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">
+                                    X-Axis (Labels)
+                                    <span style="font-size: 0.7rem; color: var(--color-text-muted); font-weight: normal;">Drop field here</span>
+                                </label>
+                                <select id="chartXAxis" class="input drop-zone" ondrop="handleFieldDrop(event, 'x')" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
                                     <option value="">Select column...</option>
                                 </select>
                             </div>
 
                             <div style="margin-bottom: 1rem;">
-                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Y-Axis (Values)</label>
-                                <select id="chartYAxis" class="input">
+                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">
+                                    Y-Axis (Values)
+                                    <span style="font-size: 0.7rem; color: var(--color-text-muted); font-weight: normal;">Drop field here</span>
+                                </label>
+                                <select id="chartYAxis" class="input drop-zone" ondrop="handleFieldDrop(event, 'y')" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
                                     <option value="">Select column...</option>
                                 </select>
                             </div>
@@ -551,17 +567,17 @@
                     </div>
 
                     <!-- Chart Preview Panel -->
-                    <div style="background: var(--color-bg-surface); border: 1px solid var(--color-border); padding: 1.5rem; border-radius: var(--radius-lg); max-height: 600px; display: flex; flex-direction: column;">
+                    <div style="background: var(--color-bg-surface); border: 1px solid var(--color-border); padding: 1.5rem; border-radius: var(--radius-lg); display: flex; flex-direction: column; height: 100%;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                             <h3 style="color: var(--color-text-primary);">Preview</h3>
                             <button onclick="saveChart()" id="saveChartBtn" disabled class="btn btn-secondary">
                                 💾 Save Chart
                             </button>
                         </div>
-                        <div style="flex: 1; position: relative;">
-                            <canvas id="chartCanvas" style="display: none; max-height: 480px;"></canvas>
-                            <div id="chartTableContainer" style="display: none; max-height: 480px; overflow: auto;"></div>
-                            <div id="chartPlaceholder" style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--color-text-muted); text-align: center;">
+                        <div style="flex: 1; position: relative; display: flex; flex-direction: column; min-height: 0;">
+                            <canvas id="chartCanvas" style="display: none; width: 100%; height: 100%;"></canvas>
+                            <div id="chartTableContainer" style="display: none; flex: 1; overflow: auto;"></div>
+                            <div id="chartPlaceholder" style="display: flex; align-items: center; justify-content: center; flex: 1; color: var(--color-text-muted); text-align: center;">
                                 Select options and click "Create Chart" to see preview
                             </div>
                         </div>

@@ -89,7 +89,8 @@ function switchView(viewName) {
             loadAllCharts();
             break;
         case 'chart-builder':
-            // Chart builder view is ready to use
+            // Load available connections for chart builder
+            loadChartConnections();
             break;
         case 'runs':
             loadRuns();
@@ -2502,10 +2503,105 @@ function viewDashboard(slug) {
 // Chart Builder Functions
 let currentChart = null;
 
+// Load available connections into the chart builder dropdown
+async function loadChartConnections() {
+    try {
+        const response = await fetch('/api/connections/list');
+        const data = await response.json();
+
+        const connectionSelect = document.getElementById('chartConnection');
+        if (!connectionSelect) return;
+
+        // Clear existing options except the first placeholder
+        connectionSelect.innerHTML = '<option value="">Select connection...</option>';
+
+        if (data.connections && data.connections.length > 0) {
+            data.connections.forEach(conn => {
+                const option = document.createElement('option');
+                option.value = conn.id;
+                option.textContent = conn.name;
+                if (conn.default) {
+                    option.selected = true;
+                }
+                connectionSelect.appendChild(option);
+            });
+
+            // Auto-load schemas for default connection
+            if (connectionSelect.value) {
+                loadChartSchemas();
+            }
+        }
+    } catch (error) {
+        console.error('Error loading connections for chart builder:', error);
+    }
+}
+
+// Load available schemas for selected connection
+async function loadChartSchemas() {
+    const connectionId = document.getElementById('chartConnection').value;
+    const schemaSelect = document.getElementById('chartSchema');
+    const tableSelect = document.getElementById('chartTable');
+
+    if (!schemaSelect || !connectionId) return;
+
+    // Clear schema and table dropdowns
+    schemaSelect.innerHTML = '<option value="">Select schema...</option>';
+    tableSelect.innerHTML = '<option value="">Select table...</option>';
+
+    try {
+        const response = await fetch(`/api/schemas/list?connection_id=${connectionId}`);
+        const data = await response.json();
+
+        if (data.schemas && data.schemas.length > 0) {
+            data.schemas.forEach(schema => {
+                const option = document.createElement('option');
+                option.value = schema;
+                option.textContent = schema;
+                schemaSelect.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading schemas for chart builder:', error);
+    }
+}
+
+// Load available tables for selected schema
+async function loadChartTables() {
+    const connectionId = document.getElementById('chartConnection').value;
+    const schema = document.getElementById('chartSchema').value;
+    const tableSelect = document.getElementById('chartTable');
+
+    if (!tableSelect || !connectionId || !schema) return;
+
+    // Clear table dropdown
+    tableSelect.innerHTML = '<option value="">Select table...</option>';
+
+    try {
+        const response = await fetch(`/api/tables/list?schema=${schema}&connection_id=${connectionId}`);
+        const data = await response.json();
+
+        if (data.tables && data.tables.length > 0) {
+            data.tables.forEach(table => {
+                const option = document.createElement('option');
+                option.value = table;
+                option.textContent = table;
+                tableSelect.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading tables for chart builder:', error);
+    }
+}
+
 async function loadTableColumns() {
     const table = document.getElementById('chartTable').value;
     const chartType = document.getElementById('chartType').value;
-    if (!table) return;
+    if (!table) {
+        // Hide fields panel if no table selected
+        const fieldsPanel = document.getElementById('fields-panel');
+        if (fieldsPanel) fieldsPanel.style.display = 'none';
+        return;
+    }
 
     try {
         const response = await fetch(`/api/tables/${table}/columns`);
@@ -2524,7 +2620,7 @@ async function loadTableColumns() {
         xAxis.innerHTML = '<option value="">Select column...</option>';
         yAxis.innerHTML = '<option value="">Select column...</option>';
 
-        // Add columns
+        // Add columns to dropdowns
         data.columns.forEach(col => {
             const optionX = document.createElement('option');
             optionX.value = col.name;
@@ -2536,8 +2632,98 @@ async function loadTableColumns() {
             optionY.textContent = `${col.name} (${col.type})`;
             yAxis.appendChild(optionY);
         });
+
+        // Populate draggable fields panel
+        const fieldsPanel = document.getElementById('fields-panel');
+        const fieldsList = document.getElementById('available-fields-list');
+
+        if (fieldsPanel && fieldsList) {
+            fieldsPanel.style.display = 'block';
+            fieldsList.innerHTML = '';
+
+            data.columns.forEach(col => {
+                const fieldItem = document.createElement('div');
+                fieldItem.draggable = true;
+                fieldItem.dataset.fieldName = col.name;
+                fieldItem.dataset.fieldType = col.type;
+                fieldItem.textContent = `${col.name}`;
+                fieldItem.style.cssText = `
+                    padding: 0.5rem 0.75rem;
+                    background: var(--color-bg-primary);
+                    border: 1px solid var(--color-border);
+                    border-radius: var(--radius-md);
+                    cursor: move;
+                    font-size: 0.85rem;
+                    transition: all 0.2s;
+                `;
+                fieldItem.setAttribute('title', `${col.name} (${col.type})`);
+
+                // Drag events
+                fieldItem.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', col.name);
+                    e.dataTransfer.effectAllowed = 'copy';
+                    fieldItem.style.opacity = '0.5';
+                });
+
+                fieldItem.addEventListener('dragend', (e) => {
+                    fieldItem.style.opacity = '1';
+                });
+
+                // Hover effect
+                fieldItem.addEventListener('mouseenter', () => {
+                    fieldItem.style.background = 'var(--color-primary-light)';
+                    fieldItem.style.borderColor = 'var(--color-primary)';
+                });
+
+                fieldItem.addEventListener('mouseleave', () => {
+                    fieldItem.style.background = 'var(--color-bg-primary)';
+                    fieldItem.style.borderColor = 'var(--color-border)';
+                });
+
+                fieldsList.appendChild(fieldItem);
+            });
+        }
     } catch (error) {
         console.error('Error loading columns:', error);
+    }
+}
+
+// Drag and drop handlers for fields
+function handleDragOver(event) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    event.target.style.borderColor = 'var(--color-primary)';
+    event.target.style.background = 'var(--color-primary-light)';
+}
+
+function handleDragLeave(event) {
+    event.target.style.borderColor = '';
+    event.target.style.background = '';
+}
+
+function handleFieldDrop(event, axis) {
+    event.preventDefault();
+    const fieldName = event.dataTransfer.getData('text/plain');
+
+    // Reset styling
+    event.target.style.borderColor = '';
+    event.target.style.background = '';
+
+    if (fieldName) {
+        // Set the value in the appropriate dropdown
+        if (axis === 'x') {
+            document.getElementById('chartXAxis').value = fieldName;
+        } else if (axis === 'y') {
+            document.getElementById('chartYAxis').value = fieldName;
+        }
+
+        // Show a brief visual feedback
+        const target = event.target;
+        const originalBg = target.style.background;
+        target.style.background = 'var(--color-success-light)';
+        setTimeout(() => {
+            target.style.background = originalBg;
+        }, 300);
     }
 }
 
@@ -4937,7 +5123,8 @@ async function loadDashboardFilters(dashboardId, container) {
             filterInfo.values.forEach(value => {
                 const option = document.createElement('option');
                 option.value = value;
-                option.textContent = value;
+                // Convert objects to JSON strings for display
+                option.textContent = typeof value === 'object' && value !== null ? JSON.stringify(value) : value;
                 select.appendChild(option);
             });
 
@@ -5002,7 +5189,8 @@ async function updateCascadingFilters(dashboardId, changedField) {
             filterInfo.values.forEach(value => {
                 const option = document.createElement('option');
                 option.value = value;
-                option.textContent = value;
+                // Convert objects to JSON strings for display
+                option.textContent = typeof value === 'object' && value !== null ? JSON.stringify(value) : value;
                 if (value === currentValue) {
                     option.selected = true;
                 }
