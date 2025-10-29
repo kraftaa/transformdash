@@ -2,31 +2,31 @@ version: 1
 connections:
   - id: transformdash
     name: "TransformDash (Default)"
-    host: localhost
-    port: 5432
-    database: transformdash
-    user: postgres
-    password: ""
+    host: ${TRANSFORMDASH_HOST:-localhost}
+    port: ${TRANSFORMDASH_PORT:-5432}
+    database: ${TRANSFORMDASH_DB:-transformdash}
+    user: ${TRANSFORMDASH_USER:-postgres}
+    password: ${TRANSFORMDASH_PASSWORD:-}
     default: true
     description: "Default TransformDash database"
 
-  - id: sci_rx_production
-    name: "SciRx Production"
-    host: localhost
-    port: 5432
-    database: sci_rx_production
-    user: maria
-    password: ""
+  - id: app_production
+    name: "App Production"
+    host: ${APP_HOST:-localhost}
+    port: ${APP_PORT:-5432}
+    database: ${APP_DB}
+    user: ${APP_USER:-maria}
+    password: ${APP_PASSWORD:-}
     default: false
-    description: "SciRx production database"
+    description: "App production database"
 
   - id: postgres
     name: "postgres"
-    host: localhost
-    port: 5432
-    database: postgres
-    user: maria
-    password: ""
+    host: ${POSTGRES_HOST:-localhost}
+    port: ${POSTGRES_PORT:-5432}
+    database: ${POSTGRES_DB:-postgres}
+    user: ${POSTGRES_USER:-maria}
+    password: ${POSTGRES_PASSWORD:-}
     default: false
     description: "postgres database"
 # Add more connections as needed

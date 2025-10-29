@@ -2,6 +2,7 @@
 Connection Manager - Handles multiple database connections
 """
 import yaml
+import os
 from pathlib import Path
 from typing import Dict, List, Optional
 from postgres import PostgresConnector
@@ -13,9 +14,42 @@ class ConnectionManager:
     def __init__(self, config_path: str = "connections.yml"):
         """Initialize connection manager and load connections config"""
         self.config_path = Path(config_path)
+
+        # Check for local override file first (git-ignored)
+        local_config_path = Path("connections.local.yml")
+        if local_config_path.exists():
+            self.config_path = local_config_path
+
         self.connections = {}
         self.default_connection_id = None
         self._load_connections()
+
+    def _expand_env_vars(self, value):
+        """Expand environment variables in string values
+        Supports ${VAR_NAME} and ${VAR_NAME:-default} syntax
+        """
+        if not isinstance(value, str):
+            return value
+
+        import re
+        # Pattern matches ${VAR_NAME} or ${VAR_NAME:-default_value}
+        pattern = r'\$\{([^}:]+)(?::(-)?([^}]*))?\}'
+
+        def replace_var(match):
+            var_name = match.group(1)
+            has_default = match.group(2) is not None
+            default_value = match.group(3) if has_default else None
+
+            env_value = os.environ.get(var_name)
+            if env_value is not None:
+                return env_value
+            elif has_default:
+                return default_value or ""
+            else:
+                # If no default and env var not set, keep original
+                return match.group(0)
+
+        return re.sub(pattern, replace_var, value)
 
     def _load_connections(self):
         """Load connections from YAML config file"""
@@ -30,10 +64,16 @@ class ConnectionManager:
 
         for conn_config in config['connections']:
             conn_id = conn_config['id']
-            self.connections[conn_id] = conn_config
+
+            # Expand environment variables in all string fields
+            expanded_config = {}
+            for key, value in conn_config.items():
+                expanded_config[key] = self._expand_env_vars(value)
+
+            self.connections[conn_id] = expanded_config
 
             # Set default connection
-            if conn_config.get('default', False):
+            if expanded_config.get('default', False):
                 self.default_connection_id = conn_id
 
         # If no default set, use first connection

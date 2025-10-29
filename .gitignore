@@ -55,3 +55,4 @@ htmlcov/
 
 # Credentials
 .env
+connections.local.yml
