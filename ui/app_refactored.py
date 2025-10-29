@@ -548,14 +548,14 @@ async def update_dashboard(dashboard_id: str, request: Request):
 
 
 @app.get("/api/tables/{table_name}/columns")
-async def get_table_columns(table_name: str, schema: str = "public", database: str = None):
+async def get_table_columns(table_name: str, schema: str = "public", connection_id: str = None):
     """Get columns for a specific table or view"""
     try:
-        from postgres import PostgresConnector
+        from connection_manager import connection_manager
         import logging
 
-        # Connect to specified database or default
-        with PostgresConnector(dbname=database) as pg:
+        # Get connection from connection manager
+        with connection_manager.get_connection(connection_id) as pg:
             # Use pg_attribute for more reliable column information
             query = """
                 SELECT
@@ -570,7 +570,7 @@ async def get_table_columns(table_name: str, schema: str = "public", database: s
                 AND NOT a.attisdropped
                 ORDER BY a.attnum
             """
-            logging.info(f"Fetching columns for {database or 'default'}.{schema}.{table_name}")
+            logging.info(f"Fetching columns for connection {connection_id or 'default'}.{schema}.{table_name}")
             result = pg.execute(query, (schema, table_name), fetch=True)
             columns = [{"name": row['column_name'], "type": row['data_type']} for row in result]
             logging.info(f"Found {len(columns)} columns for {schema}.{table_name}")
@@ -762,6 +762,23 @@ async def query_data(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/connections/list")
+async def list_connections():
+    """List all configured database connections"""
+    try:
+        from connection_manager import connection_manager
+        import logging
+
+        connections = connection_manager.list_connections()
+        logging.info(f"Found {len(connections)} configured connections")
+        return {"connections": connections}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error listing connections: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/databases/list")
 async def list_databases():
     """List all databases"""
@@ -788,14 +805,14 @@ async def list_databases():
 
 
 @app.get("/api/schemas/list")
-async def list_schemas(database: str = None):
-    """List all schemas in specified database"""
+async def list_schemas(connection_id: str = None):
+    """List all schemas in specified connection"""
     try:
-        from postgres import PostgresConnector
+        from connection_manager import connection_manager
         import logging
 
-        # Connect to specified database or default
-        with PostgresConnector(dbname=database) as pg:
+        # Get connection from connection manager
+        with connection_manager.get_connection(connection_id) as pg:
             query = """
                 SELECT nspname as name
                 FROM pg_namespace
@@ -805,7 +822,7 @@ async def list_schemas(database: str = None):
             """
             result = pg.execute(query, fetch=True)
             schemas = [row['name'] for row in result]
-            logging.info(f"Found {len(schemas)} schemas in database {database or 'default'}")
+            logging.info(f"Found {len(schemas)} schemas in connection {connection_id or 'default'}")
             return {"schemas": schemas}
 
     except Exception as e:
@@ -815,14 +832,14 @@ async def list_schemas(database: str = None):
 
 
 @app.get("/api/tables/list")
-async def list_tables(schema: str = "public", database: str = None):
+async def list_tables(schema: str = "public", connection_id: str = None):
     """List all tables/views in the database for SQL Query Lab"""
     try:
-        from postgres import PostgresConnector
+        from connection_manager import connection_manager
         import logging
 
-        # Connect to specified database or default
-        with PostgresConnector(dbname=database) as pg:
+        # Get connection from connection manager
+        with connection_manager.get_connection(connection_id) as pg:
             # Get all tables and views
             query = """
                 SELECT
@@ -849,7 +866,7 @@ async def list_tables(schema: str = "public", database: str = None):
                     'size': '-'
                 })
 
-            logging.info(f"Found {len(tables)} database objects in {database or 'default'}.{schema}")
+            logging.info(f"Found {len(tables)} database objects in connection {connection_id or 'default'}.{schema}")
             return {"tables": tables}
 
     except Exception as e:
@@ -867,7 +884,7 @@ async def execute_query(request: Request):
 
         body = await request.json()
         sql = body.get('sql', '').strip()
-        database = body.get('database')
+        connection_id = body.get('connection_id')
         schema = body.get('schema', 'public')
 
         if not sql:
@@ -890,10 +907,11 @@ async def execute_query(request: Request):
                     detail=f"Query contains forbidden keyword: {keyword}"
                 )
 
-        logging.info(f"Executing query in database={database or 'default'}, schema={schema}")
+        logging.info(f"Executing query in connection={connection_id or 'default'}, schema={schema}")
 
-        # Connect to specified database or default
-        with PostgresConnector(dbname=database) as pg:
+        # Get connection from connection manager
+        from connection_manager import connection_manager
+        with connection_manager.get_connection(connection_id) as pg:
             # Set search path to use the selected schema
             if schema:
                 pg.execute(f"SET search_path TO {schema}, public")
@@ -920,29 +938,43 @@ async def execute_query(request: Request):
             for row_dict in rows_raw:
                 row_data = {}
                 for col, value in row_dict.items():
-                    # Handle None
+                    # Handle None first
                     if value is None:
                         row_data[col] = None
+                    # Check for NaN/Inf in both Python float and numpy types BEFORE any conversion
+                    elif isinstance(value, (float, np.floating)):
+                        # Use pandas isna which handles both Python and numpy NaN
+                        import pandas as pd
+                        if pd.isna(value) or math.isinf(float(value)):
+                            row_data[col] = None
+                        else:
+                            # Convert numpy float to Python float
+                            row_data[col] = float(value)
                     # Convert pandas Timestamp to string
                     elif hasattr(value, 'isoformat'):
                         row_data[col] = value.isoformat()
+                    # Handle lists and tuples (PostgreSQL arrays)
+                    elif isinstance(value, (list, tuple)):
+                        row_data[col] = list(value)
                     # Handle numpy arrays (convert to list)
                     elif isinstance(value, np.ndarray):
                         row_data[col] = value.tolist()
-                    # Convert numpy scalar types to Python native types
-                    elif isinstance(value, (np.integer, np.floating)):
-                        row_data[col] = value.item()
+                    # Convert other numpy scalar types to Python native types
+                    elif isinstance(value, np.integer):
+                        row_data[col] = int(value)
                     elif isinstance(value, np.bool_):
                         row_data[col] = bool(value)
                     # Handle Python native types
-                    elif isinstance(value, (int, float, str, bool)):
+                    elif isinstance(value, (int, str, bool)):
                         row_data[col] = value
                     else:
-                        # For any other type, try JSON serialization or convert to string
+                        # For any other type (UUID, etc.), try JSON serialization or convert to string
                         try:
+                            # Test if it's JSON serializable
                             json_lib.dumps(value)
                             row_data[col] = value
                         except (TypeError, ValueError):
+                            # Convert to string as fallback (handles UUID, etc.)
                             row_data[col] = str(value)
                 rows.append(row_data)
 

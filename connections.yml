@@ -15,11 +15,20 @@ connections:
     host: localhost
     port: 5432
     database: sci_rx_production
-    user: postgres
+    user: maria
     password: ""
     default: false
     description: "SciRx production database"
 
+  - id: postgres
+    name: "postgres"
+    host: localhost
+    port: 5432
+    database: postgres
+    user: maria
+    password: ""
+    default: false
+    description: "postgres database"
 # Add more connections as needed
 # Example:
 #  - id: analytics

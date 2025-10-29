@@ -2824,49 +2824,49 @@ function getActiveFilters() {
 let currentEditingChartId = null;
 
 // SQL Query Lab Functions
-async function loadDatabases() {
+async function loadConnections() {
     try {
-        const response = await fetch('/api/databases/list');
+        const response = await fetch('/api/connections/list');
         const data = await response.json();
-        const databases = data.databases || [];
+        const connections = data.connections || [];
 
-        const selector = document.getElementById('database-selector');
+        const selector = document.getElementById('connection-selector');
         selector.innerHTML = '';
 
-        if (databases.length === 0) {
-            selector.innerHTML = '<option value="">No databases found</option>';
+        if (connections.length === 0) {
+            selector.innerHTML = '<option value="">No connections found</option>';
             return;
         }
 
-        databases.forEach(db => {
+        connections.forEach(conn => {
             const option = document.createElement('option');
-            option.value = db;
-            option.textContent = db;
-            // Select the transformdash database by default if it exists
-            if (db === 'transformdash') {
+            option.value = conn.id;
+            option.textContent = conn.name;
+            // Select the default connection
+            if (conn.default) {
                 option.selected = true;
             }
             selector.appendChild(option);
         });
 
-        // Load schemas for the selected database
+        // Load schemas for the selected connection
         await loadSchemas();
     } catch (error) {
-        console.error('Error loading databases:', error);
-        const selector = document.getElementById('database-selector');
-        selector.innerHTML = '<option value="">Error loading databases</option>';
+        console.error('Error loading connections:', error);
+        const selector = document.getElementById('connection-selector');
+        selector.innerHTML = '<option value="">Error loading connections</option>';
     }
 }
 
-async function onDatabaseChange() {
-    // When database changes, reload schemas
+async function onConnectionChange() {
+    // When connection changes, reload schemas
     await loadSchemas();
 }
 
 async function loadSchemas() {
     try {
-        const database = document.getElementById('database-selector').value;
-        const url = database ? `/api/schemas/list?database=${encodeURIComponent(database)}` : '/api/schemas/list';
+        const connectionId = document.getElementById('connection-selector').value;
+        const url = connectionId ? `/api/schemas/list?connection_id=${encodeURIComponent(connectionId)}` : '/api/schemas/list';
         const response = await fetch(url);
         const data = await response.json();
         const schemas = data.schemas || [];
@@ -2906,9 +2906,9 @@ async function onSchemaChange() {
 
 async function loadDatabaseSchema(schema = 'public') {
     try {
-        const database = document.getElementById('database-selector').value;
-        const url = database
-            ? `/api/tables/list?schema=${encodeURIComponent(schema)}&database=${encodeURIComponent(database)}`
+        const connectionId = document.getElementById('connection-selector').value;
+        const url = connectionId
+            ? `/api/tables/list?schema=${encodeURIComponent(schema)}&connection_id=${encodeURIComponent(connectionId)}`
             : `/api/tables/list?schema=${encodeURIComponent(schema)}`;
         const response = await fetch(url);
         const data = await response.json();
@@ -2973,10 +2973,10 @@ async function toggleTableDetails(tableName) {
         // Load columns if not already loaded
         if (!detailsDiv.dataset.loaded) {
             try {
-                const database = document.getElementById('database-selector').value;
+                const connectionId = document.getElementById('connection-selector').value;
                 const schema = document.getElementById('schema-selector').value;
-                const url = database && schema
-                    ? `/api/tables/${encodeURIComponent(tableName)}/columns?schema=${encodeURIComponent(schema)}&database=${encodeURIComponent(database)}`
+                const url = connectionId && schema
+                    ? `/api/tables/${encodeURIComponent(tableName)}/columns?schema=${encodeURIComponent(schema)}&connection_id=${encodeURIComponent(connectionId)}`
                     : `/api/tables/${encodeURIComponent(tableName)}/columns?schema=${encodeURIComponent(schema || 'public')}`;
                 const response = await fetch(url);
                 const data = await response.json();
@@ -3201,15 +3201,15 @@ async function executeQuery() {
 
     const startTime = Date.now();
 
-    // Get selected database and schema
-    const database = document.getElementById('database-selector')?.value;
+    // Get selected connection and schema
+    const connectionId = document.getElementById('connection-selector')?.value;
     const schema = document.getElementById('schema-selector')?.value;
 
     try {
         const response = await fetch('/api/query/execute', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sql, database, schema })
+            body: JSON.stringify({ sql, connection_id: connectionId, schema })
         });
 
         const executionTime = Date.now() - startTime;
@@ -3589,7 +3589,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.switchView = function(viewName) {
         originalSwitchView(viewName);
         if (viewName === 'query-lab') {
-            loadDatabases();
+            loadConnections();
             initializeResizers();
         }
     };
