@@ -804,6 +804,33 @@
         </div>
     </div>
 
+    <div id="sqlQueryModal" class="modal">
+        <div class="modal-overlay" onclick="closeModal('sqlQueryModal')"></div>
+        <div class="modal-container" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2 id="sqlQueryModalTitle">SQL Query</h2>
+                <button class="modal-close" onclick="closeModal('sqlQueryModal')">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <pre id="sqlQueryCode" style="background: var(--color-bg-secondary); padding: 1rem; border-radius: 8px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 0.875rem; line-height: 1.5; color: var(--color-text-primary); margin: 0;"></pre>
+            </div>
+            <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid var(--color-border); display: flex; justify-content: flex-end; gap: 0.75rem;">
+                <button class="btn btn-secondary" onclick="closeModal('sqlQueryModal')">Close</button>
+                <button class="btn btn-primary" onclick="copySqlQuery()" id="copySqlButton">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                    Copy SQL
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="chartModal" class="modal">
         <div class="modal-overlay" onclick="closeModal('chartModal')"></div>
         <div class="modal-container">
@@ -848,6 +875,6 @@
     <div id="toast-container" class="toast-container"></div>
 
     <!-- Scripts -->
-    <script src="/static/js/app.js?v=20251029k"></script>
+    <script src="/static/js/app.js?v=20251029R"></script>
 </body>
 </html>

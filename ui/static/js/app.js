@@ -1177,6 +1177,8 @@ function renderEditorCharts() {
         chartCard.draggable = true;
         chartCard.dataset.index = index;
 
+        const canvasId = `editor-chart-preview-${index}`;
+
         chartCard.innerHTML = `
             <div class="editor-chart-header">
                 <div class="editor-chart-title">${chart.title || chart.id}</div>
@@ -1185,6 +1187,9 @@ function renderEditorCharts() {
                         <path d="M18 6L6 18M6 6l12 12"/>
                     </svg>
                 </button>
+            </div>
+            <div class="editor-chart-preview" style="height: 200px; background: var(--color-bg-secondary); border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center;">
+                <canvas id="${canvasId}" style="max-height: 180px;"></canvas>
             </div>
             <div class="editor-chart-info">Model: ${chart.model}</div>
             <div class="editor-chart-info">${chart.x_axis} vs ${chart.y_axis} (${chart.aggregation || 'count'})</div>
@@ -1200,6 +1205,9 @@ function renderEditorCharts() {
         chartCard.addEventListener('dragleave', handleDragLeave);
 
         grid.appendChild(chartCard);
+
+        // Render the chart preview
+        renderChartPreview(canvasId, chart);
     });
 }
 
@@ -1728,7 +1736,9 @@ async function loadDashboardCharts(dashboardId, container, filters = {}) {
         // Render each chart sequentially to avoid overwhelming the server
         let chartsRendered = 0;
         for (const chartConfig of dashboard.charts) {
-            await renderDashboardChart(chartConfig, container, filters);
+            // Add dashboard_id to chart config so edit button knows which dashboard it belongs to
+            const chartWithDashboard = { ...chartConfig, dashboard_id: dashboardId };
+            await renderDashboardChart(chartWithDashboard, container, filters);
             chartsRendered++;
         }
 
@@ -2541,22 +2551,31 @@ async function loadChartConnections() {
 // Load available dashboards into the chart builder dropdown
 async function loadChartDashboards() {
     try {
+        console.log('Loading dashboards for chart builder...');
         const response = await fetch('/api/dashboards');
         const data = await response.json();
+        console.log('Dashboards data:', data);
 
         const dashboardSelect = document.getElementById('chartDashboard');
-        if (!dashboardSelect) return;
+        if (!dashboardSelect) {
+            console.error('Dashboard select element not found!');
+            return;
+        }
 
         // Keep the placeholder and "Create New" option
         dashboardSelect.innerHTML = '<option value="">Select dashboard...</option><option value="__new__">➕ Create New Dashboard</option>';
 
         if (data.dashboards && data.dashboards.length > 0) {
+            console.log(`Found ${data.dashboards.length} dashboards`);
             data.dashboards.forEach(dashboard => {
                 const option = document.createElement('option');
                 option.value = dashboard.id;
                 option.textContent = dashboard.name;
                 dashboardSelect.appendChild(option);
+                console.log(`Added dashboard: ${dashboard.name} (${dashboard.id})`);
             });
+        } else {
+            console.log('No dashboards found in response');
         }
     } catch (error) {
         console.error('Error loading dashboards for chart builder:', error);
@@ -3963,6 +3982,9 @@ function initializeResizers() {
 }
 
 // Show the SQL query for a chart
+// Store current SQL query for copying
+let currentSqlQuery = '';
+
 function showChartQuery(chartConfig) {
     // Build the SQL query based on chart configuration
     let sql = '';
@@ -4026,14 +4048,51 @@ function showChartQuery(chartConfig) {
         sql += `\nGROUP BY ${chartConfig.x_axis}\nORDER BY ${chartConfig.x_axis}\nLIMIT 50`;
     }
 
-    // Show in a modal/alert
-    const message = `SQL Query for "${chartConfig.title}":\n\n${sql}\n\n📋 Query copied to clipboard!`;
+    // Store SQL for copying
+    currentSqlQuery = sql;
 
-    // Copy to clipboard
-    navigator.clipboard.writeText(sql).then(() => {
-        alert(message);
-    }).catch(() => {
-        alert(`SQL Query for "${chartConfig.title}":\n\n${sql}`);
+    // Update modal content
+    document.getElementById('sqlQueryModalTitle').textContent = `SQL Query: ${chartConfig.title}`;
+    document.getElementById('sqlQueryCode').textContent = sql;
+
+    // Reset button text
+    const copyButton = document.getElementById('copySqlButton');
+    copyButton.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        Copy SQL
+    `;
+
+    // Show modal
+    openModal('sqlQueryModal');
+}
+
+function copySqlQuery() {
+    navigator.clipboard.writeText(currentSqlQuery).then(() => {
+        // Update button to show success
+        const copyButton = document.getElementById('copySqlButton');
+        copyButton.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;">
+                <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            Copied!
+        `;
+
+        // Reset button after 2 seconds
+        setTimeout(() => {
+            copyButton.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                Copy SQL
+            `;
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy SQL:', err);
+        alert('Failed to copy to clipboard');
     });
 }
 
@@ -4047,8 +4106,51 @@ async function editChart(chartConfig) {
     // Switch to chart builder view first
     switchView('chart-builder');
 
-    // Wait for view to render, then populate form
+    // Wait for view to render and load dashboards
     await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Ensure dashboards are loaded before trying to set the value
+    await loadChartDashboards();
+
+    // Set default connection and schema for old charts that don't have them
+    const connectionEl = document.getElementById('chartConnection');
+    const schemaEl = document.getElementById('chartSchema');
+    const dashboardEl = document.getElementById('chartDashboard');
+
+    if (connectionEl && !chartConfig.connection_id) {
+        // Set to default connection (first option after placeholder)
+        if (connectionEl.options.length > 1) {
+            connectionEl.selectedIndex = 1;
+            await loadChartSchemas();
+        }
+    }
+
+    if (schemaEl && !chartConfig.schema) {
+        // Set to 'public' schema if available
+        const publicOption = Array.from(schemaEl.options).find(opt => opt.value === 'public');
+        if (publicOption) {
+            schemaEl.value = 'public';
+            await loadChartTables();
+        } else if (schemaEl.options.length > 1) {
+            schemaEl.selectedIndex = 1;
+            await loadChartTables();
+        }
+    }
+
+    // Set dashboard to the chart's dashboard or default to first one
+    if (dashboardEl) {
+        // Check for both dashboard_id and dashboardId (different sources use different naming)
+        const dashboardId = chartConfig.dashboard_id || chartConfig.dashboardId;
+        if (dashboardId) {
+            console.log(`Setting dashboard to: ${dashboardId}`);
+            dashboardEl.value = dashboardId;
+            console.log(`Dashboard field value after setting: ${dashboardEl.value}`);
+        } else if (dashboardEl.options.length > 2) {
+            // Skip placeholder and "Create New", select first actual dashboard
+            console.log('No dashboard_id in chart config, using first available dashboard');
+            dashboardEl.selectedIndex = 2;
+        }
+    }
 
     // Immediately clear any existing chart preview to avoid showing old content
     const chartPlaceholder = document.getElementById('chartPlaceholder');
@@ -4576,8 +4678,8 @@ function closeChartSavedModal() {
 }
 
 async function viewChartInDashboard(dashboardId) {
-    // Switch to dashboards tab
-    switchTab('dashboards');
+    // Switch to dashboards view
+    switchView('dashboards');
 
     // Wait for dashboards to load
     await new Promise(resolve => setTimeout(resolve, 500));
