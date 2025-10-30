@@ -39,7 +39,23 @@ run_history = RunHistory()
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
     """Serve the main dashboard HTML"""
-    return templates.TemplateResponse("index.html", {"request": request})
+    import yaml
+
+    # Load dashboards for the dropdown
+    dashboards = []
+    dashboards_file = models_dir / "dashboards.yml"
+    if dashboards_file.exists():
+        try:
+            with open(dashboards_file, 'r') as f:
+                data = yaml.safe_load(f)
+                dashboards = data.get('dashboards', [])
+        except Exception:
+            pass
+
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "dashboards": dashboards
+    })
 
 
 @app.get("/dashboard/{dashboard_id}", response_class=HTMLResponse)
@@ -624,6 +640,43 @@ async def query_data(request: Request):
             """
             col_result = pg.execute(col_query, (schema, table), fetch=True)
             available_columns = {row['column_name'] for row in col_result}
+
+            # Handle table type charts (data table display)
+            if chart_type == 'table':
+                columns = body.get('columns', [])
+                if not columns:
+                    raise HTTPException(status_code=400, detail="Missing columns for table chart")
+
+                # Build WHERE clauses from filters
+                where_clauses = []
+                params = []
+
+                if filters:
+                    for field, value in filters.items():
+                        if value and field in available_columns:
+                            where_clauses.append(f"{field} = %s")
+                            params.append(value)
+
+                where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+                # Build column selection
+                column_names = ', '.join(columns)
+                query = f"""
+                    SELECT {column_names}
+                    FROM {schema}.{table}
+                    {where_sql}
+                    LIMIT 100
+                """
+
+                df = pg.query_to_dataframe(query, tuple(params) if params else None)
+
+                # Convert DataFrame to list of dictionaries
+                data = df.to_dict('records')
+
+                return {
+                    "columns": columns,
+                    "data": data
+                }
 
             # Handle metric type charts (single value)
             if chart_type == 'metric' and metric:

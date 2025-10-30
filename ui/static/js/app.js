@@ -4318,17 +4318,40 @@ async function createChart() {
     const yAxis = document.getElementById('chartYAxis').value;
     const aggregation = document.getElementById('chartAggregation').value;
 
-    console.log('createChart called with:', { connection, schema, table, chartType, xAxis, yAxis, aggregation });
+    console.log('createChart called with:', { connection, schema, table, chartType, xAxis, yAxis, aggregation, tableColumns });
 
-    // Validation
-    if (!connection || !schema || !table || !xAxis || !yAxis) {
-        const errorEl = document.getElementById('chartError');
-        if (errorEl) {
-            errorEl.style.display = 'block';
-            errorEl.textContent = 'Please select connection, schema, table, X-axis, and Y-axis';
+    // Validation - different for table charts vs regular charts
+    if (chartType === 'table') {
+        // Table charts only need connection, schema, table, and at least one column
+        if (!connection || !schema || !table) {
+            const errorEl = document.getElementById('chartError');
+            if (errorEl) {
+                errorEl.style.display = 'block';
+                errorEl.textContent = 'Please select connection, schema, and table';
+            }
+            console.warn('Validation failed:', { connection, schema, table });
+            return;
         }
-        console.warn('Validation failed:', { connection, schema, table, xAxis, yAxis });
-        return;
+        if (!tableColumns || tableColumns.length === 0) {
+            const errorEl = document.getElementById('chartError');
+            if (errorEl) {
+                errorEl.style.display = 'block';
+                errorEl.textContent = 'Please add at least one column to your table';
+            }
+            console.warn('Validation failed: no columns added');
+            return;
+        }
+    } else {
+        // Regular charts need xAxis and yAxis
+        if (!connection || !schema || !table || !xAxis || !yAxis) {
+            const errorEl = document.getElementById('chartError');
+            if (errorEl) {
+                errorEl.style.display = 'block';
+                errorEl.textContent = 'Please select connection, schema, table, X-axis, and Y-axis';
+            }
+            console.warn('Validation failed:', { connection, schema, table, xAxis, yAxis });
+            return;
+        }
     }
 
     const errorEl = document.getElementById('chartError');
@@ -4351,6 +4374,11 @@ async function createChart() {
             y_axis: yAxis,
             aggregation
         };
+
+        // For table charts, add columns array
+        if (chartType === 'table') {
+            payload.columns = tableColumns.map(col => col.field);
+        }
 
         // For metric charts, add metric field
         if (chartType === 'metric') {

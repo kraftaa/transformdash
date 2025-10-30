@@ -465,6 +465,9 @@
                             <select id="chartDashboard" onchange="handleDashboardSelection()" class="input">
                                 <option value="">Select dashboard...</option>
                                 <option value="__new__">➕ Create New Dashboard</option>
+                                {% for dashboard in dashboards %}
+                                <option value="{{ dashboard.id }}">{{ dashboard.name }}</option>
+                                {% endfor %}
                             </select>
                         </div>
 
@@ -875,6 +878,6 @@
     <div id="toast-container" class="toast-container"></div>
 
     <!-- Scripts -->
-    <script src="/static/js/app.js?v=20251029T"></script>
+    <script src="/static/js/app.js?v=20251029V"></script>
 </body>
 </html>
