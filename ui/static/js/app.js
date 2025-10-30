@@ -2550,35 +2550,41 @@ async function loadChartConnections() {
 
 // Load available dashboards into the chart builder dropdown
 async function loadChartDashboards() {
+    console.log('[DEBUG] loadChartDashboards() called');
     try {
-        console.log('Loading dashboards for chart builder...');
+        console.log('[DEBUG] Fetching /api/dashboards...');
         const response = await fetch('/api/dashboards');
+        console.log('[DEBUG] Response status:', response.status);
         const data = await response.json();
-        console.log('Dashboards data:', data);
+        console.log('[DEBUG] Dashboards data:', JSON.stringify(data, null, 2));
 
         const dashboardSelect = document.getElementById('chartDashboard');
+        console.log('[DEBUG] Dashboard select element:', dashboardSelect);
         if (!dashboardSelect) {
-            console.error('Dashboard select element not found!');
+            console.error('[ERROR] Dashboard select element not found!');
             return;
         }
 
         // Keep the placeholder and "Create New" option
         dashboardSelect.innerHTML = '<option value="">Select dashboard...</option><option value="__new__">➕ Create New Dashboard</option>';
+        console.log('[DEBUG] Reset dropdown with default options');
 
         if (data.dashboards && data.dashboards.length > 0) {
-            console.log(`Found ${data.dashboards.length} dashboards`);
-            data.dashboards.forEach(dashboard => {
+            console.log(`[DEBUG] Found ${data.dashboards.length} dashboards, adding them now...`);
+            data.dashboards.forEach((dashboard, index) => {
                 const option = document.createElement('option');
                 option.value = dashboard.id;
                 option.textContent = dashboard.name;
                 dashboardSelect.appendChild(option);
-                console.log(`Added dashboard: ${dashboard.name} (${dashboard.id})`);
+                console.log(`[DEBUG] Added dashboard ${index + 1}: ${dashboard.name} (${dashboard.id})`);
             });
+            console.log('[DEBUG] Final dropdown HTML:', dashboardSelect.innerHTML);
         } else {
-            console.log('No dashboards found in response');
+            console.log('[DEBUG] No dashboards found in response');
         }
     } catch (error) {
-        console.error('Error loading dashboards for chart builder:', error);
+        console.error('[ERROR] Error loading dashboards for chart builder:', error);
+        console.error('[ERROR] Error stack:', error.stack);
     }
 }
 
@@ -2899,7 +2905,7 @@ function renderTableColumns(availableColumns) {
                     <select onchange="updateTableColumn('${col.id}', 'field', this.value)" class="input" style="font-size: 0.875rem; padding: 0.5rem;">
                         <option value="">Select field...</option>
                         <option value="__custom__" ${col.field === '__custom__' ? 'selected' : ''}>Custom SQL Expression</option>
-                        ${availableColumns.map(c => `<option value="${c}" ${col.field === c ? 'selected' : ''}>${c}</option>`).join('')}
+                        ${availableColumns.map(c => `<option value="${c.name}" ${col.field === c.name ? 'selected' : ''}>${c.name} (${c.type})</option>`).join('')}
                     </select>
                 </div>
                 ${col.field === '__custom__' ? `
