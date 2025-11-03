@@ -490,3 +490,129 @@ body.dark-mode .dashboard-card:hover {
 .dashboard-header.featured .dashboard-id {
     color: white !important;
 }
+
+/* ============================================
+   VIEW TOGGLE BUTTONS (Grid/Table Toggle)
+   ============================================ */
+
+.view-toggle-btn-charts,
+.view-toggle-btn-dashboards {
+    background: transparent;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    color: #6b7280;
+}
+
+.view-toggle-btn-charts:hover,
+.view-toggle-btn-dashboards:hover {
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.view-toggle-btn-charts.active,
+.view-toggle-btn-dashboards.active {
+    background: white;
+    color: #667eea;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* ============================================
+   TABLE VIEW STYLES
+   ============================================ */
+
+.view-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    table-layout: fixed;
+}
+
+.view-table thead {
+    background: #f9fafb;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.view-table th {
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+}
+
+.view-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 0.875rem;
+    color: #111827;
+}
+
+.view-table tbody tr {
+    transition: background 0.15s;
+}
+
+.view-table tbody tr:hover {
+    background: #f9fafb;
+}
+
+.icon-btn-small {
+    background: transparent;
+    border: none;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: transform 0.2s;
+    border-radius: 4px;
+}
+
+.icon-btn-small:hover {
+    background: #f3f4f6;
+    transform: scale(1.1);
+}
+
+.charts-table-view,
+.dashboards-table-view {
+    padding: 16px 0;
+}
+
+
+/* Tag and Badge Styles */
+.tag-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #e0e7ff;
+    color: #4338ca;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.chart-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    padding: 4px 10px;
+    background: #dbeafe;
+    color: #1e40af;
+    border-radius: 16px;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+/* Improved table cell padding and alignment */
+.view-table td {
+    vertical-align: middle;
+}
+

@@ -40,6 +40,8 @@ run_history = RunHistory()
 async def root(request: Request):
     """Serve the main dashboard HTML"""
     import yaml
+    import time
+    from fastapi.responses import Response
 
     # Load dashboards for the dropdown
     dashboards = []
@@ -52,10 +54,18 @@ async def root(request: Request):
         except Exception:
             pass
 
-    return templates.TemplateResponse("index.html", {
+    response = templates.TemplateResponse("index.html", {
         "request": request,
-        "dashboards": dashboards
+        "dashboards": dashboards,
+        "cache_bust": int(time.time() * 1000)
     })
+
+    # Add cache control headers to prevent caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+
+    return response
 
 
 @app.get("/dashboard/{dashboard_id}", response_class=HTMLResponse)
@@ -343,6 +353,14 @@ async def save_chart(request: Request):
             "aggregation": body.get("aggregation", "sum")
         }
 
+        # For table charts, add columns field if provided
+        if body.get("type") == "table" and "columns" in body:
+            chart_config["columns"] = body.get("columns")
+
+        # For stacked bar charts, add category field if provided
+        if body.get("type") == "bar-stacked" and "category" in body:
+            chart_config["category"] = body.get("category")
+
         logging.info(f"Chart config: {chart_config}")
 
         # Load existing dashboards or create new structure
@@ -357,40 +375,69 @@ async def save_chart(request: Request):
         if 'dashboards' not in data:
             data['dashboards'] = []
 
-        # Find or create the "Custom Charts" dashboard
-        custom_dashboard = None
+        # Get the target dashboard ID from the request, default to 'custom_charts'
+        target_dashboard_id = body.get('dashboard_id', 'custom_charts')
+        logging.info(f"Target dashboard ID: {target_dashboard_id}")
+
+        # Handle creating a new dashboard if requested
+        if target_dashboard_id == '__new__':
+            # Create a new dashboard with provided name and description
+            new_dashboard_name = body.get('dashboard_name', 'New Dashboard')
+            new_dashboard_description = body.get('dashboard_description', '')
+            target_dashboard_id = new_dashboard_name.lower().replace(' ', '_').replace('-', '_')
+
+            # Check if this new dashboard already exists
+            existing = False
+            for dashboard in data['dashboards']:
+                if dashboard.get('id') == target_dashboard_id:
+                    existing = True
+                    break
+
+            if not existing:
+                new_dashboard = {
+                    'id': target_dashboard_id,
+                    'name': new_dashboard_name,
+                    'description': new_dashboard_description,
+                    'charts': []
+                }
+                data['dashboards'].append(new_dashboard)
+                logging.info(f"Created new dashboard: {target_dashboard_id}")
+
+        # Find or create the target dashboard
+        target_dashboard = None
         for dashboard in data['dashboards']:
-            if dashboard.get('id') == 'custom_charts':
-                custom_dashboard = dashboard
+            if dashboard.get('id') == target_dashboard_id:
+                target_dashboard = dashboard
                 break
 
-        if not custom_dashboard:
-            custom_dashboard = {
-                'id': 'custom_charts',
-                'name': 'Custom Charts',
+        if not target_dashboard:
+            # Dashboard doesn't exist, create it (fallback behavior)
+            target_dashboard = {
+                'id': target_dashboard_id,
+                'name': target_dashboard_id.replace('_', ' ').title(),
                 'description': 'User-created charts',
                 'charts': []
             }
-            data['dashboards'].append(custom_dashboard)
-            logging.info("Created new Custom Charts dashboard")
+            data['dashboards'].append(target_dashboard)
+            logging.info(f"Created new dashboard: {target_dashboard_id}")
         else:
-            logging.info("Found existing Custom Charts dashboard")
+            logging.info(f"Found existing dashboard: {target_dashboard_id}")
 
         # Add chart to dashboard
-        if 'charts' not in custom_dashboard:
-            custom_dashboard['charts'] = []
+        if 'charts' not in target_dashboard:
+            target_dashboard['charts'] = []
 
         # Check if chart with same ID exists and update it
         chart_exists = False
-        for i, chart in enumerate(custom_dashboard['charts']):
+        for i, chart in enumerate(target_dashboard['charts']):
             if chart.get('id') == chart_config['id']:
-                custom_dashboard['charts'][i] = chart_config
+                target_dashboard['charts'][i] = chart_config
                 chart_exists = True
                 logging.info(f"Updated existing chart: {chart_config['id']}")
                 break
 
         if not chart_exists:
-            custom_dashboard['charts'].append(chart_config)
+            target_dashboard['charts'].append(chart_config)
             logging.info(f"Added new chart: {chart_config['id']}")
 
         # Save back to file
@@ -402,7 +449,7 @@ async def save_chart(request: Request):
         return {
             "success": True,
             "message": "Chart saved successfully!",
-            "dashboard_id": "custom_charts",
+            "dashboard_id": target_dashboard_id,
             "chart_id": chart_config['id']
         }
     except Exception as e:
@@ -789,34 +836,89 @@ async def query_data(request: Request):
 
             where_sql = "WHERE " + " AND ".join(where_clauses)
 
-            # Build aggregation query
-            agg_func = aggregation.upper()
-            query = f"""
-                SELECT
-                    {x_axis} as label,
-                    {agg_func}({y_axis}) as value
-                FROM {schema}.{table}
-                {where_sql}
-                GROUP BY {x_axis}
-                ORDER BY {x_axis}
-                LIMIT 50
-            """
+            # Check if this is a stacked bar chart with a category field
+            category = body.get('category')
+            if chart_type == 'bar-stacked' and category:
+                # For stacked charts, we need to pivot data by category
+                agg_func = aggregation.upper()
+                query = f"""
+                    SELECT
+                        {x_axis} as label,
+                        {category} as category,
+                        {agg_func}({y_axis}) as value
+                    FROM {schema}.{table}
+                    {where_sql}
+                    GROUP BY {x_axis}, {category}
+                    ORDER BY {x_axis}, {category}
+                    LIMIT 500
+                """
 
-            df = pg.query_to_dataframe(query, tuple(params) if params else None)
+                df = pg.query_to_dataframe(query, tuple(params) if params else None)
 
-            # Convert to chart-friendly format
-            # Replace NaN with None for JSON compatibility
-            import math
-            labels = df['label'].astype(str).tolist()
-            values = [
-                None if (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) else v
-                for v in df['value'].tolist()
-            ]
+                # Pivot the data to create multiple datasets (one per category)
+                import pandas as pd
+                import math
 
-            return {
-                "labels": labels,
-                "values": values
-            }
+                # Get unique categories and labels
+                categories = df['category'].unique().tolist()
+                labels = sorted(df['label'].unique().tolist(), key=str)
+
+                # Build datasets for each category
+                datasets = []
+                for cat in categories:
+                    cat_data = df[df['category'] == cat]
+                    # Create a value for each label, filling missing with 0
+                    values = []
+                    for label in labels:
+                        matching = cat_data[cat_data['label'] == label]
+                        if len(matching) > 0:
+                            val = matching['value'].iloc[0]
+                            # Handle NaN/inf
+                            if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+                                values.append(0)
+                            else:
+                                values.append(float(val) if val is not None else 0)
+                        else:
+                            values.append(0)
+
+                    datasets.append({
+                        "label": str(cat),
+                        "data": values
+                    })
+
+                return {
+                    "labels": [str(l) for l in labels],
+                    "datasets": datasets
+                }
+            else:
+                # Regular (non-stacked) chart
+                agg_func = aggregation.upper()
+                query = f"""
+                    SELECT
+                        {x_axis} as label,
+                        {agg_func}({y_axis}) as value
+                    FROM {schema}.{table}
+                    {where_sql}
+                    GROUP BY {x_axis}
+                    ORDER BY {x_axis}
+                    LIMIT 50
+                """
+
+                df = pg.query_to_dataframe(query, tuple(params) if params else None)
+
+                # Convert to chart-friendly format
+                # Replace NaN with None for JSON compatibility
+                import math
+                labels = df['label'].astype(str).tolist()
+                values = [
+                    None if (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) else v
+                    for v in df['value'].tolist()
+                ]
+
+                return {
+                    "labels": labels,
+                    "values": values
+                }
     except Exception as e:
         import traceback
         logging.error(f"Query error: {str(e)}\n{traceback.format_exc()}")

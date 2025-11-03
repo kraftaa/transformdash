@@ -3,7 +3,15 @@ dashboards:
 - id: my-dashboard
   name: My Dashboard
   description: My custom dashboard
-  charts: []
+  charts:
+  - id: chart_1762211938058_er31cxxwa
+    title: t12test
+    type: bar-stacked
+    model: fct_inventory_metrics
+    x_axis: warehouse_id
+    y_axis: product_count
+    aggregation: sum
+    category: product_category
 - id: custom_charts
   name: Custom Charts
   description: User-created charts
@@ -13,5 +21,12 @@ dashboards:
     type: bar
     model: fct_customer_returns
     x_axis: return_date
+    y_axis: affected_orders
+    aggregation: sum
+  - id: chart_1762045563225_q77ugig05
+    title: test11
+    type: pie
+    model: fct_customer_returns
+    x_axis: return_year
     y_axis: affected_orders
     aggregation: sum

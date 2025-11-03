@@ -1,7 +1,46 @@
 /**
  * TransformDash JavaScript - Modern UI
  * Main application logic for dashboard interactivity with sidebar navigation
+ * Last updated: 2025-11-03T13:45:00Z - Improved dashboard table view with structured columns (Name, Description, Charts, Owner, Tags, Actions)
  */
+
+// ============================================
+// GLOBAL VIEW MODE SETTINGS
+// ============================================
+
+// Track view modes for Charts and Dashboards pages
+let chartsViewMode = localStorage.getItem('chartsViewMode') || 'grid'; // 'grid' or 'table'
+let dashboardsViewMode = localStorage.getItem('dashboardsViewMode') || 'grid'; // 'grid' or 'table'
+
+// Toggle view mode for Charts page
+function toggleChartsView(mode) {
+    chartsViewMode = mode;
+    localStorage.setItem('chartsViewMode', mode);
+
+    // Update button states
+    document.querySelectorAll('.view-toggle-btn-charts').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`[data-view-charts="${mode}"]`)?.classList.add('active');
+
+    // Reload charts with new view
+    loadAllCharts();
+}
+
+// Toggle view mode for Dashboards page
+function toggleDashboardsView(mode) {
+    dashboardsViewMode = mode;
+    localStorage.setItem('dashboardsViewMode', mode);
+
+    // Update button states
+    document.querySelectorAll('.view-toggle-btn-dashboards').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`[data-view-dashboards="${mode}"]`)?.classList.add('active');
+
+    // Reload dashboards with new view
+    loadDashboards();
+}
 
 // ============================================
 // UTILITY FUNCTIONS
@@ -1540,7 +1579,79 @@ async function loadDashboards() {
         // Clear the list first
         dashboardsList.innerHTML = '';
 
-        data.dashboards.forEach(dashboard => {
+        // Display based on view mode
+        if (dashboardsViewMode === 'table') {
+            // Table view - structured data table
+            dashboardsList.className = 'dashboards-table-view';
+
+            const table = document.createElement('table');
+            table.className = 'view-table';
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th style="width: 28%;">Dashboard Name</th>
+                        <th style="width: 32%;">Description</th>
+                        <th style="width: 8%; text-align: center;">Charts</th>
+                        <th style="width: 12%;">Created By</th>
+                        <th style="width: 12%;">Tags</th>
+                        <th style="width: 8%; text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            `;
+
+            const tbody = table.querySelector('tbody');
+
+            data.dashboards.forEach(dashboard => {
+                // Format tags
+                const tags = dashboard.tags || [];
+                const tagsHTML = tags.length > 0
+                    ? tags.map(tag => `<span class="tag-badge">${tag}</span>`).join(' ')
+                    : '<span style="color: #9ca3af; font-size: 0.75rem;">None</span>';
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.1rem; flex-shrink: 0;">📊</span>
+                            <strong style="color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${dashboard.name}</strong>
+                        </div>
+                    </td>
+                    <td style="max-width: 300px;">
+                        <div style="color: #6b7280; font-size: 0.875rem; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
+                            ${dashboard.description || '<span style="color: #9ca3af;">No description</span>'}
+                        </div>
+                    </td>
+                    <td style="text-align: center; white-space: nowrap;">
+                        <span class="chart-count-badge">${dashboard.charts?.length || 0}</span>
+                    </td>
+                    <td style="white-space: nowrap;">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span style="font-size: 0.9rem; flex-shrink: 0;">👤</span>
+                            <span style="color: #6b7280; font-size: 0.875rem; overflow: hidden; text-overflow: ellipsis;">${dashboard.owner || dashboard.created_by || 'System'}</span>
+                        </div>
+                    </td>
+                    <td style="white-space: nowrap;">
+                        ${tagsHTML}
+                    </td>
+                    <td style="text-align: right; white-space: nowrap;">
+                        <button class="icon-btn-small" onclick="event.stopPropagation(); openDashboardEditor('${dashboard.id}', '${dashboard.name}')" title="Edit Dashboard">✏️</button>
+                        <button class="icon-btn-small" onclick="event.stopPropagation(); openDashboardInTab('${dashboard.id}')" title="Open in new tab">🔗</button>
+                    </td>
+                `;
+
+                row.style.cursor = 'pointer';
+                row.onclick = () => openDashboardInTab(dashboard.id);
+
+                tbody.appendChild(row);
+            });
+
+            dashboardsList.appendChild(table);
+        } else {
+            // Grid view - cards with expandable sections (original)
+            dashboardsList.className = '';
+
+            data.dashboards.forEach(dashboard => {
             // Create dashboard card
             const card = document.createElement('div');
             card.className = 'dashboard-card';
@@ -1608,7 +1719,8 @@ async function loadDashboards() {
             card.appendChild(filtersContainer);
             card.appendChild(chartsContainer);
             dashboardsList.appendChild(card);
-        });
+            });
+        }
 
     } catch (error) {
         console.error('Error loading dashboards:', error);
@@ -2132,22 +2244,25 @@ async function renderTableChart(container, chartConfig, filters = {}) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                type: 'table',
                 table: chartConfig.model,
-                x_axis: chartConfig.x_axis,
-                y_axis: chartConfig.y_axis,
-                aggregation: chartConfig.aggregation || 'sum',
+                columns: chartConfig.columns || [],
                 filters: filters
             })
         });
 
         if (!queryResponse.ok) {
+            const errorText = await queryResponse.text();
+            console.error('Table API error:', errorText);
             throw new Error('Failed to fetch table data');
         }
 
         const chartData = await queryResponse.json();
 
         // Check if we have data
-        const hasData = chartData.labels && chartData.labels.length > 0;
+        const columns = chartData.columns || [];
+        const rows = chartData.data || [];
+        const hasData = rows.length > 0;
 
         if (!hasData) {
             container.innerHTML = '<div style="padding: 30px; text-align: center; color: #888;">No data available</div>';
@@ -2157,17 +2272,24 @@ async function renderTableChart(container, chartConfig, filters = {}) {
         // Create HTML table
         let tableHTML = '<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">';
         tableHTML += '<thead><tr>';
-        tableHTML += `<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--color-border); background: var(--color-bg-secondary); font-weight: 600;">${chartConfig.x_axis}</th>`;
-        tableHTML += `<th style="padding: 0.75rem; text-align: right; border-bottom: 2px solid var(--color-border); background: var(--color-bg-secondary); font-weight: 600;">${chartConfig.aggregation?.toUpperCase() || 'SUM'}(${chartConfig.y_axis})</th>`;
+
+        // Add header for each column
+        columns.forEach(col => {
+            tableHTML += `<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--color-border); background: var(--color-bg-secondary); font-weight: 600; color: #000;">${col}</th>`;
+        });
+
         tableHTML += '</tr></thead><tbody>';
 
-        for (let i = 0; i < chartData.labels.length; i++) {
-            const rowStyle = i % 2 === 0 ? 'background: #f9fafb;' : '';
+        // Add row data
+        rows.forEach((row, idx) => {
+            const rowStyle = idx % 2 === 0 ? 'background: #f9fafb;' : '';
             tableHTML += `<tr style="${rowStyle}">`;
-            tableHTML += `<td style="padding: 0.75rem; border-bottom: 1px solid var(--color-border);">${chartData.labels[i]}</td>`;
-            tableHTML += `<td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid var(--color-border); font-weight: 500;">${chartData.values[i]}</td>`;
+            columns.forEach(col => {
+                const value = row[col] !== null && row[col] !== undefined ? row[col] : '';
+                tableHTML += `<td style="padding: 0.75rem; border-bottom: 1px solid var(--color-border); color: #000;">${value}</td>`;
+            });
             tableHTML += '</tr>';
-        }
+        });
 
         tableHTML += '</tbody></table>';
         container.innerHTML = tableHTML;
@@ -2262,53 +2384,114 @@ async function loadAllCharts() {
             }
         });
 
-        // Display each chart as a card with preview
-        allCharts.forEach(async (chart, index) => {
-            const card = document.createElement('div');
-            card.className = 'chart-item-card';
+        // Display based on view mode
+        if (chartsViewMode === 'table') {
+            // Table view - compact rows
+            chartsList.className = 'charts-table-view';
 
-            // Chart type icon
-            const typeIcons = {
-                line: '📈',
-                bar: '📊',
-                pie: '🥧',
-                doughnut: '🍩',
-                metric: '🔢'
-            };
-
-            // Create preview canvas with unique ID (include index to avoid duplicates)
-            const canvasId = `chart-preview-${chart.dashboardId}-${chart.id}-${index}`;
-            card.innerHTML = `
-                <div class="chart-item-preview" style="height: 150px; margin-bottom: 12px; background: var(--color-bg-secondary); border-radius: 8px; padding: 8px; display: flex; align-items: center; justify-content: center;">
-                    <canvas id="${canvasId}" style="max-height: 140px;"></canvas>
-                </div>
-                <div class="chart-item-icon">${typeIcons[chart.type] || '📊'}</div>
-                <div class="chart-item-title">${chart.title}</div>
-                <div class="chart-item-dashboard">${chart.dashboardName}</div>
-                <div class="chart-item-badges">
-                    <span class="chart-badge chart-badge-type">${chart.type}</span>
-                    <span class="chart-badge chart-badge-model">${chart.model}</span>
-                </div>
-                <button class="chart-item-edit-btn" title="Edit chart">✏️</button>
+            const table = document.createElement('table');
+            table.className = 'view-table';
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th>Chart Name</th>
+                        <th>Type</th>
+                        <th>Dashboard</th>
+                        <th>Model</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
             `;
 
-            // Edit button click handler
-            const editBtn = card.querySelector('.chart-item-edit-btn');
-            editBtn.onclick = (e) => {
-                e.stopPropagation();
-                editChart(chart);
-            };
+            const tbody = table.querySelector('tbody');
 
-            // Click on card to edit chart (opens in chart builder)
-            card.onclick = () => {
-                editChart(chart);
-            };
+            allCharts.forEach(chart => {
+                const typeIcons = {
+                    line: '📈',
+                    bar: '📊',
+                    pie: '🥧',
+                    doughnut: '🍩',
+                    metric: '🔢',
+                    table: '📋'
+                };
 
-            chartsList.appendChild(card);
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${chart.title}</strong></td>
+                    <td>${typeIcons[chart.type] || '📊'} ${chart.type}</td>
+                    <td>${chart.dashboardName}</td>
+                    <td><code>${chart.model}</code></td>
+                    <td>
+                        <button class="icon-btn-small" title="Edit chart">✏️</button>
+                    </td>
+                `;
 
-            // Render preview chart
-            renderChartPreview(canvasId, chart);
-        });
+                const editBtn = row.querySelector('.icon-btn-small');
+                editBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    editChart(chart);
+                };
+
+                row.style.cursor = 'pointer';
+                row.onclick = () => editChart(chart);
+
+                tbody.appendChild(row);
+            });
+
+            chartsList.appendChild(table);
+        } else {
+            // Grid view - cards with previews (original)
+            chartsList.className = 'charts-grid';
+
+            allCharts.forEach(async (chart, index) => {
+                const card = document.createElement('div');
+                card.className = 'chart-item-card';
+
+                // Chart type icon
+                const typeIcons = {
+                    line: '📈',
+                    bar: '📊',
+                    pie: '🥧',
+                    doughnut: '🍩',
+                    metric: '🔢',
+                    table: '📋'
+                };
+
+                // Create preview canvas with unique ID (include index to avoid duplicates)
+                const canvasId = `chart-preview-${chart.dashboardId}-${chart.id}-${index}`;
+                card.innerHTML = `
+                    <div class="chart-item-preview" style="height: 150px; margin-bottom: 12px; background: var(--color-bg-secondary); border-radius: 8px; padding: 8px; display: flex; align-items: center; justify-content: center;">
+                        <canvas id="${canvasId}" style="max-height: 140px;"></canvas>
+                    </div>
+                    <div class="chart-item-icon">${typeIcons[chart.type] || '📊'}</div>
+                    <div class="chart-item-title">${chart.title}</div>
+                    <div class="chart-item-dashboard">${chart.dashboardName}</div>
+                    <div class="chart-item-badges">
+                        <span class="chart-badge chart-badge-type">${chart.type}</span>
+                        <span class="chart-badge chart-badge-model">${chart.model}</span>
+                    </div>
+                    <button class="chart-item-edit-btn" title="Edit chart">✏️</button>
+                `;
+
+                // Edit button click handler
+                const editBtn = card.querySelector('.chart-item-edit-btn');
+                editBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    editChart(chart);
+                };
+
+                // Click on card to edit chart (opens in chart builder)
+                card.onclick = () => {
+                    editChart(chart);
+                };
+
+                chartsList.appendChild(card);
+
+                // Render preview chart
+                renderChartPreview(canvasId, chart);
+            });
+        }
 
         // Show total count
         const countDiv = document.createElement('div');
@@ -2404,8 +2587,13 @@ async function renderChartPreview(canvasId, chartConfig) {
             x_axis: chartConfig.x_axis
         };
 
+        // Handle table charts - need columns instead of x/y axes
+        if (chartConfig.type === 'table') {
+            payload.columns = chartConfig.columns || [];
+            delete payload.x_axis;  // Remove x_axis for table charts
+        }
         // Handle multi-metric charts (has metrics array)
-        if (chartConfig.metrics && Array.isArray(chartConfig.metrics)) {
+        else if (chartConfig.metrics && Array.isArray(chartConfig.metrics)) {
             payload.metrics = chartConfig.metrics;
             console.log('Multi-metric chart preview request:', payload);
         } else {
@@ -2435,6 +2623,53 @@ async function renderChartPreview(canvasId, chartConfig) {
 
         const data = await response.json();
         console.log(`[${chartConfig.id}] ✅ Chart data loaded:`, data);
+
+        // Handle table charts differently - render as HTML table preview
+        if (chartConfig.type === 'table') {
+            const parent = canvas.parentElement;
+            if (!parent) {
+                console.warn(`[${chartConfig.id}] Parent element not found for table`);
+                return;
+            }
+
+            // Render a mini table preview with first 3 rows
+            if (!data.data || data.data.length === 0) {
+                parent.innerHTML = '<div style="color: #888; font-size: 0.7rem; text-align: center; padding: 20px;">No data</div>';
+                return;
+            }
+
+            const columns = data.columns || [];
+            const rows = data.data.slice(0, 3); // First 3 rows only
+
+            let tableHTML = '<table style="width: 100%; font-size: 0.65rem; border-collapse: collapse;">';
+
+            // Header
+            tableHTML += '<thead><tr>';
+            columns.forEach(col => {
+                tableHTML += `<th style="padding: 2px 4px; border-bottom: 1px solid #ddd; font-weight: 600; color: #333; text-align: left;">${col}</th>`;
+            });
+            tableHTML += '</tr></thead>';
+
+            // Rows
+            tableHTML += '<tbody>';
+            rows.forEach(row => {
+                tableHTML += '<tr>';
+                columns.forEach(col => {
+                    const value = row[col] !== null && row[col] !== undefined ? row[col] : '-';
+                    tableHTML += `<td style="padding: 2px 4px; border-bottom: 1px solid #eee; color: #555;">${value}</td>`;
+                });
+                tableHTML += '</tr>';
+            });
+            tableHTML += '</tbody></table>';
+
+            // Add row count indicator
+            if (data.data.length > 3) {
+                tableHTML += `<div style="text-align: center; font-size: 0.6rem; color: #888; margin-top: 4px;">+${data.data.length - 3} more rows</div>`;
+            }
+
+            parent.innerHTML = tableHTML;
+            return;
+        }
 
         // Destroy existing chart instance if it exists
         if (chartInstances[canvasId]) {
@@ -2470,25 +2705,38 @@ async function renderChartPreview(canvasId, chartConfig) {
             }];
         }
 
+        // Handle stacked bar chart type conversion
+        let actualChartType = chartConfig.type;
+        let chartOptions = {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false }
+            },
+            scales: chartConfig.type === 'pie' || chartConfig.type === 'doughnut' ? {} : {
+                x: { display: false },
+                y: { display: false, beginAtZero: true }
+            }
+        };
+
+        // Convert bar-stacked to bar with stacking configuration
+        if (chartConfig.type === 'bar-stacked') {
+            actualChartType = 'bar';
+            chartOptions.scales = {
+                x: { display: false, stacked: true },
+                y: { display: false, stacked: true, beginAtZero: true }
+            };
+        }
+
         // Create Chart.js preview and store instance
         chartInstances[canvasId] = new Chart(ctx, {
-            type: chartConfig.type,
+            type: actualChartType,
             data: {
                 labels: data.labels || [],
                 datasets: datasets
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { enabled: false }
-                },
-                scales: chartConfig.type === 'pie' || chartConfig.type === 'doughnut' ? {} : {
-                    x: { display: false },
-                    y: { display: false, beginAtZero: true }
-                }
-            }
+            options: chartOptions
         });
 
     } catch (error) {
@@ -2680,10 +2928,14 @@ async function loadTableColumns() {
 
         const xAxis = document.getElementById('chartXAxis');
         const yAxis = document.getElementById('chartYAxis');
+        const categoryAxis = document.getElementById('chartCategory');
 
         // Clear existing options
         xAxis.innerHTML = '<option value="">Select column...</option>';
         yAxis.innerHTML = '<option value="">Select column...</option>';
+        if (categoryAxis) {
+            categoryAxis.innerHTML = '<option value="">Select column...</option>';
+        }
 
         // Add columns to dropdowns
         data.columns.forEach(col => {
@@ -2696,6 +2948,14 @@ async function loadTableColumns() {
             optionY.value = col.name;
             optionY.textContent = `${col.name} (${col.type})`;
             yAxis.appendChild(optionY);
+
+            // Also populate category dropdown if it exists (for stacked charts)
+            if (categoryAxis) {
+                const optionCategory = document.createElement('option');
+                optionCategory.value = col.name;
+                optionCategory.textContent = `${col.name} (${col.type})`;
+                categoryAxis.appendChild(optionCategory);
+            }
         });
 
         // Populate draggable fields panel
@@ -2804,6 +3064,31 @@ function toggleChartBuilder() {
         btn.textContent = '✖ Close Chart Builder';
         btn.classList.remove('btn-primary');
         btn.classList.add('btn-secondary');
+
+        // Reset all form fields to create a new chart
+        document.getElementById('chartTitle').value = '';
+        document.getElementById('chartType').value = 'bar';
+        document.getElementById('chartTable').value = '';
+        document.getElementById('chartXAxis').value = '';
+        document.getElementById('chartYAxis').value = '';
+        document.getElementById('chartAggregation').value = 'sum';
+
+        // Clear the preview area
+        const previewContainer = document.getElementById('chartPreview');
+        if (previewContainer) {
+            previewContainer.innerHTML = '<p style="color: var(--color-text-muted); text-align: center; padding: 2rem;">Select options and click "Create Chart" to preview</p>';
+        }
+
+        // Reset table columns
+        tableColumns = [];
+        const tableColumnsContainer = document.getElementById('tableColumnsContainer');
+        if (tableColumnsContainer) {
+            tableColumnsContainer.innerHTML = '<p style="color: var(--color-text-muted); font-size: 0.875rem; padding: 1rem;">Click "+ Add Column" to add columns to your table</p>';
+        }
+
+        // Show/hide appropriate fields based on chart type
+        handleChartTypeChange();
+
         // Scroll to chart builder
         builderSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else {
@@ -2819,10 +3104,12 @@ function handleChartTypeChange() {
     const chartType = document.getElementById('chartType').value;
     const regularFields = document.getElementById('regularChartFields');
     const tableFields = document.getElementById('tableChartFields');
+    const stackedCategoryField = document.getElementById('stackedCategoryField');
 
     if (chartType === 'table') {
         regularFields.style.display = 'none';
         tableFields.style.display = 'block';
+        stackedCategoryField.style.display = 'none';
         // Load table columns if table is selected
         const table = document.getElementById('chartTable').value;
         if (table) {
@@ -2831,6 +3118,13 @@ function handleChartTypeChange() {
     } else {
         regularFields.style.display = 'block';
         tableFields.style.display = 'none';
+
+        // Show category field only for stacked bar charts
+        if (chartType === 'bar-stacked') {
+            stackedCategoryField.style.display = 'block';
+        } else {
+            stackedCategoryField.style.display = 'none';
+        }
     }
 }
 
@@ -4071,8 +4365,11 @@ function showChartQuery(chartConfig) {
         Copy SQL
     `;
 
-    // Show modal
-    openModal('sqlQueryModal');
+    // Show query in a simple alert for now
+    alert('SQL Query:\n\n' + sql + '\n\n(Use the copy button below to copy this query)');
+
+    // Also log to console for easy copying
+    console.log('SQL Query:', sql);
 }
 
 function copySqlQuery() {
@@ -4248,6 +4545,9 @@ async function editChart(chartConfig) {
             chartTypeEl.value = chartType;
             console.log('Set chart type to:', chartType);
             console.log('Verification - Chart type field value:', chartTypeEl.value);
+
+            // Trigger chart type change to show/hide appropriate fields
+            handleChartTypeChange();
         } else {
             console.error('Chart type element not found!');
         }
@@ -4277,6 +4577,44 @@ async function editChart(chartConfig) {
             console.log('Set aggregation to:', chartConfig.aggregation);
         }
 
+        // For stacked bar charts, restore the category field (after handleChartTypeChange has shown the field)
+        if (chartConfig.type === 'bar-stacked' && chartConfig.category) {
+            const categoryEl = document.getElementById('chartCategory');
+            if (categoryEl) {
+                categoryEl.value = chartConfig.category;
+                console.log('Restored category field to:', chartConfig.category);
+            }
+        }
+
+        // For table charts, restore the columns
+        if (chartConfig.type === 'table' && chartConfig.columns && chartConfig.columns.length > 0) {
+            console.log('Restoring table columns:', chartConfig.columns);
+            tableColumns = chartConfig.columns.map(col => ({
+                id: 'col_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                field: col,
+                function: 'none',
+                label: ''
+            }));
+            console.log('Table columns restored:', tableColumns);
+
+            // Show table fields and hide regular fields
+            const regularFields = document.getElementById('regularChartFields');
+            const tableFields = document.getElementById('tableChartFields');
+            regularFields.style.display = 'none';
+            tableFields.style.display = 'block';
+
+            // Fetch available columns and render the UI
+            fetch(`/api/tables/${chartConfig.model}/columns`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Available columns fetched for rendering:', data.columns);
+                    renderTableColumns(data.columns);
+                })
+                .catch(error => {
+                    console.error('Error loading columns for restore:', error);
+                });
+        }
+
         // Clear filters when editing a chart (don't inherit dashboard filters)
         chartFilters = [];
         renderFilters();
@@ -4288,19 +4626,32 @@ async function editChart(chartConfig) {
 
             // Verify form values before creating chart
             const currentTable = document.getElementById('chartTable')?.value;
+            const currentChartType = document.getElementById('chartType')?.value;
             const currentXAxis = document.getElementById('chartXAxis')?.value;
             const currentYAxis = document.getElementById('chartYAxis')?.value;
 
             console.log('Current form values:', {
                 table: currentTable,
+                chartType: currentChartType,
                 xAxis: currentXAxis,
-                yAxis: currentYAxis
+                yAxis: currentYAxis,
+                tableColumns: tableColumns
             });
 
-            if (currentTable && currentXAxis && currentYAxis) {
-                await createChart();
+            // For table charts, check if we have table and columns
+            if (currentChartType === 'table') {
+                if (currentTable && tableColumns && tableColumns.length > 0) {
+                    await createChart();
+                } else {
+                    console.warn('Table chart not ready yet (need table and columns)');
+                }
             } else {
-                console.warn('Form not fully populated yet, skipping auto-preview');
+                // For other chart types, check for table, xAxis, and yAxis
+                if (currentTable && currentXAxis && currentYAxis) {
+                    await createChart();
+                } else {
+                    console.warn('Form not fully populated yet, skipping auto-preview');
+                }
             }
         }, 200);
     }, 600);
@@ -4318,7 +4669,10 @@ async function createChart() {
     const yAxis = document.getElementById('chartYAxis').value;
     const aggregation = document.getElementById('chartAggregation').value;
 
-    console.log('createChart called with:', { connection, schema, table, chartType, xAxis, yAxis, aggregation, tableColumns });
+    // For table charts, get columns from the global variable or initialize it
+    let selectedTableColumns = (typeof tableColumns !== 'undefined') ? tableColumns : [];
+
+    console.log('createChart called with:', { connection, schema, table, chartType, xAxis, yAxis, aggregation, tableColumns: selectedTableColumns });
 
     // Validation - different for table charts vs regular charts
     if (chartType === 'table') {
@@ -4332,7 +4686,7 @@ async function createChart() {
             console.warn('Validation failed:', { connection, schema, table });
             return;
         }
-        if (!tableColumns || tableColumns.length === 0) {
+        if (!selectedTableColumns || selectedTableColumns.length === 0) {
             const errorEl = document.getElementById('chartError');
             if (errorEl) {
                 errorEl.style.display = 'block';
@@ -4377,12 +4731,23 @@ async function createChart() {
 
         // For table charts, add columns array
         if (chartType === 'table') {
-            payload.columns = tableColumns.map(col => col.field);
+            if (!selectedTableColumns || selectedTableColumns.length === 0) {
+                throw new Error('No columns selected for table chart');
+            }
+            payload.columns = selectedTableColumns.map(col => col.field);
         }
 
         // For metric charts, add metric field
         if (chartType === 'metric') {
             payload.metric = xAxis; // For metrics, x and y are the same
+        }
+
+        // For stacked bar charts, add category field
+        if (chartType === 'bar-stacked') {
+            const category = document.getElementById('chartCategory')?.value;
+            if (category) {
+                payload.category = category;
+            }
         }
 
         // Add filters if present - convert array to dict format
@@ -4445,19 +4810,30 @@ async function createChart() {
             const tableContainer = document.getElementById('chartTableContainer');
             tableContainer.style.display = 'block';
 
+            // For table charts, backend returns columns and data arrays
+            const columns = data.columns || [];
+            const rows = data.data || [];
+
             // Create HTML table
             let tableHTML = '<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">';
             tableHTML += '<thead><tr>';
-            tableHTML += `<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--color-border); background: var(--color-bg-secondary); font-weight: 600;">${xAxis}</th>`;
-            tableHTML += `<th style="padding: 0.75rem; text-align: right; border-bottom: 2px solid var(--color-border); background: var(--color-bg-secondary); font-weight: 600;">${aggregation.toUpperCase()}(${yAxis})</th>`;
+
+            // Add header for each column
+            columns.forEach(col => {
+                tableHTML += `<th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid var(--color-border); background: var(--color-bg-secondary); font-weight: 600;">${col}</th>`;
+            });
+
             tableHTML += '</tr></thead><tbody>';
 
-            for (let i = 0; i < data.labels.length; i++) {
+            // Add row data
+            rows.forEach(row => {
                 tableHTML += '<tr>';
-                tableHTML += `<td style="padding: 0.75rem; border-bottom: 1px solid var(--color-border);">${data.labels[i]}</td>`;
-                tableHTML += `<td style="padding: 0.75rem; text-align: right; border-bottom: 1px solid var(--color-border); font-weight: 500;">${data.values[i]}</td>`;
+                columns.forEach(col => {
+                    const value = row[col] !== null && row[col] !== undefined ? row[col] : '';
+                    tableHTML += `<td style="padding: 0.75rem; border-bottom: 1px solid var(--color-border);">${value}</td>`;
+                });
                 tableHTML += '</tr>';
-            }
+            });
 
             tableHTML += '</tbody></table>';
             tableContainer.innerHTML = tableHTML;
@@ -4504,10 +4880,42 @@ async function createChart() {
                     x: { stacked: true },
                     y: { stacked: true, beginAtZero: true }
                 };
+                chartOptions.plugins.legend = { display: true };
             } else if (chartType !== 'pie' && chartType !== 'doughnut') {
                 chartOptions.scales = {
                     y: { beginAtZero: true }
                 };
+            }
+
+            // Prepare datasets
+            let datasets;
+            const colors = [
+                { bg: 'rgba(102, 126, 234, 0.8)', border: 'rgba(102, 126, 234, 1)' },
+                { bg: 'rgba(16, 185, 129, 0.8)', border: 'rgba(16, 185, 129, 1)' },
+                { bg: 'rgba(245, 158, 11, 0.8)', border: 'rgba(245, 158, 11, 1)' },
+                { bg: 'rgba(239, 68, 68, 0.8)', border: 'rgba(239, 68, 68, 1)' },
+                { bg: 'rgba(139, 92, 246, 0.8)', border: 'rgba(139, 92, 246, 1)' },
+                { bg: 'rgba(236, 72, 153, 0.8)', border: 'rgba(236, 72, 153, 1)' },
+            ];
+
+            if (data.datasets && Array.isArray(data.datasets)) {
+                // Stacked chart with multiple datasets from backend
+                datasets = data.datasets.map((ds, idx) => ({
+                    label: ds.label,
+                    data: ds.data,
+                    backgroundColor: colors[idx % colors.length].bg,
+                    borderColor: colors[idx % colors.length].border,
+                    borderWidth: 2
+                }));
+            } else {
+                // Regular chart with single dataset
+                datasets = [{
+                    label: `${aggregation.toUpperCase()}(${yAxis})`,
+                    data: data.values,
+                    backgroundColor: colors.map(c => c.bg),
+                    borderColor: colors[0].border,
+                    borderWidth: 2
+                }];
             }
 
             // Create new chart
@@ -4516,20 +4924,7 @@ async function createChart() {
                 type: actualChartType,
                 data: {
                     labels: data.labels,
-                    datasets: [{
-                        label: `${aggregation.toUpperCase()}(${yAxis})`,
-                        data: data.values,
-                        backgroundColor: [
-                            'rgba(102, 126, 234, 0.8)',
-                            'rgba(16, 185, 129, 0.8)',
-                            'rgba(245, 158, 11, 0.8)',
-                            'rgba(239, 68, 68, 0.8)',
-                            'rgba(139, 92, 246, 0.8)',
-                            'rgba(236, 72, 153, 0.8)',
-                        ],
-                        borderColor: 'rgba(102, 126, 234, 1)',
-                        borderWidth: 2
-                    }]
+                    datasets: datasets
                 },
                 options: chartOptions
             });
@@ -4560,9 +4955,29 @@ async function saveChart() {
         alert('Please select a dashboard');
         return;
     }
-    if (!table || !xAxis || !yAxis) {
-        alert('Please fill in all required fields before saving');
-        return;
+
+    // For table charts, only table is required
+    if (chartType === 'table') {
+        if (!table) {
+            alert('Please select a data source');
+            return;
+        }
+        // Get columns from the global variable
+        let selectedTableColumns = (typeof tableColumns !== 'undefined') ? tableColumns : [];
+        if (!selectedTableColumns || selectedTableColumns.length === 0) {
+            alert('Please add at least one column to your table');
+            return;
+        }
+    } else {
+        // For other chart types, xAxis and yAxis are required
+        if (!table) {
+            alert('Please select a data source');
+            return;
+        }
+        if (!xAxis || !yAxis) {
+            alert('Please select both X-Axis and Y-Axis fields');
+            return;
+        }
     }
 
     // Handle "Create New Dashboard" option
@@ -4617,6 +5032,30 @@ async function saveChart() {
             chartConfig.metric = xAxis; // For metrics, x and y are the same
         }
 
+        // For table charts, add columns array
+        if (chartType === 'table') {
+            console.log('DEBUG: tableColumns at save time:', tableColumns);
+            let selectedTableColumns = (typeof tableColumns !== 'undefined' && tableColumns.length > 0) ? tableColumns : [];
+            console.log('DEBUG: selectedTableColumns:', selectedTableColumns);
+
+            if (selectedTableColumns.length > 0) {
+                const columnFields = selectedTableColumns
+                    .filter(col => col.field && col.field !== '')
+                    .map(col => col.field);
+                console.log('DEBUG: columnFields to save:', columnFields);
+                chartConfig.columns = columnFields;
+            }
+        }
+
+        // For stacked bar charts, add category field
+        if (chartType === 'bar-stacked') {
+            const category = document.getElementById('chartCategory')?.value;
+            console.log('DEBUG: Saving stacked chart with category:', category);
+            if (category) {
+                chartConfig.category = category;
+            }
+        }
+
         // Only add filters if there are any
         if (filters.length > 0) {
             chartConfig.filters = filters;
@@ -4627,6 +5066,8 @@ async function saveChart() {
             chartConfig.dashboard_name = document.getElementById('newDashboardName').value;
             chartConfig.dashboard_description = document.getElementById('newDashboardDescription').value;
         }
+
+        console.log('DEBUG: Final chartConfig being sent to backend:', chartConfig);
 
         const response = await fetch('/api/charts/save', {
             method: 'POST',
@@ -4646,7 +5087,7 @@ async function saveChart() {
             saveBtn.style.background = 'var(--color-success)';
 
             // Show success modal with options
-            showChartSavedModal(result.dashboard_id, chartId, title);
+            await showChartSavedModal(result.dashboard_id, chartId, title);
 
             setTimeout(() => {
                 saveBtn.textContent = originalText;
@@ -4671,7 +5112,20 @@ async function saveChart() {
     }
 }
 
-function showChartSavedModal(dashboardId, chartId, title) {
+async function showChartSavedModal(dashboardId, chartId, title) {
+    // Fetch dashboard name from API
+    let dashboardName = 'Custom Charts'; // Default fallback
+    try {
+        const response = await fetch('/api/dashboards');
+        const data = await response.json();
+        const dashboard = data.dashboards?.find(d => d.id === dashboardId);
+        if (dashboard) {
+            dashboardName = dashboard.name;
+        }
+    } catch (error) {
+        console.error('Error fetching dashboard name:', error);
+    }
+
     const modal = document.createElement('div');
     modal.className = 'modal active';
     modal.id = 'chart-saved-modal';
@@ -4688,7 +5142,7 @@ function showChartSavedModal(dashboardId, chartId, title) {
             </div>
             <div class="modal-body">
                 <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">
-                    Your chart "<strong>${title}</strong>" has been saved to the "Custom Charts" dashboard.
+                    Your chart "<strong>${title}</strong>" has been saved to the "<strong>${dashboardName}</strong>" dashboard.
                 </p>
                 <div style="display: flex; gap: 0.75rem; flex-direction: column;">
                     <button class="btn btn-primary" style="width: 100%;" onclick="viewChartInDashboard('${dashboardId}'); closeChartSavedModal();">

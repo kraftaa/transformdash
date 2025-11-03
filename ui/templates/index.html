@@ -334,12 +334,30 @@
                         <h1 class="page-title">Dashboards</h1>
                         <p class="page-subtitle">Interactive analytics and reporting</p>
                     </div>
-                    <button class="btn btn-primary" onclick="createNewDashboard()">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 5v14M5 12h14"/>
-                        </svg>
-                        New Dashboard
-                    </button>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <!-- View Toggle -->
+                        <div class="view-toggle-group" style="display: flex; gap: 4px; background: #f3f4f6; padding: 4px; border-radius: 8px;">
+                            <button class="view-toggle-btn-dashboards active" data-view-dashboards="grid" onclick="toggleDashboardsView('grid')" title="Grid view">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                                    <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+                                </svg>
+                            </button>
+                            <button class="view-toggle-btn-dashboards" data-view-dashboards="table" onclick="toggleDashboardsView('table')" title="Table view">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+                                    <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+                                    <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <button class="btn btn-primary" onclick="createNewDashboard()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 5v14M5 12h14"/>
+                            </svg>
+                            New Dashboard
+                        </button>
+                    </div>
                 </div>
                 <div id="dashboards-list"></div>
             </div>
@@ -432,9 +450,27 @@
                         <h1 class="page-title">Charts</h1>
                         <p class="page-subtitle">Create and manage visualizations</p>
                     </div>
-                    <button onclick="switchView('chart-builder')" class="btn btn-primary" id="toggleChartBuilderBtn">
-                        ✨ Create New Chart
-                    </button>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <!-- View Toggle -->
+                        <div class="view-toggle-group" style="display: flex; gap: 4px; background: #f3f4f6; padding: 4px; border-radius: 8px;">
+                            <button class="view-toggle-btn-charts active" data-view-charts="grid" onclick="toggleChartsView('grid')" title="Grid view">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                                    <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+                                </svg>
+                            </button>
+                            <button class="view-toggle-btn-charts" data-view-charts="table" onclick="toggleChartsView('table')" title="Table view">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+                                    <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+                                    <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <button onclick="switchView('chart-builder')" class="btn btn-primary" id="toggleChartBuilderBtn">
+                            ✨ Create New Chart
+                        </button>
+                    </div>
                 </div>
 
                 <!-- All Charts List -->
@@ -550,6 +586,17 @@
                                     <option value="count">COUNT</option>
                                     <option value="min">MIN</option>
                                     <option value="max">MAX</option>
+                                </select>
+                            </div>
+
+                            <!-- Stacked Chart Category Field (hidden by default) -->
+                            <div id="stackedCategoryField" style="display: none; margin-bottom: 1rem;">
+                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">
+                                    Category/Series Field
+                                    <span style="font-size: 0.7rem; color: var(--color-text-muted); font-weight: normal;">For stacking bars</span>
+                                </label>
+                                <select id="chartCategory" class="input drop-zone" ondrop="handleFieldDrop(event, 'category')" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+                                    <option value="">Select column...</option>
                                 </select>
                             </div>
 
@@ -878,6 +925,6 @@
     <div id="toast-container" class="toast-container"></div>
 
     <!-- Scripts -->
-    <script src="/static/js/app.js?v=20251029V"></script>
+    <script src="/static/js/app.js?t={{ cache_bust }}"></script>
 </body>
 </html>

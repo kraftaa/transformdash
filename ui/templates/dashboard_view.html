@@ -465,6 +465,14 @@
                         filters: Object.keys(filterDict).length > 0 ? filterDict : undefined
                     };
                     console.log('Metric chart query payload:', queryPayload);
+                } else if (chartConfig.type === 'table') {
+                    // For table charts
+                    queryPayload = {
+                        type: 'table',
+                        table: chartConfig.model,
+                        columns: chartConfig.columns || [],
+                        filters: Object.keys(filterDict).length > 0 ? filterDict : undefined
+                    };
                 } else {
                     // For regular charts
                     queryPayload = {
@@ -475,6 +483,11 @@
                         aggregation: chartConfig.aggregation || 'sum',
                         filters: Object.keys(filterDict).length > 0 ? filterDict : undefined
                     };
+
+                    // For stacked bar charts, add category field
+                    if (chartConfig.type === 'bar-stacked' && chartConfig.category) {
+                        queryPayload.category = chartConfig.category;
+                    }
                 }
 
                 const response = await fetch('/api/query', {
@@ -513,6 +526,40 @@
                         </div>
                     `;
                     canvas.parentElement.appendChild(metricDiv);
+                } else if (chartConfig.type === 'table') {
+                    // Render table chart
+                    const canvas = document.getElementById(`chart-${chartConfig.id}`);
+                    canvas.style.display = 'none';
+
+                    // Create table element
+                    const tableDiv = document.createElement('div');
+                    tableDiv.style.cssText = 'overflow-x: auto; max-height: 400px;';
+
+                    let tableHTML = '<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;"><thead style="position: sticky; top: 0; background: #f9fafb;"><tr>';
+
+                    // Add headers
+                    if (data.rows && data.rows.length > 0) {
+                        Object.keys(data.rows[0]).forEach(key => {
+                            tableHTML += `<th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; color: #374151;">${key}</th>`;
+                        });
+                        tableHTML += '</tr></thead><tbody>';
+
+                        // Add rows
+                        data.rows.forEach((row, idx) => {
+                            tableHTML += '<tr style="border-bottom: 1px solid #f3f4f6;">';
+                            Object.values(row).forEach(val => {
+                                tableHTML += `<td style="padding: 12px; color: #6b7280;">${val !== null && val !== undefined ? val : ''}</td>`;
+                            });
+                            tableHTML += '</tr>';
+                        });
+
+                        tableHTML += '</tbody></table>';
+                    } else {
+                        tableHTML = '<p style="padding: 20px; text-align: center; color: #9ca3af;">No data available</p>';
+                    }
+
+                    tableDiv.innerHTML = tableHTML;
+                    canvas.parentElement.appendChild(tableDiv);
                 } else {
                     // Render chart with proper colors
                     const canvas = document.getElementById(`chart-${chartConfig.id}`);
@@ -520,61 +567,97 @@
 
                     const colors = getChartColors(chartConfig, (data.labels || []).length);
 
-                    new Chart(ctx, {
-                        type: chartConfig.type,
-                        data: {
-                            labels: data.labels || [],
-                            datasets: [{
-                                label: chartConfig.title,
-                                data: data.values || [],
-                                backgroundColor: colors.background,
-                                borderColor: colors.border,
-                                borderWidth: 2,
-                                tension: 0.4
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: true,
-                            plugins: {
-                                legend: {
-                                    display: ['pie', 'doughnut'].includes(chartConfig.type),
-                                    labels: {
-                                        color: '#374151',
-                                        font: {
-                                            size: 12,
-                                            weight: '500'
-                                        }
+                    // Handle bar-stacked -> bar conversion
+                    let chartType = chartConfig.type;
+                    let chartOptions = {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                display: ['pie', 'doughnut'].includes(chartConfig.type),
+                                labels: {
+                                    color: '#374151',
+                                    font: {
+                                        size: 12,
+                                        weight: '500'
                                     }
-                                },
-                                tooltip: {
-                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                    titleColor: '#fff',
-                                    bodyColor: '#fff',
-                                    borderColor: '#667eea',
-                                    borderWidth: 1
                                 }
                             },
-                            scales: ['pie', 'doughnut'].includes(chartConfig.type) ? {} : {
-                                y: {
-                                    beginAtZero: true,
-                                    ticks: {
-                                        color: '#6b7280'
-                                    },
-                                    grid: {
-                                        color: '#e5e7eb'
-                                    }
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                titleColor: '#fff',
+                                bodyColor: '#fff',
+                                borderColor: '#667eea',
+                                borderWidth: 1
+                            }
+                        },
+                        scales: ['pie', 'doughnut'].includes(chartConfig.type) ? {} : {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    color: '#6b7280'
                                 },
-                                x: {
-                                    ticks: {
-                                        color: '#6b7280'
-                                    },
-                                    grid: {
-                                        color: '#e5e7eb'
-                                    }
+                                grid: {
+                                    color: '#e5e7eb'
+                                }
+                            },
+                            x: {
+                                ticks: {
+                                    color: '#6b7280'
+                                },
+                                grid: {
+                                    color: '#e5e7eb'
                                 }
                             }
                         }
+                    };
+
+                    // Convert bar-stacked to bar with stacking enabled
+                    if (chartConfig.type === 'bar-stacked') {
+                        chartType = 'bar';
+                        chartOptions.scales.x.stacked = true;
+                        chartOptions.scales.y.stacked = true;
+                        chartOptions.plugins.legend.display = true; // Show legend for stacked charts
+                    }
+
+                    // Prepare datasets - handle both single dataset and multiple datasets (for stacked charts)
+                    let datasets;
+                    if (data.datasets && Array.isArray(data.datasets)) {
+                        // Stacked chart with multiple datasets from backend
+                        const stackedColors = [
+                            { bg: 'rgba(102, 126, 234, 0.8)', border: 'rgba(102, 126, 234, 1)' },
+                            { bg: 'rgba(16, 185, 129, 0.8)', border: 'rgba(16, 185, 129, 1)' },
+                            { bg: 'rgba(245, 158, 11, 0.8)', border: 'rgba(245, 158, 11, 1)' },
+                            { bg: 'rgba(239, 68, 68, 0.8)', border: 'rgba(239, 68, 68, 1)' },
+                            { bg: 'rgba(139, 92, 246, 0.8)', border: 'rgba(139, 92, 246, 1)' },
+                            { bg: 'rgba(236, 72, 153, 0.8)', border: 'rgba(236, 72, 153, 1)' }
+                        ];
+                        datasets = data.datasets.map((ds, idx) => ({
+                            label: ds.label,
+                            data: ds.data,
+                            backgroundColor: stackedColors[idx % stackedColors.length].bg,
+                            borderColor: stackedColors[idx % stackedColors.length].border,
+                            borderWidth: 2
+                        }));
+                    } else {
+                        // Regular chart with single dataset
+                        datasets = [{
+                            label: chartConfig.title,
+                            data: data.values || [],
+                            backgroundColor: colors.background,
+                            borderColor: colors.border,
+                            borderWidth: 2,
+                            tension: 0.4
+                        }];
+                    }
+
+                    new Chart(ctx, {
+                        type: chartType,
+                        data: {
+                            labels: data.labels || [],
+                            datasets: datasets
+                        },
+                        options: chartOptions
                     });
                 }
             } catch (error) {
