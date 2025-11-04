@@ -423,11 +423,20 @@ async def save_chart(request: Request):
         else:
             logging.info(f"Found existing dashboard: {target_dashboard_id}")
 
-        # Add chart to dashboard
+        # First, remove the chart from ALL other dashboards to prevent duplication
+        # This ensures a chart belongs to only one dashboard at a time
+        for dashboard in data['dashboards']:
+            if dashboard.get('id') != target_dashboard_id and 'charts' in dashboard:
+                original_count = len(dashboard['charts'])
+                dashboard['charts'] = [c for c in dashboard['charts'] if c.get('id') != chart_config['id']]
+                if len(dashboard['charts']) < original_count:
+                    logging.info(f"Removed chart {chart_config['id']} from dashboard {dashboard.get('id')}")
+
+        # Add chart to target dashboard
         if 'charts' not in target_dashboard:
             target_dashboard['charts'] = []
 
-        # Check if chart with same ID exists and update it
+        # Check if chart with same ID exists in target dashboard and update it
         chart_exists = False
         for i, chart in enumerate(target_dashboard['charts']):
             if chart.get('id') == chart_config['id']:

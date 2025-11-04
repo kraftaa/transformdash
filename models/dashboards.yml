@@ -12,10 +12,26 @@ dashboards:
     y_axis: product_count
     aggregation: sum
     category: product_category
-- id: custom_charts
-  name: Custom Charts
-  description: User-created charts
-  charts:
+  - id: chart_1762212708668_73r1a9kqh
+    title: test222
+    type: table
+    model: int_inventory_summary
+    x_axis: ''
+    y_axis: ''
+    aggregation: sum
+    columns:
+    - stock_id
+    - warehouse_name
+  - id: chart_1762214037200_h0zg0vhw5
+    title: test2222
+    type: table
+    model: fct_inventory_metrics
+    x_axis: ''
+    y_axis: ''
+    aggregation: sum
+    columns:
+    - warehouse_location
+    - min_stock
   - id: chart_1761779988181_vxq34x90v
     title: Total Revenue YTD
     type: bar
@@ -23,6 +39,10 @@ dashboards:
     x_axis: return_date
     y_axis: affected_orders
     aggregation: sum
+- id: custom_charts
+  name: Custom Charts
+  description: User-created charts
+  charts:
   - id: chart_1762045563225_q77ugig05
     title: test11
     type: pie

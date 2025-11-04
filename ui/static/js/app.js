@@ -3110,10 +3110,13 @@ function handleChartTypeChange() {
         regularFields.style.display = 'none';
         tableFields.style.display = 'block';
         stackedCategoryField.style.display = 'none';
-        // Load table columns if table is selected
+        // Load table columns if table is selected (but skip if we're editing - restoration will handle it)
         const table = document.getElementById('chartTable').value;
-        if (table) {
+        if (table && !currentEditingChartId) {
+            console.log('Loading table columns for new table chart');
             loadTableColumnsForBuilder();
+        } else if (currentEditingChartId) {
+            console.log('Skipping loadTableColumnsForBuilder - editing existing chart, will restore columns separately');
         }
     } else {
         regularFields.style.display = 'block';
@@ -3159,6 +3162,9 @@ function addTableColumn() {
     fetch(`/api/tables/${table}/columns`)
         .then(response => response.json())
         .then(data => {
+            console.log('DEBUG: Columns API response:', data);
+            console.log('DEBUG: data.columns:', data.columns);
+
             const columnId = 'col_' + Date.now();
             const column = {
                 id: columnId,
@@ -3171,7 +3177,7 @@ function addTableColumn() {
             renderTableColumns(data.columns);
         })
         .catch(error => {
-            console.error('Error:', error);
+            console.error('Error loading columns:', error);
             document.getElementById('chartError').style.display = 'block';
             document.getElementById('chartError').textContent = 'Error loading columns';
         });
@@ -3180,6 +3186,14 @@ function addTableColumn() {
 // Render table columns configuration UI
 function renderTableColumns(availableColumns) {
     const container = document.getElementById('tableColumnsContainer');
+
+    // Ensure availableColumns is an array
+    if (!availableColumns || !Array.isArray(availableColumns)) {
+        console.warn('availableColumns is not an array:', availableColumns);
+        availableColumns = [];
+    }
+
+    console.log('renderTableColumns called with', tableColumns.length, 'table columns and', availableColumns.length, 'available columns');
 
     if (tableColumns.length === 0) {
         container.innerHTML = '<p style="color: var(--color-text-muted); font-size: 0.875rem; padding: 1rem;">Click "+ Add Column" to add columns to your table</p>';
@@ -4508,11 +4522,14 @@ async function editChart(chartConfig) {
     console.log('Verification - Title field value:', titleEl.value);
     console.log('Verification - Table field value:', tableEl.value);
 
-    // Load table columns to populate the dropdowns
-    await loadTableColumns();
-
-    // Verify table value after loadTableColumns
-    console.log('After loadTableColumns - Table field value:', document.getElementById('chartTable')?.value);
+    // Load table columns to populate the dropdowns (but not for table charts - they handle it separately)
+    if (chartConfig.type !== 'table') {
+        await loadTableColumns();
+        // Verify table value after loadTableColumns
+        console.log('After loadTableColumns - Table field value:', document.getElementById('chartTable')?.value);
+    } else {
+        console.log('Skipping loadTableColumns for table chart - will be handled in table restoration code');
+    }
 
     // Wait for columns to load, then set everything including chart type
     setTimeout(async () => {
@@ -4548,6 +4565,36 @@ async function editChart(chartConfig) {
 
             // Trigger chart type change to show/hide appropriate fields
             handleChartTypeChange();
+
+            // For table charts, restore the columns AFTER handleChartTypeChange (which skipped loadTableColumnsForBuilder)
+            if (chartType === 'table' && chartConfig.columns && chartConfig.columns.length > 0) {
+                console.log('Restoring table columns:', chartConfig.columns);
+
+                // Get the table name from the form element
+                const currentTable = document.getElementById('chartTable')?.value || chartConfig.model;
+                console.log('Fetching columns for table:', currentTable);
+
+                // First, fetch the available columns for this table
+                const response = await fetch(`/api/tables/${currentTable}/columns`);
+                const data = await response.json();
+                const availableColumns = data.columns || [];
+                console.log('Available columns fetched for rendering:', availableColumns);
+
+                // Clear and populate tableColumns array
+                tableColumns = [];
+                chartConfig.columns.forEach(col => {
+                    tableColumns.push({
+                        id: 'col_' + Date.now() + '_' + Math.random(),
+                        field: col,
+                        function: 'none',
+                        label: col
+                    });
+                });
+
+                // Render the columns in the UI
+                renderTableColumns(availableColumns);
+                console.log('Table columns restored:', tableColumns);
+            }
         } else {
             console.error('Chart type element not found!');
         }
@@ -4586,35 +4633,6 @@ async function editChart(chartConfig) {
             }
         }
 
-        // For table charts, restore the columns
-        if (chartConfig.type === 'table' && chartConfig.columns && chartConfig.columns.length > 0) {
-            console.log('Restoring table columns:', chartConfig.columns);
-            tableColumns = chartConfig.columns.map(col => ({
-                id: 'col_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-                field: col,
-                function: 'none',
-                label: ''
-            }));
-            console.log('Table columns restored:', tableColumns);
-
-            // Show table fields and hide regular fields
-            const regularFields = document.getElementById('regularChartFields');
-            const tableFields = document.getElementById('tableChartFields');
-            regularFields.style.display = 'none';
-            tableFields.style.display = 'block';
-
-            // Fetch available columns and render the UI
-            fetch(`/api/tables/${chartConfig.model}/columns`)
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Available columns fetched for rendering:', data.columns);
-                    renderTableColumns(data.columns);
-                })
-                .catch(error => {
-                    console.error('Error loading columns for restore:', error);
-                });
-        }
-
         // Clear filters when editing a chart (don't inherit dashboard filters)
         chartFilters = [];
         renderFilters();
@@ -4640,10 +4658,13 @@ async function editChart(chartConfig) {
 
             // For table charts, check if we have table and columns
             if (currentChartType === 'table') {
+                console.log('DEBUG Auto-preview: currentTable =', currentTable);
+                console.log('DEBUG Auto-preview: tableColumns =', tableColumns);
+                console.log('DEBUG Auto-preview: tableColumns.length =', tableColumns ? tableColumns.length : 'undefined');
                 if (currentTable && tableColumns && tableColumns.length > 0) {
                     await createChart();
                 } else {
-                    console.warn('Table chart not ready yet (need table and columns)');
+                    console.warn('Table chart not ready yet (need table and columns)', {currentTable, tableColumns});
                 }
             } else {
                 // For other chart types, check for table, xAxis, and yAxis
