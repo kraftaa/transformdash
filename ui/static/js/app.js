@@ -2423,11 +2423,18 @@ async function loadAllCharts() {
                     <td>${chart.dashboardName}</td>
                     <td><code>${chart.model}</code></td>
                     <td>
-                        <button class="icon-btn-small" title="Edit chart">✏️</button>
+                        <button class="icon-btn-small delete-btn" title="Delete chart" style="color: #ef4444; margin-right: 4px; font-size: 0.85rem;">🗑️</button>
+                        <button class="icon-btn-small edit-btn" title="Edit chart">✏️</button>
                     </td>
                 `;
 
-                const editBtn = row.querySelector('.icon-btn-small');
+                const deleteBtn = row.querySelector('.delete-btn');
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteChart(chart);
+                };
+
+                const editBtn = row.querySelector('.edit-btn');
                 editBtn.onclick = (e) => {
                     e.stopPropagation();
                     editChart(chart);
@@ -2461,18 +2468,25 @@ async function loadAllCharts() {
                 // Create preview canvas with unique ID (include index to avoid duplicates)
                 const canvasId = `chart-preview-${chart.dashboardId}-${chart.id}-${index}`;
                 card.innerHTML = `
-                    <div class="chart-item-preview" style="height: 150px; margin-bottom: 12px; background: var(--color-bg-secondary); border-radius: 8px; padding: 8px; display: flex; align-items: center; justify-content: center;">
-                        <canvas id="${canvasId}" style="max-height: 140px;"></canvas>
+                    <div class="chart-item-preview" style="height: 120px; margin-bottom: 12px; background: var(--color-bg-secondary); border-radius: 8px; padding: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                        <canvas id="${canvasId}" style="max-height: 100px; max-width: 100%;"></canvas>
                     </div>
-                    <div class="chart-item-icon">${typeIcons[chart.type] || '📊'}</div>
                     <div class="chart-item-title">${chart.title}</div>
                     <div class="chart-item-dashboard">${chart.dashboardName}</div>
                     <div class="chart-item-badges">
                         <span class="chart-badge chart-badge-type">${chart.type}</span>
                         <span class="chart-badge chart-badge-model">${chart.model}</span>
                     </div>
+                    <button class="chart-item-delete-btn" title="Delete chart" style="position: absolute; top: 10px; right: 10px; background: rgba(239, 68, 68, 0.9); color: white; border: none; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; z-index: 10;">🗑️</button>
                     <button class="chart-item-edit-btn" title="Edit chart">✏️</button>
                 `;
+
+                // Delete button click handler
+                const deleteBtn = card.querySelector('.chart-item-delete-btn');
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteChart(chart);
+                };
 
                 // Edit button click handler
                 const editBtn = card.querySelector('.chart-item-edit-btn');
@@ -4678,6 +4692,31 @@ async function editChart(chartConfig) {
     }, 600);
 
     showToast('Chart loaded for editing', 'info');
+}
+
+// Delete a chart with confirmation
+async function deleteChart(chartConfig) {
+    if (!confirm(`Are you sure you want to delete "${chartConfig.title}"? This action cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/charts/${chartConfig.id}`, {
+            method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast(result.message, 'success');
+            loadAllCharts(); // Reload the charts list
+        } else {
+            showToast('Failed to delete chart', 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting chart:', error);
+        showToast('Error deleting chart', 'error');
+    }
 }
 
 async function createChart() {

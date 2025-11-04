@@ -4,14 +4,6 @@ dashboards:
   name: My Dashboard
   description: My custom dashboard
   charts:
-  - id: chart_1762211938058_er31cxxwa
-    title: t12test
-    type: bar-stacked
-    model: fct_inventory_metrics
-    x_axis: warehouse_id
-    y_axis: product_count
-    aggregation: sum
-    category: product_category
   - id: chart_1762212708668_73r1a9kqh
     title: test222
     type: table

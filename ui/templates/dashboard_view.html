@@ -537,17 +537,21 @@
 
                     let tableHTML = '<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;"><thead style="position: sticky; top: 0; background: #f9fafb;"><tr>';
 
-                    // Add headers
-                    if (data.rows && data.rows.length > 0) {
-                        Object.keys(data.rows[0]).forEach(key => {
-                            tableHTML += `<th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; color: #374151;">${key}</th>`;
+                    // Add headers - API returns 'data', not 'rows'
+                    const tableData = data.data || data.rows || [];
+                    if (tableData.length > 0) {
+                        // Use columns array if provided, otherwise get keys from first row
+                        const columns = data.columns || Object.keys(tableData[0]);
+                        columns.forEach(col => {
+                            tableHTML += `<th style="padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; color: #374151;">${col}</th>`;
                         });
                         tableHTML += '</tr></thead><tbody>';
 
                         // Add rows
-                        data.rows.forEach((row, idx) => {
+                        tableData.forEach((row, idx) => {
                             tableHTML += '<tr style="border-bottom: 1px solid #f3f4f6;">';
-                            Object.values(row).forEach(val => {
+                            columns.forEach(col => {
+                                const val = row[col];
                                 tableHTML += `<td style="padding: 12px; color: #6b7280;">${val !== null && val !== undefined ? val : ''}</td>`;
                             });
                             tableHTML += '</tr>';

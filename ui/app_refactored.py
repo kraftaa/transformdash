@@ -468,6 +468,59 @@ async def save_chart(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.delete("/api/charts/{chart_id}")
+async def delete_chart(chart_id: str):
+    """Delete a chart from all dashboards"""
+    try:
+        import yaml
+        import logging
+
+        dashboards_file = models_dir / "dashboards.yml"
+
+        if not dashboards_file.exists():
+            raise HTTPException(status_code=404, detail="Dashboards file not found")
+
+        # Load dashboards
+        with open(dashboards_file, 'r') as f:
+            data = yaml.safe_load(f) or {'dashboards': []}
+
+        # Track if chart was found and deleted
+        chart_found = False
+        dashboard_name = None
+
+        # Remove chart from all dashboards
+        for dashboard in data['dashboards']:
+            if 'charts' in dashboard:
+                original_count = len(dashboard['charts'])
+                dashboard['charts'] = [c for c in dashboard['charts'] if c.get('id') != chart_id]
+                if len(dashboard['charts']) < original_count:
+                    chart_found = True
+                    dashboard_name = dashboard.get('name', dashboard.get('id'))
+                    logging.info(f"Deleted chart {chart_id} from dashboard {dashboard.get('id')}")
+
+        if not chart_found:
+            raise HTTPException(status_code=404, detail=f"Chart {chart_id} not found in any dashboard")
+
+        # Save back to file
+        with open(dashboards_file, 'w') as f:
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+        logging.info(f"Successfully deleted chart {chart_id}")
+
+        return {
+            "success": True,
+            "message": f"Chart deleted successfully from {dashboard_name}!",
+            "chart_id": chart_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_detail = f"{str(e)}\n{traceback.format_exc()}"
+        logging.error(f"Error deleting chart: {error_detail}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/dashboards/{dashboard_id}/charts/add")
 async def add_chart_to_dashboard(dashboard_id: str, request: Request):
     """Add an existing chart to a specific dashboard"""
