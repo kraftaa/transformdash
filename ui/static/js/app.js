@@ -1212,12 +1212,16 @@ async function fetchAvailableFields() {
             return;
         }
 
-        // Fetch columns for each model
+        // Fetch columns for each model and tag them with model name
         const fieldsPromises = models.map(async (model) => {
             try {
                 const response = await fetch(`/api/tables/${model}/columns?schema=public`);
                 const data = await response.json();
-                return data.columns || [];
+                // Tag each field with its model
+                return (data.columns || []).map(field => ({
+                    ...field,
+                    model: model
+                }));
             } catch (error) {
                 console.error(`Error fetching columns for ${model}:`, error);
                 return [];
@@ -1226,11 +1230,16 @@ async function fetchAvailableFields() {
 
         const allFieldsArrays = await Promise.all(fieldsPromises);
 
-        // Flatten and deduplicate fields
+        // Flatten all fields (keep duplicates with different models)
         const allFields = allFieldsArrays.flat();
-        const uniqueFields = [...new Map(allFields.map(field => [field.name, field])).values()];
 
-        editorState.availableFields = uniqueFields.sort((a, b) => a.name.localeCompare(b.name));
+        // Sort by model first, then by field name
+        editorState.availableFields = allFields.sort((a, b) => {
+            if (a.model !== b.model) {
+                return a.model.localeCompare(b.model);
+            }
+            return a.name.localeCompare(b.name);
+        });
     } catch (error) {
         console.error('Error fetching available fields:', error);
         editorState.availableFields = [];
@@ -1583,9 +1592,9 @@ function renderDashboardFilters() {
         return;
     }
 
-    // Generate field options HTML
+    // Generate field options HTML - showing model and field type
     const fieldOptions = editorState.availableFields.map(field =>
-        `<option value="${field.name}">${field.name} (${field.type})</option>`
+        `<option value="${field.name}" data-model="${field.model}">${field.model}.${field.name} (${field.type})</option>`
     ).join('');
 
     container.innerHTML = editorState.currentFilters.map((filter, index) => {
@@ -1597,7 +1606,7 @@ function renderDashboardFilters() {
                     <input type="text" placeholder="Filter Label (e.g., 'Year')" value="${filter.label || ''}"
                         onchange="updateFilterLabel(${index}, this.value)"
                         style="width: 100%; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; margin-bottom: 8px;">
-                    <select onchange="updateFilterField(${index}, this.value)"
+                    <select onchange="updateFilterField(${index}, this)"
                         style="width: 100%; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; background: white; cursor: pointer; margin-bottom: 8px;">
                         <option value="">Select field...</option>
                         ${fieldOptions}
@@ -1641,9 +1650,11 @@ function updateFilterLabel(index, value) {
     }
 }
 
-function updateFilterField(index, value) {
+function updateFilterField(index, selectElement) {
     if (editorState.currentFilters[index]) {
-        editorState.currentFilters[index].field = value;
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
+        editorState.currentFilters[index].field = selectElement.value;
+        editorState.currentFilters[index].model = selectedOption.getAttribute('data-model') || '';
     }
 }
 
@@ -5978,16 +5989,15 @@ async function loadDashboardFilters(dashboardId, container) {
 
         const filtersControls = document.getElementById(controlsId);
 
-        // Fetch distinct values for each filter field
-        const model = dashboard.charts && dashboard.charts.length > 0 ? dashboard.charts[0].model : null;
-
-        if (!model) {
-            container.innerHTML = '<p style="color: #888; font-size: 0.9em; padding: 10px;">No model found for filters</p>';
-            return;
-        }
-
         // Create filter dropdowns
         for (const filter of dashboard.filters) {
+            // Get model from filter config, fallback to first chart's model
+            const model = filter.model || (dashboard.charts && dashboard.charts.length > 0 ? dashboard.charts[0].model : null);
+
+            if (!model) {
+                console.warn(`No model found for filter ${filter.field}`);
+                continue;
+            }
             const filterWrapper = document.createElement('div');
             filterWrapper.style.cssText = 'display: flex; flex-direction: column; min-width: 150px;';
 

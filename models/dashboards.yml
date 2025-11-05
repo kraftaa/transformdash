@@ -33,15 +33,17 @@ dashboards:
     y_axis: affected_orders
     aggregation: sum
   filters:
-  - field: warehouse_name
-    label: warehouse
-    expression: ''
-  - field: max_stock
-    label: min_stock
-    expression: ''
   - field: product_name
     label: product_name
     expression: ''
+  - field: return_date
+    label: return_date
+    expression: ''
+    model: fct_customer_returns
+  - field: warehouse_name
+    label: warehouse
+    expression: ''
+    model: int_inventory_summary
 - id: custom_charts
   name: Custom Charts
   description: User-created charts
@@ -56,5 +58,9 @@ dashboards:
   filters:
   - field: return_month
     label: month
+    model: fct_customer_returns
+    expression: ''
   - field: return_year
     label: year
+    model: fct_customer_returns
+    expression: ''
