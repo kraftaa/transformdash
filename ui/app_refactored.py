@@ -630,13 +630,14 @@ async def get_dashboard(dashboard_id: str):
 
 @app.put("/api/dashboards/{dashboard_id}")
 async def update_dashboard(dashboard_id: str, request: Request):
-    """Update a dashboard with new chart configuration"""
+    """Update a dashboard with new chart configuration and filters"""
     try:
         import yaml
         import logging
 
         body = await request.json()
         new_charts = body.get("charts", [])
+        new_filters = body.get("filters", [])
 
         dashboards_file = models_dir / "dashboards.yml"
 
@@ -659,6 +660,13 @@ async def update_dashboard(dashboard_id: str, request: Request):
 
         # Update charts in the dashboard
         target_dashboard['charts'] = new_charts
+
+        # Update filters in the dashboard
+        if new_filters:
+            target_dashboard['filters'] = new_filters
+        elif 'filters' in target_dashboard:
+            # Remove filters key if empty array provided
+            del target_dashboard['filters']
 
         # Save back to file
         with open(dashboards_file, 'w') as f:
@@ -729,16 +737,41 @@ async def query_data(request: Request):
         y_axis = body.get('y_axis')
         aggregation = body.get('aggregation', 'sum')
         filters = body.get('filters', {})
+        filter_expressions = body.get('filter_expressions', {})
         schema = body.get('schema', 'public')
         connection_id = body.get('connection_id')
 
         logging.info(f"Extracted table/model: {table}, schema: {schema}, connection_id: {connection_id}")
+        logging.info(f"Filters: {filters}, Filter expressions: {filter_expressions}")
 
         if not table:
             logging.error(f"No table found! Body was: {body}")
             raise HTTPException(status_code=400, detail="Missing table/model parameter")
 
         from connection_manager import connection_manager
+
+        # Helper function to build WHERE clause for filters with optional expressions
+        def build_filter_clauses(filters, filter_expressions, available_columns):
+            """Build WHERE clauses supporting SQL expressions for filters"""
+            where_clauses = []
+            params = []
+
+            for field, value in filters.items():
+                if not value:
+                    continue
+
+                # Check if there's an SQL expression for this filter
+                if field in filter_expressions and filter_expressions[field]:
+                    # Use the SQL expression instead of the raw field
+                    expression = filter_expressions[field]
+                    where_clauses.append(f"({expression}) = %s")
+                    params.append(value)
+                elif field in available_columns:
+                    # Use the field directly
+                    where_clauses.append(f"{field} = %s")
+                    params.append(value)
+
+            return where_clauses, params
 
         with connection_manager.get_connection(connection_id) as pg:
             # First, get available columns for this table
@@ -756,16 +789,8 @@ async def query_data(request: Request):
                 if not columns:
                     raise HTTPException(status_code=400, detail="Missing columns for table chart")
 
-                # Build WHERE clauses from filters
-                where_clauses = []
-                params = []
-
-                if filters:
-                    for field, value in filters.items():
-                        if value and field in available_columns:
-                            where_clauses.append(f"{field} = %s")
-                            params.append(value)
-
+                # Build WHERE clauses from filters using helper function
+                where_clauses, params = build_filter_clauses(filters, filter_expressions, available_columns)
                 where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
                 # Build column selection
@@ -789,15 +814,8 @@ async def query_data(request: Request):
 
             # Handle metric type charts (single value)
             if chart_type == 'metric' and metric:
-                where_clauses = []
-                params = []
-
-                if filters:
-                    for field, value in filters.items():
-                        if value and field in available_columns:
-                            where_clauses.append(f"{field} = %s")
-                            params.append(value)
-
+                # Build WHERE clauses from filters using helper function
+                where_clauses, params = build_filter_clauses(filters, filter_expressions, available_columns)
                 where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
                 agg_func = aggregation.upper()
@@ -827,16 +845,9 @@ async def query_data(request: Request):
                 if not x_axis:
                     raise HTTPException(status_code=400, detail="Missing x_axis for multi-metric chart")
 
-                # Build WHERE clauses from filters
-                where_clauses = [f"{x_axis} IS NOT NULL"]
-                params = []
-
-                if filters:
-                    for field, value in filters.items():
-                        if value and field in available_columns:
-                            where_clauses.append(f"{field} = %s")
-                            params.append(value)
-
+                # Build WHERE clauses from filters using helper function
+                filter_clauses, params = build_filter_clauses(filters, filter_expressions, available_columns)
+                where_clauses = [f"{x_axis} IS NOT NULL"] + filter_clauses
                 where_sql = "WHERE " + " AND ".join(where_clauses)
 
                 # Build query with multiple aggregations
@@ -886,16 +897,9 @@ async def query_data(request: Request):
             if not all([x_axis, y_axis]):
                 raise HTTPException(status_code=400, detail="Missing x_axis or y_axis for chart")
 
-            # Build WHERE clauses from filters - only use filters that exist in this table
-            where_clauses = [f"{x_axis} IS NOT NULL"]
-            params = []
-
-            if filters:
-                for field, value in filters.items():
-                    if value and field in available_columns:
-                        where_clauses.append(f"{field} = %s")
-                        params.append(value)
-
+            # Build WHERE clauses from filters using helper function
+            filter_clauses, params = build_filter_clauses(filters, filter_expressions, available_columns)
+            where_clauses = [f"{x_axis} IS NOT NULL"] + filter_clauses
             where_sql = "WHERE " + " AND ".join(where_clauses)
 
             # Check if this is a stacked bar chart with a category field

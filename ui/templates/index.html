@@ -388,11 +388,34 @@
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 300px; gap: var(--space-6); height: calc(100vh - 200px);">
-                    <!-- Chart Canvas -->
-                    <div class="card" style="padding: var(--space-6); overflow-y: auto;">
-                        <h3 style="margin-bottom: var(--space-4); color: var(--text-secondary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Dashboard Layout</h3>
-                        <div id="editor-chart-grid" class="dashboard-editor-grid">
-                            <!-- Charts will be added here dynamically -->
+                    <!-- Main Content Area -->
+                    <div style="display: flex; flex-direction: column; gap: var(--space-6); overflow-y: auto;">
+                        <!-- Dashboard Filters Section -->
+                        <div class="card" style="padding: var(--space-6);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+                                <h3 style="color: var(--text-secondary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Dashboard Filters</h3>
+                                <button class="btn btn-sm btn-primary" onclick="addDashboardFilter()">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                    </svg>
+                                    Add Filter
+                                </button>
+                            </div>
+                            <div id="dashboard-filters-editor">
+                                <!-- Filters will be added here -->
+                                <div style="color: var(--text-tertiary); font-size: 0.875rem; padding: 20px; text-align: center;">
+                                    No filters configured. Click "Add Filter" to create interactive filters for your dashboard.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Chart Canvas -->
+                        <div class="card" style="padding: var(--space-6);">
+                            <h3 style="margin-bottom: var(--space-4); color: var(--text-secondary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Dashboard Layout</h3>
+                            <div id="editor-chart-grid" class="dashboard-editor-grid">
+                                <!-- Charts will be added here dynamically -->
+                            </div>
                         </div>
                     </div>
 

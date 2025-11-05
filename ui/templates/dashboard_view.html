@@ -275,7 +275,8 @@
 
     <script>
         const dashboardId = '{{ dashboard_id }}';
-        let currentFilters = {};
+        let currentFilters = {}; // Stores filter values: {field: value}
+        let filterExpressions = {}; // Stores filter expressions: {field: expression}
 
         // Load dashboard on page load
         document.addEventListener('DOMContentLoaded', async () => {
@@ -323,27 +324,28 @@
             const container = document.getElementById('filtersContainer');
             container.style.display = 'flex';
 
-            try {
-                const response = await fetch(`/api/dashboard/${dashboardId}/filters`);
-                const filterData = await response.json();
+            // Store filter expressions for later use
+            dashboard.filters.forEach(filter => {
+                if (filter.expression) {
+                    filterExpressions[filter.field] = filter.expression;
+                }
+            });
 
-                container.innerHTML = dashboard.filters.map(filter => {
-                    const filterInfo = filterData.filters[filter.field];
-                    const options = filterInfo ? filterInfo.values : [];
-                    return `
-                        <div class="filter-group">
-                            <label class="filter-label">${filter.label}</label>
-                            <select class="filter-select"
-                                    onchange="applyFilter('${filter.field}', this.value)">
-                                <option value="">All ${filter.label}</option>
-                                ${options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
-                            </select>
-                        </div>
-                    `;
-                }).join('');
-            } catch (error) {
-                console.error('Error loading filters:', error);
-            }
+            container.innerHTML = dashboard.filters.map((filter, index) => {
+                const filterKey = filter.field || `filter_${index}`;
+                const expression = filter.expression || '';
+                const expressionAttr = expression.replace(/'/g, '&apos;');
+
+                return `
+                    <div class="filter-group">
+                        <label class="filter-label">${filter.label}</label>
+                        <input type="text" class="filter-select"
+                               placeholder="Enter ${filter.label}..."
+                               onchange="applyFilter('${filterKey}', this.value, '${expressionAttr}')"
+                               style="min-width: 150px; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.9rem;">
+                    </div>
+                `;
+            }).join('');
         }
 
         async function loadCharts(dashboard) {
@@ -436,23 +438,27 @@
 
         async function renderChart(chartConfig) {
             try {
-                // Merge chart's built-in filters with user-selected filters
-                // Convert to dictionary format expected by backend
+                // Build filter structure with expressions
+                // Format: {filters: {field: value}, filter_expressions: {field: expression}}
                 const filterDict = {};
+                const filterExpressionsDict = {};
 
-                // IMPORTANT: Chart-level filters should NOT be applied automatically
-                // Only apply user-selected filters from the dashboard filter dropdowns
-                // This ensures "All" means no filter is applied
-
-                // Add user-selected filters ONLY
+                // Add user-selected filters with their expressions
                 Object.keys(currentFilters).forEach(key => {
                     if (currentFilters[key]) {
                         filterDict[key] = currentFilters[key];
+                        // Add expression if it exists for this filter
+                        if (filterExpressions[key]) {
+                            filterExpressionsDict[key] = filterExpressions[key];
+                        }
                     }
                 });
 
                 // Build query payload based on chart type
                 let queryPayload;
+                const hasFilters = Object.keys(filterDict).length > 0;
+                const hasExpressions = Object.keys(filterExpressionsDict).length > 0;
+
                 if (chartConfig.type === 'metric') {
                     // For metric charts, send x_axis and y_axis (NOT type: 'metric')
                     // The backend will GROUP BY, and we'll sum the results on the frontend
@@ -462,7 +468,8 @@
                         x_axis: metricField,
                         y_axis: metricField,
                         aggregation: chartConfig.aggregation || 'sum',
-                        filters: Object.keys(filterDict).length > 0 ? filterDict : undefined
+                        filters: hasFilters ? filterDict : undefined,
+                        filter_expressions: hasExpressions ? filterExpressionsDict : undefined
                     };
                     console.log('Metric chart query payload:', queryPayload);
                 } else if (chartConfig.type === 'table') {
@@ -471,7 +478,8 @@
                         type: 'table',
                         table: chartConfig.model,
                         columns: chartConfig.columns || [],
-                        filters: Object.keys(filterDict).length > 0 ? filterDict : undefined
+                        filters: hasFilters ? filterDict : undefined,
+                        filter_expressions: hasExpressions ? filterExpressionsDict : undefined
                     };
                 } else {
                     // For regular charts
@@ -481,7 +489,8 @@
                         x_axis: chartConfig.x_axis,
                         y_axis: chartConfig.y_axis,
                         aggregation: chartConfig.aggregation || 'sum',
-                        filters: Object.keys(filterDict).length > 0 ? filterDict : undefined
+                        filters: hasFilters ? filterDict : undefined,
+                        filter_expressions: hasExpressions ? filterExpressionsDict : undefined
                     };
 
                     // For stacked bar charts, add category field
@@ -669,11 +678,15 @@
             }
         }
 
-        function applyFilter(field, value) {
+        function applyFilter(field, value, expression) {
             if (value) {
                 currentFilters[field] = value;
+                if (expression) {
+                    filterExpressions[field] = expression;
+                }
             } else {
                 delete currentFilters[field];
+                delete filterExpressions[field];
             }
 
             // Reload dashboard with new filters

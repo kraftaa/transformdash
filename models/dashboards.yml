@@ -42,3 +42,8 @@ dashboards:
     x_axis: return_year
     y_axis: affected_orders
     aggregation: sum
+  filters:
+  - field: return_month
+    label: month
+  - field: return_year
+    label: year

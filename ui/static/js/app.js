@@ -1149,7 +1149,9 @@ let editorState = {
     dashboardName: null,
     currentCharts: [],
     availableCharts: [],
-    draggedIndex: null
+    draggedIndex: null,
+    currentFilters: [],
+    availableFields: []  // Store all available fields from dashboard models
 };
 
 async function openDashboardEditor(dashboardId, dashboardName) {
@@ -1180,18 +1182,58 @@ async function loadEditorData() {
         const dashboardResponse = await fetch(`/api/dashboards/${editorState.dashboardId}`);
         const dashboardData = await dashboardResponse.json();
         editorState.currentCharts = dashboardData.charts || [];
+        editorState.currentFilters = dashboardData.filters || [];
 
         // Load all available charts
         const chartsResponse = await fetch('/api/charts');
         const chartsData = await chartsResponse.json();
         editorState.availableCharts = chartsData.charts || [];
 
+        // Fetch available fields from all models used in this dashboard
+        await fetchAvailableFields();
+
         // Render the editor
+        renderDashboardFilters();
         renderEditorCharts();
         renderAvailableCharts();
     } catch (error) {
         console.error('Error loading editor data:', error);
         showToast('Failed to load editor data', 'error');
+    }
+}
+
+async function fetchAvailableFields() {
+    try {
+        // Get unique models from dashboard charts
+        const models = [...new Set(editorState.currentCharts.map(c => c.model).filter(m => m))];
+
+        if (models.length === 0) {
+            editorState.availableFields = [];
+            return;
+        }
+
+        // Fetch columns for each model
+        const fieldsPromises = models.map(async (model) => {
+            try {
+                const response = await fetch(`/api/tables/${model}/columns?schema=public`);
+                const data = await response.json();
+                return data.columns || [];
+            } catch (error) {
+                console.error(`Error fetching columns for ${model}:`, error);
+                return [];
+            }
+        });
+
+        const allFieldsArrays = await Promise.all(fieldsPromises);
+
+        // Flatten and deduplicate fields
+        const allFields = allFieldsArrays.flat();
+        const uniqueFields = [...new Map(allFields.map(field => [field.name, field])).values()];
+
+        editorState.availableFields = uniqueFields.sort((a, b) => a.name.localeCompare(b.name));
+    } catch (error) {
+        console.error('Error fetching available fields:', error);
+        editorState.availableFields = [];
     }
 }
 
@@ -1478,7 +1520,8 @@ async function saveDashboardEdit() {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                charts: editorState.currentCharts
+                charts: editorState.currentCharts,
+                filters: editorState.currentFilters
             })
         });
 
@@ -1506,7 +1549,8 @@ function cancelDashboardEdit() {
         dashboardName: null,
         currentCharts: [],
         availableCharts: [],
-        draggedIndex: null
+        draggedIndex: null,
+        currentFilters: []
     };
 
     // Hide editor view and reset inline styles
@@ -1522,6 +1566,96 @@ function cancelDashboardEdit() {
     });
 
     switchView('dashboards');
+}
+
+// ============= Dashboard Filter Management =============
+
+function renderDashboardFilters() {
+    const container = document.getElementById('dashboard-filters-editor');
+    if (!container) return;
+
+    if (editorState.currentFilters.length === 0) {
+        container.innerHTML = `
+            <div style="color: var(--text-tertiary); font-size: 0.875rem; padding: 20px; text-align: center;">
+                No filters configured. Click "Add Filter" to create interactive filters for your dashboard.
+            </div>
+        `;
+        return;
+    }
+
+    // Generate field options HTML
+    const fieldOptions = editorState.availableFields.map(field =>
+        `<option value="${field.name}">${field.name} (${field.type})</option>`
+    ).join('');
+
+    container.innerHTML = editorState.currentFilters.map((filter, index) => {
+        const selectedField = filter.field || '';
+        const expression = filter.expression || '';
+        return `
+            <div style="display: flex; gap: 12px; align-items: flex-start; padding: 12px; background: var(--color-bg-secondary); border-radius: 8px; margin-bottom: 8px;">
+                <div style="flex: 1;">
+                    <input type="text" placeholder="Filter Label (e.g., 'Year')" value="${filter.label || ''}"
+                        onchange="updateFilterLabel(${index}, this.value)"
+                        style="width: 100%; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; margin-bottom: 8px;">
+                    <select onchange="updateFilterField(${index}, this.value)"
+                        style="width: 100%; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; background: white; cursor: pointer; margin-bottom: 8px;">
+                        <option value="">Select field...</option>
+                        ${fieldOptions}
+                    </select>
+                    <input type="text" placeholder="SQL Expression (optional, e.g. 'EXTRACT(YEAR FROM order_date)')" value="${expression}"
+                        onchange="updateFilterExpression(${index}, this.value)"
+                        style="width: 100%; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; font-family: monospace; font-size: 0.85rem;">
+                    <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 4px;">
+                        Use SQL expression to transform the field before filtering
+                    </div>
+                </div>
+                <button onclick="removeDashboardFilter(${index})"
+                    style="padding: 8px 12px; background: var(--color-error); color: white; border: none; border-radius: 6px; cursor: pointer; align-self: flex-start;">
+                    Remove
+                </button>
+            </div>
+        `;
+    }).join('');
+
+    // Set selected values after rendering
+    editorState.currentFilters.forEach((filter, index) => {
+        const selectElement = container.querySelectorAll('select')[index];
+        if (selectElement && filter.field) {
+            selectElement.value = filter.field;
+        }
+    });
+}
+
+function addDashboardFilter() {
+    editorState.currentFilters.push({
+        field: '',
+        label: '',
+        expression: ''
+    });
+    renderDashboardFilters();
+}
+
+function updateFilterLabel(index, value) {
+    if (editorState.currentFilters[index]) {
+        editorState.currentFilters[index].label = value;
+    }
+}
+
+function updateFilterField(index, value) {
+    if (editorState.currentFilters[index]) {
+        editorState.currentFilters[index].field = value;
+    }
+}
+
+function updateFilterExpression(index, value) {
+    if (editorState.currentFilters[index]) {
+        editorState.currentFilters[index].expression = value;
+    }
+}
+
+function removeDashboardFilter(index) {
+    editorState.currentFilters.splice(index, 1);
+    renderDashboardFilters();
 }
 
 // Switch Tabs
@@ -1850,7 +1984,9 @@ async function loadDashboardCharts(dashboardId, container, filters = {}) {
         for (const chartConfig of dashboard.charts) {
             // Add dashboard_id to chart config so edit button knows which dashboard it belongs to
             const chartWithDashboard = { ...chartConfig, dashboard_id: dashboardId };
-            await renderDashboardChart(chartWithDashboard, container, filters);
+            // Pass both filters and filter expressions to charts
+            const filterExpressions = dashboardFilterExpressions[dashboardId] || {};
+            await renderDashboardChart(chartWithDashboard, container, filters, filterExpressions);
             chartsRendered++;
         }
 
@@ -1877,7 +2013,7 @@ async function loadDashboardCharts(dashboardId, container, filters = {}) {
 }
 
 // Render a single chart from configuration
-async function renderDashboardChart(chartConfig, container, filters = {}) {
+async function renderDashboardChart(chartConfig, container, filters = {}, filterExpressions = {}) {
     try {
         // Skip only calculation-based charts (not multi-metric)
         if (chartConfig.calculation) {
@@ -1964,7 +2100,7 @@ async function renderDashboardChart(chartConfig, container, filters = {}) {
             tableContainer.style.cssText = 'max-height: 400px; overflow: auto;';
             chartWrapper.appendChild(tableContainer);
             container.appendChild(chartWrapper);
-            await renderTableChart(tableContainer, chartConfig, filters);
+            await renderTableChart(tableContainer, chartConfig, filters, filterExpressions);
             return;
         }
 
@@ -1979,7 +2115,7 @@ async function renderDashboardChart(chartConfig, container, filters = {}) {
 
         // Handle metric type
         if (chartConfig.type === 'metric') {
-            await renderMetricChart(canvas, chartConfig, filters);
+            await renderMetricChart(canvas, chartConfig, filters, filterExpressions);
             return;
         }
 
@@ -1988,7 +2124,8 @@ async function renderDashboardChart(chartConfig, container, filters = {}) {
             table: chartConfig.model,
             type: chartConfig.type,
             x_axis: chartConfig.x_axis,
-            filters: filters
+            filters: filters,
+            filter_expressions: filterExpressions
         };
 
         // Handle multi-metric charts
@@ -2175,7 +2312,7 @@ async function renderDashboardChart(chartConfig, container, filters = {}) {
 }
 
 // Render metric chart (single KPI value)
-async function renderMetricChart(canvas, chartConfig, filters = {}) {
+async function renderMetricChart(canvas, chartConfig, filters = {}, filterExpressions = {}) {
     try {
         // Determine which field to query
         const metricField = chartConfig.metric || chartConfig.y_axis;
@@ -2192,7 +2329,8 @@ async function renderMetricChart(canvas, chartConfig, filters = {}) {
                 type: 'metric',  // Important: tell backend this is a metric chart
                 metric: metricField,
                 aggregation: chartConfig.aggregation || 'sum',
-                filters: filters  // Pass filters to backend
+                filters: filters,  // Pass filters to backend
+                filter_expressions: filterExpressions  // Pass filter expressions to backend
             })
         });
 
@@ -2237,7 +2375,7 @@ async function renderMetricChart(canvas, chartConfig, filters = {}) {
 }
 
 // Render table chart type
-async function renderTableChart(container, chartConfig, filters = {}) {
+async function renderTableChart(container, chartConfig, filters = {}, filterExpressions = {}) {
     try {
         // Fetch data from API
         const queryResponse = await fetch('/api/query', {
@@ -2247,7 +2385,8 @@ async function renderTableChart(container, chartConfig, filters = {}) {
                 type: 'table',
                 table: chartConfig.model,
                 columns: chartConfig.columns || [],
-                filters: filters
+                filters: filters,
+                filter_expressions: filterExpressions
             })
         });
 
@@ -5797,14 +5936,21 @@ window.onclick = function(event) {
 
 // Store current filter selections per dashboard
 let dashboardFilters = {};
+// Store filter expressions (SQL transformations) per dashboard
+let dashboardFilterExpressions = {};
 
 async function loadDashboardFilters(dashboardId, container) {
     try {
-        const response = await fetch(`/api/dashboard/${dashboardId}/filters`);
+        // Fetch dashboard configuration from /api/dashboards
+        const response = await fetch('/api/dashboards');
         const data = await response.json();
 
-        if (!data.filters || Object.keys(data.filters).length === 0) {
+        // Find the specific dashboard
+        const dashboard = data.dashboards.find(d => d.id === dashboardId);
+
+        if (!dashboard || !dashboard.filters || dashboard.filters.length === 0) {
             container.innerHTML = '<p style="color: #888; font-size: 0.9em; padding: 10px;">No filters available</p>';
+            container.style.display = 'none';
             return;
         }
 
@@ -5812,55 +5958,60 @@ async function loadDashboardFilters(dashboardId, container) {
         if (!dashboardFilters[dashboardId]) {
             dashboardFilters[dashboardId] = {};
         }
+        if (!dashboardFilterExpressions[dashboardId]) {
+            dashboardFilterExpressions[dashboardId] = {};
+        }
+
+        // Store filter expressions from dashboard config
+        dashboard.filters.forEach(filter => {
+            if (filter.expression) {
+                dashboardFilterExpressions[dashboardId][filter.field] = filter.expression;
+            }
+        });
 
         // Determine if we're in fullscreen mode
         const isFullscreen = container.id.includes('fullscreen');
         const controlsId = isFullscreen ? `filter-controls-fullscreen-${dashboardId}` : `filter-controls-${dashboardId}`;
-        const selectPrefix = isFullscreen ? 'filter-fullscreen' : 'filter';
+        const inputPrefix = isFullscreen ? 'filter-fullscreen' : 'filter';
 
         container.innerHTML = `<div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 15px;"><h4 style="margin: 0 0 10px 0; font-size: 0.9em; color: #666;">🔍 Filters</h4><div id="${controlsId}" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;"></div></div>`;
 
         const filtersControls = document.getElementById(controlsId);
 
-        // Create filter dropdowns
-        for (const [field, filterInfo] of Object.entries(data.filters)) {
+        // Create filter text inputs
+        dashboard.filters.forEach(filter => {
             const filterWrapper = document.createElement('div');
             filterWrapper.style.cssText = 'display: flex; flex-direction: column; min-width: 150px;';
 
             const label = document.createElement('label');
-            label.textContent = filterInfo.label;
+            label.textContent = filter.label;
             label.style.cssText = 'font-size: 0.85em; color: #666; margin-bottom: 4px; font-weight: 500;';
 
-            const select = document.createElement('select');
-            select.id = `${selectPrefix}-${dashboardId}-${field}`;
-            select.style.cssText = 'padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9em; background: white;';
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.id = `${inputPrefix}-${dashboardId}-${filter.field}`;
+            input.placeholder = `Enter ${filter.label}...`;
+            input.style.cssText = 'padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9em;';
 
-            // Add "All" option
-            const allOption = document.createElement('option');
-            allOption.value = '';
-            allOption.textContent = 'All';
-            select.appendChild(allOption);
+            // Store expression in data attribute for later use
+            if (filter.expression) {
+                input.dataset.expression = filter.expression;
+            }
 
-            // Add value options
-            filterInfo.values.forEach(value => {
-                const option = document.createElement('option');
-                option.value = value;
-                // Convert objects to JSON strings for display
-                option.textContent = typeof value === 'object' && value !== null ? JSON.stringify(value) : value;
-                select.appendChild(option);
-            });
-
-            // Handle cascading filters: when one filter changes, update others
-            select.onchange = async () => {
-                dashboardFilters[dashboardId][field] = select.value;
-                await updateCascadingFilters(dashboardId, field);
+            // Handle filter changes
+            input.onchange = async () => {
+                if (input.value) {
+                    dashboardFilters[dashboardId][filter.field] = input.value;
+                } else {
+                    delete dashboardFilters[dashboardId][filter.field];
+                }
                 await reloadDashboardCharts(dashboardId);
             };
 
             filterWrapper.appendChild(label);
-            filterWrapper.appendChild(select);
+            filterWrapper.appendChild(input);
             filtersControls.appendChild(filterWrapper);
-        }
+        });
 
         // Add clear filters button
         const clearBtn = document.createElement('button');
@@ -5945,15 +6096,15 @@ function clearDashboardFilters(dashboardId) {
     // Reset filter state
     dashboardFilters[dashboardId] = {};
 
-    // Reset all dropdowns - check both regular and fullscreen mode
+    // Reset all inputs - check both regular and fullscreen mode
     let filtersControls = document.getElementById('filter-controls-fullscreen-' + dashboardId);
     if (!filtersControls) {
         filtersControls = document.getElementById('filter-controls-' + dashboardId);
     }
 
     if (filtersControls) {
-        const selects = filtersControls.querySelectorAll('select');
-        selects.forEach(select => select.value = '');
+        const inputs = filtersControls.querySelectorAll('input[type="text"]');
+        inputs.forEach(input => input.value = '');
     }
 
     // Reload charts without filters
