@@ -1106,6 +1106,58 @@ async def list_tables(schema: str = "public", connection_id: str = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/filter/values")
+async def get_filter_values(request: Request):
+    """Get distinct values for a filter field (supports SQL expressions)"""
+    try:
+        from connection_manager import connection_manager
+        import logging
+
+        body = await request.json()
+        table = body.get('table')
+        field = body.get('field')
+        expression = body.get('expression')  # Optional SQL expression
+        schema = body.get('schema', 'public')
+        connection_id = body.get('connection_id')
+
+        if not table:
+            raise HTTPException(status_code=400, detail="Table name is required")
+
+        if not field and not expression:
+            raise HTTPException(status_code=400, detail="Either field or expression is required")
+
+        # Use expression if provided, otherwise use field
+        query_field = expression if expression else field
+
+        # Get connection from connection manager
+        with connection_manager.get_connection(connection_id) as pg:
+            # Set search path to use the selected schema
+            if schema:
+                pg.execute(f"SET search_path TO {schema}, public")
+
+            # Build query to get distinct values
+            query = f"""
+                SELECT DISTINCT {query_field} as value
+                FROM {table}
+                WHERE {query_field} IS NOT NULL
+                ORDER BY {query_field}
+                LIMIT 1000
+            """
+
+            logging.info(f"Fetching filter values: {query}")
+            result = pg.execute(query, fetch=True)
+
+            values = [row['value'] for row in result]
+            logging.info(f"Found {len(values)} distinct values for {field or expression}")
+
+            return {"values": values}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error fetching filter values: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/query/execute")
 async def execute_query(request: Request):
     """Execute a SQL query and return results for SQL Query Lab"""

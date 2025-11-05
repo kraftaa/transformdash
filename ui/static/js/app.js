@@ -5978,8 +5978,16 @@ async function loadDashboardFilters(dashboardId, container) {
 
         const filtersControls = document.getElementById(controlsId);
 
-        // Create filter text inputs
-        dashboard.filters.forEach(filter => {
+        // Fetch distinct values for each filter field
+        const model = dashboard.charts && dashboard.charts.length > 0 ? dashboard.charts[0].model : null;
+
+        if (!model) {
+            container.innerHTML = '<p style="color: #888; font-size: 0.9em; padding: 10px;">No model found for filters</p>';
+            return;
+        }
+
+        // Create filter dropdowns
+        for (const filter of dashboard.filters) {
             const filterWrapper = document.createElement('div');
             filterWrapper.style.cssText = 'display: flex; flex-direction: column; min-width: 150px;';
 
@@ -5987,21 +5995,55 @@ async function loadDashboardFilters(dashboardId, container) {
             label.textContent = filter.label;
             label.style.cssText = 'font-size: 0.85em; color: #666; margin-bottom: 4px; font-weight: 500;';
 
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.id = `${inputPrefix}-${dashboardId}-${filter.field}`;
-            input.placeholder = `Enter ${filter.label}...`;
-            input.style.cssText = 'padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9em;';
+            const select = document.createElement('select');
+            select.id = `${inputPrefix}-${dashboardId}-${filter.field}`;
+            select.style.cssText = 'padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9em; cursor: pointer;';
+
+            // Add default "All" option
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = `All ${filter.label}`;
+            select.appendChild(defaultOption);
 
             // Store expression in data attribute for later use
             if (filter.expression) {
-                input.dataset.expression = filter.expression;
+                select.dataset.expression = filter.expression;
+            }
+
+            // Fetch distinct values for this filter
+            try {
+                const valuesResponse = await fetch('/api/filter/values', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        table: model,
+                        field: filter.field,
+                        expression: filter.expression || null,
+                        schema: 'public'
+                    })
+                });
+
+                if (valuesResponse.ok) {
+                    const valuesData = await valuesResponse.json();
+                    const values = valuesData.values || [];
+
+                    values.forEach(value => {
+                        const option = document.createElement('option');
+                        option.value = value;
+                        option.textContent = value;
+                        select.appendChild(option);
+                    });
+                } else {
+                    console.error(`Failed to fetch filter values: ${valuesResponse.status}`);
+                }
+            } catch (error) {
+                console.error(`Error fetching filter values for ${filter.field}:`, error);
             }
 
             // Handle filter changes
-            input.onchange = async () => {
-                if (input.value) {
-                    dashboardFilters[dashboardId][filter.field] = input.value;
+            select.onchange = async () => {
+                if (select.value) {
+                    dashboardFilters[dashboardId][filter.field] = select.value;
                 } else {
                     delete dashboardFilters[dashboardId][filter.field];
                 }
@@ -6009,9 +6051,9 @@ async function loadDashboardFilters(dashboardId, container) {
             };
 
             filterWrapper.appendChild(label);
-            filterWrapper.appendChild(input);
+            filterWrapper.appendChild(select);
             filtersControls.appendChild(filterWrapper);
-        });
+        }
 
         // Add clear filters button
         const clearBtn = document.createElement('button');
@@ -6103,8 +6145,8 @@ function clearDashboardFilters(dashboardId) {
     }
 
     if (filtersControls) {
-        const inputs = filtersControls.querySelectorAll('input[type="text"]');
-        inputs.forEach(input => input.value = '');
+        const selects = filtersControls.querySelectorAll('select');
+        selects.forEach(select => select.selectedIndex = 0);
     }
 
     // Reload charts without filters

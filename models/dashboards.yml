@@ -14,6 +14,7 @@ dashboards:
     columns:
     - stock_id
     - warehouse_name
+    - product_name
   - id: chart_1762214037200_h0zg0vhw5
     title: test2222
     type: table
@@ -31,6 +32,16 @@ dashboards:
     x_axis: return_date
     y_axis: affected_orders
     aggregation: sum
+  filters:
+  - field: warehouse_name
+    label: warehouse
+    expression: ''
+  - field: max_stock
+    label: min_stock
+    expression: ''
+  - field: product_name
+    label: product_name
+    expression: ''
 - id: custom_charts
   name: Custom Charts
   description: User-created charts
