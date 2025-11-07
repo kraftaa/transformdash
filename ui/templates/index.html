@@ -84,6 +84,14 @@
                     </svg>
                     <span class="nav-text">Charts</span>
                 </a>
+                <a href="#" class="nav-item" data-view="datasets" onclick="switchView('datasets')">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                        <line x1="12" y1="22.08" x2="12" y2="12"/>
+                    </svg>
+                    <span class="nav-text">Datasets</span>
+                </a>
                 <a href="#" class="nav-item" data-view="runs" onclick="switchView('runs')">
                     <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
@@ -413,6 +421,8 @@
                         <!-- Chart Canvas -->
                         <div class="card" style="padding: var(--space-6);">
                             <h3 style="margin-bottom: var(--space-4); color: var(--text-secondary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Dashboard Layout</h3>
+                            <!-- Tabs container -->
+                            <div id="editor-tabs-container"></div>
                             <div id="editor-chart-grid" class="dashboard-editor-grid">
                                 <!-- Charts will be added here dynamically -->
                             </div>
@@ -677,6 +687,157 @@
                 </div>
             </div>
 
+            <!-- Datasets View -->
+            <div id="datasets-view" class="view-content">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">Datasets</h1>
+                        <p class="page-subtitle">Manage reusable data sources</p>
+                    </div>
+                    <button onclick="openDatasetBuilder()" class="btn btn-primary">
+                        ✨ Create New Dataset
+                    </button>
+                </div>
+
+                <div id="datasets-list" class="content-section">
+                    <div id="datasets-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+                        <!-- Datasets will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dataset Editor View -->
+            <div id="dataset-editor-view" class="view-content" style="display: none;">
+                <div class="page-header">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <button onclick="closeDatasetEditor()" class="btn btn-secondary" style="padding: 8px 12px;">
+                            ← Back
+                        </button>
+                        <div>
+                            <h1 class="page-title" id="dataset-editor-title">Dataset Editor</h1>
+                            <p class="page-subtitle" id="dataset-editor-subtitle">Loading...</p>
+                        </div>
+                    </div>
+                    <button onclick="saveDatasetChanges()" class="btn btn-primary">
+                        💾 Save Changes
+                    </button>
+                </div>
+
+                <div class="content-section">
+                    <!-- Tab Navigation -->
+                    <div style="border-bottom: 2px solid #e5e7eb; margin-bottom: 1.5rem;">
+                        <div style="display: flex; gap: 2rem;">
+                            <button id="editor-tab-overview" class="editor-tab active" onclick="switchEditorTab('overview')" style="padding: 12px 0; border: none; background: none; color: #667eea; font-weight: 600; border-bottom: 2px solid #667eea; margin-bottom: -2px; cursor: pointer;">
+                                Overview
+                            </button>
+                            <button id="editor-tab-columns" class="editor-tab" onclick="switchEditorTab('columns')" style="padding: 12px 0; border: none; background: none; color: #6b7280; font-weight: 500; cursor: pointer;">
+                                Columns
+                            </button>
+                            <button id="editor-tab-metrics" class="editor-tab" onclick="switchEditorTab('metrics')" style="padding: 12px 0; border: none; background: none; color: #6b7280; font-weight: 500; cursor: pointer;">
+                                Metrics
+                            </button>
+                            <button id="editor-tab-query" class="editor-tab" onclick="switchEditorTab('query')" style="padding: 12px 0; border: none; background: none; color: #6b7280; font-weight: 500; cursor: pointer;">
+                                Query
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Overview Tab -->
+                    <div id="editor-content-overview" class="editor-tab-content">
+                        <div style="max-width: 800px;">
+                            <div style="margin-bottom: 1.5rem;">
+                                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">Dataset Name</label>
+                                <input type="text" id="edit-dataset-name" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.95rem;" placeholder="My Dataset">
+                            </div>
+
+                            <div style="margin-bottom: 1.5rem;">
+                                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">Description</label>
+                                <textarea id="edit-dataset-description" rows="3" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.95rem; font-family: inherit;" placeholder="Describe this dataset..."></textarea>
+                            </div>
+
+                            <div style="margin-bottom: 1.5rem;">
+                                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">Connection</label>
+                                <div id="edit-dataset-connection" style="padding: 10px; background: #f3f4f6; border-radius: 8px; color: #6b7280; font-size: 0.95rem;">
+                                    Default Connection
+                                </div>
+                            </div>
+
+                            <div style="margin-bottom: 1.5rem;">
+                                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">Source Type</label>
+                                <div id="edit-dataset-source-type" style="display: inline-block; padding: 6px 12px; background: #e0e7ff; color: #667eea; border-radius: 6px; font-size: 0.875rem; font-weight: 500;">
+                                    Table
+                                </div>
+                            </div>
+
+                            <div id="edit-dataset-table-info" style="margin-bottom: 1.5rem; display: none;">
+                                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">Table Reference</label>
+                                <div style="padding: 10px; background: #f3f4f6; border-radius: 8px; color: #1f2937; font-family: monospace; font-size: 0.95rem;" id="edit-dataset-table-ref">
+                                    public.table_name
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Columns Tab -->
+                    <div id="editor-content-columns" class="editor-tab-content" style="display: none;">
+                        <div style="margin-bottom: 1rem;">
+                            <button onclick="refreshDatasetColumns()" class="btn btn-secondary" style="padding: 8px 16px;">
+                                🔄 Refresh Columns
+                            </button>
+                        </div>
+                        <div id="dataset-columns-list" style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
+                                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Column Name</th>
+                                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Data Type</th>
+                                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Nullable</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dataset-columns-tbody">
+                                    <tr><td colspan="3" style="padding: 2rem; text-align: center; color: #9ca3af;">Loading columns...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Tab -->
+                    <div id="editor-content-metrics" class="editor-tab-content" style="display: none;">
+                        <div style="margin-bottom: 1rem;">
+                            <button onclick="addMetric()" class="btn btn-primary" style="padding: 8px 16px;">
+                                ➕ Add Metric
+                            </button>
+                        </div>
+                        <div id="dataset-metrics-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
+                            <div style="grid-column: 1 / -1; padding: 3rem; text-align: center; color: #9ca3af;">
+                                <p>No metrics defined yet. Metrics are calculated fields like SUM, AVG, COUNT, etc.</p>
+                                <p style="font-size: 0.875rem; margin-top: 0.5rem;">Click "Add Metric" to create your first metric.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Query Tab -->
+                    <div id="editor-content-query" class="editor-tab-content" style="display: none;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h3 style="margin: 0; font-size: 1rem; font-weight: 600; color: #374151;">Source Query</h3>
+                            <button onclick="copyDatasetQuery()" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem;">
+                                📋 Copy SQL
+                            </button>
+                        </div>
+                        <div style="background: #1e293b; border-radius: 8px; padding: 1rem; overflow-x: auto;">
+                            <pre id="dataset-query-display" style="margin: 0; color: #e2e8f0; font-family: 'Monaco', 'Menlo', monospace; font-size: 0.875rem; line-height: 1.6;">SELECT * FROM table_name;</pre>
+                        </div>
+                        <div id="dataset-query-editor" style="margin-top: 1rem; display: none;">
+                            <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">Edit SQL Query</label>
+                            <textarea id="dataset-query-textarea" rows="10" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-family: 'Monaco', 'Menlo', monospace; font-size: 0.875rem; background: #f9fafb;"></textarea>
+                            <button onclick="updateDatasetQuery()" class="btn btn-primary" style="margin-top: 0.5rem;">
+                                Save Query
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- SQL Query Lab View -->
             <div id="query-lab-view" class="view-content">
                 <div class="page-header">
@@ -755,8 +916,10 @@
                                 <div style="display: flex; gap: 12px; align-items: center;">
                                     <div id="query-stats" style="font-size: 0.8rem; color: #888;"></div>
                                     <div id="export-buttons" style="display: none; gap: 6px;">
-                                        <button onclick="saveAsView()" class="btn btn-primary" style="padding: 4px 10px; font-size: 0.8rem;">💾 Save as View</button>
+                                        <button onclick="saveQueryAsDataset()" class="btn btn-primary" style="padding: 4px 10px; font-size: 0.8rem;">💾 Save as Dataset</button>
+                                        <button onclick="saveAsView()" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem;">📊 Save as View</button>
                                         <button onclick="exportToCSV()" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem;">📄 Export CSV</button>
+                                        <button onclick="exportToExcel()" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem;">📈 Export Excel</button>
                                         <button onclick="printResults()" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem;">🖨️ Print</button>
                                     </div>
                                 </div>
@@ -944,10 +1107,91 @@
         </div>
     </div>
 
+    <!-- Dataset Builder Modal -->
+    <div id="datasetBuilderModal" class="modal">
+        <div class="modal-overlay" onclick="closeModal('datasetBuilderModal')"></div>
+        <div class="modal-container" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2>Create New Dataset</h2>
+                <button class="modal-close" onclick="closeModal('datasetBuilderModal')">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <!-- Dataset Name and Description -->
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">Dataset Name*</label>
+                    <input type="text" id="datasetName" placeholder="Enter dataset name" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.875rem;">
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">Description</label>
+                    <textarea id="datasetDescription" placeholder="Optional description" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.875rem; min-height: 80px; resize: vertical;"></textarea>
+                </div>
+
+                <!-- Source Type Tabs -->
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">Source Type</label>
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                        <button id="sourceTypeTable" class="btn btn-secondary" onclick="switchDatasetSourceType('table')" style="flex: 1; background: #667eea; color: white;">
+                            Table
+                        </button>
+                        <button id="sourceTypeSQL" class="btn btn-secondary" onclick="switchDatasetSourceType('sql')" style="flex: 1;">
+                            Custom SQL
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Table Mode -->
+                <div id="tableModeConfig" style="display: block;">
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">Schema</label>
+                        <input type="text" id="datasetSchema" placeholder="public" value="public" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.875rem;">
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">Table Name*</label>
+                        <input type="text" id="datasetTableName" placeholder="Enter table name" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.875rem;">
+                    </div>
+                </div>
+
+                <!-- SQL Mode -->
+                <div id="sqlModeConfig" style="display: none;">
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">SQL Query*</label>
+                        <textarea id="datasetSQLQuery" placeholder="SELECT * FROM your_table WHERE..." style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.875rem; min-height: 150px; resize: vertical; font-family: 'JetBrains Mono', monospace;"></textarea>
+                        <p style="margin-top: 0.5rem; font-size: 0.75rem; color: #6b7280;">Write your custom SQL query. This will be the data source for your dataset.</p>
+                    </div>
+                </div>
+
+                <!-- Preview Button -->
+                <div style="margin-bottom: 1rem;">
+                    <button class="btn btn-secondary" onclick="previewDataset()" style="width: 100%;">
+                        Preview Data
+                    </button>
+                </div>
+
+                <!-- Preview Results -->
+                <div id="datasetPreview" style="display: none; margin-top: 1rem; padding: 1rem; background: #f9fafb; border-radius: 8px; max-height: 300px; overflow: auto;">
+                    <h4 style="margin: 0 0 0.75rem 0; font-size: 0.875rem; font-weight: 600; color: #374151;">Preview (first 10 rows)</h4>
+                    <div id="datasetPreviewContent"></div>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid var(--color-border); display: flex; justify-content: space-between; gap: 0.75rem;">
+                <button class="btn btn-secondary" onclick="closeModal('datasetBuilderModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveDataset()">
+                    Save Dataset
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-container"></div>
 
     <!-- Scripts -->
     <script src="/static/js/app.js?t={{ cache_bust }}"></script>
+    <script src="/static/js/datasets.js?t={{ cache_bust }}"></script>
 </body>
 </html>

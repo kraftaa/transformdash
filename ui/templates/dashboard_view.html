@@ -96,6 +96,40 @@
             align-items: center;
         }
 
+        .dashboard-tabs {
+            display: flex;
+            gap: 8px;
+            padding: 0 24px;
+            margin-bottom: 24px;
+            overflow-x: auto;
+        }
+
+        .dashboard-tab {
+            padding: 12px 24px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: #4a5568;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .dashboard-tab:hover {
+            background: #f7fafc;
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .dashboard-tab.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+            box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+        }
+
         .filter-group {
             display: flex;
             flex-direction: column;
@@ -265,6 +299,11 @@
             <!-- Filters will be loaded here -->
         </div>
 
+        <!-- Tabs -->
+        <div id="tabsContainer" class="dashboard-tabs" style="display: none;">
+            <!-- Tabs will be loaded here -->
+        </div>
+
         <!-- Charts Grid -->
         <div id="chartsGrid" class="charts-grid">
             <div class="loading">
@@ -277,6 +316,8 @@
         const dashboardId = '{{ dashboard_id }}';
         let currentFilters = {}; // Stores filter values: {field: value}
         let filterExpressions = {}; // Stores filter expressions: {field: expression}
+        let currentDashboard = null; // Store current dashboard data
+        let currentTabId = null; // Currently active tab
 
         // Load dashboard on page load
         document.addEventListener('DOMContentLoaded', async () => {
@@ -294,6 +335,9 @@
                     throw new Error('Dashboard not found');
                 }
 
+                // Store dashboard
+                currentDashboard = dashboard;
+
                 // Set dashboard info
                 document.getElementById('dashboardName').textContent = dashboard.name;
                 document.getElementById('dashboardDescription').textContent = dashboard.description || '';
@@ -301,8 +345,13 @@
                 // Load filters
                 await loadFilters(dashboard);
 
-                // Load charts
-                await loadCharts(dashboard);
+                // Load tabs if they exist
+                if (dashboard.tabs && dashboard.tabs.length > 0) {
+                    await loadTabs(dashboard);
+                } else {
+                    // Legacy: Load charts directly (for backward compatibility)
+                    await loadCharts(dashboard);
+                }
 
             } catch (error) {
                 console.error('Error loading dashboard:', error);
@@ -346,6 +395,92 @@
                     </div>
                 `;
             }).join('');
+        }
+
+        async function loadTabs(dashboard) {
+            const tabsContainer = document.getElementById('tabsContainer');
+            tabsContainer.style.display = 'flex';
+
+            // Create tab buttons
+            tabsContainer.innerHTML = dashboard.tabs.map((tab, index) => {
+                const isActive = index === 0 ? 'active' : '';
+                return `<button class="dashboard-tab ${isActive}" onclick="switchTab('${tab.id}')">${tab.name}</button>`;
+            }).join('');
+
+            // Load first tab by default
+            if (dashboard.tabs.length > 0) {
+                currentTabId = dashboard.tabs[0].id;
+                await loadTabCharts(dashboard.tabs[0]);
+            }
+        }
+
+        async function switchTab(tabId) {
+            if (!currentDashboard || !currentDashboard.tabs) return;
+
+            // Update active tab button
+            document.querySelectorAll('.dashboard-tab').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Find and load the tab
+            const tab = currentDashboard.tabs.find(t => t.id === tabId);
+            if (tab) {
+                currentTabId = tabId;
+                await loadTabCharts(tab);
+            }
+        }
+
+        async function loadTabCharts(tab) {
+            const grid = document.getElementById('chartsGrid');
+            grid.innerHTML = '';
+
+            if (!tab.charts || tab.charts.length === 0) {
+                grid.innerHTML = '<div class="loading"><div>No charts in this tab</div></div>';
+                return;
+            }
+
+            for (const chartConfig of tab.charts) {
+                // Store chart config for menu actions
+                currentChartConfigs[chartConfig.id] = chartConfig;
+
+                const chartDiv = document.createElement('div');
+                chartDiv.className = 'chart-container';
+
+                // Build filter display HTML if chart has filters (skip invalid ones)
+                let filtersHTML = '';
+                if (chartConfig.filters && chartConfig.filters.length > 0) {
+                    const validFilters = chartConfig.filters.filter(f =>
+                        f.value !== 'CURRENT_YEAR' && f.value !== 'CURRENT_MONTH'
+                    );
+                    if (validFilters.length > 0) {
+                        const filterLabels = validFilters.map(f =>
+                            `<span style="display: inline-block; padding: 3px 8px; background: #e0e7ff; border-radius: 4px; font-size: 0.75rem; margin: 2px;">${f.field} ${f.operator} ${f.value}</span>`
+                        ).join(' ');
+                        filtersHTML = `<div style="margin-bottom: 8px; color: #6366f1; font-size: 0.85rem;">🔍 Filters: ${filterLabels}</div>`;
+                    }
+                }
+
+                // Add three-dot menu for chart actions
+                chartDiv.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                        <h3 class="chart-title" style="margin: 0;">${chartConfig.title}</h3>
+                        <div class="chart-menu" style="position: relative;">
+                            <button class="chart-menu-btn" onclick="toggleChartMenu('${chartConfig.id}')" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; color: #6b7280; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;">⋮</button>
+                            <div id="menu-${chartConfig.id}" class="chart-menu-dropdown" style="display: none; position: absolute; right: 0; top: 100%; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 160px; z-index: 1000;">
+                                <button onclick="editChartFromDashboard('${chartConfig.id}')" style="width: 100%; text-align: left; padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 0.875rem; color: #374151; transition: background 0.2s; border-radius: 8px 8px 0 0;">✏️ Edit Chart</button>
+                                <button onclick="showChartQuery('${chartConfig.id}')" style="width: 100%; text-align: left; padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 0.875rem; color: #374151; transition: background 0.2s;">📋 View Query</button>
+                                <button onclick="refreshChart('${chartConfig.id}')" style="width: 100%; text-align: left; padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 0.875rem; color: #374151; transition: background 0.2s; border-radius: 0 0 8px 8px;">🔄 Refresh</button>
+                            </div>
+                        </div>
+                    </div>
+                    ${filtersHTML}
+                    <canvas id="chart-${chartConfig.id}"></canvas>
+                `;
+                grid.appendChild(chartDiv);
+
+                await renderChart(chartConfig);
+            }
         }
 
         async function loadCharts(dashboard) {

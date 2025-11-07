@@ -46,6 +46,36 @@ function toggleDashboardsView(mode) {
 // UTILITY FUNCTIONS
 // ============================================
 
+// Helper function to get ALL charts from dashboard (both assigned to tabs and unassigned)
+function getDashboardCharts(dashboard) {
+    let allCharts = [];
+    const seenIds = new Set();
+
+    // Get charts from tabs
+    if (dashboard.tabs && dashboard.tabs.length > 0) {
+        dashboard.tabs.forEach(tab => {
+            (tab.charts || []).forEach(chart => {
+                if (!seenIds.has(chart.id)) {
+                    allCharts.push(chart);
+                    seenIds.add(chart.id);
+                }
+            });
+        });
+    }
+
+    // Add unassigned charts (charts array at top level)
+    if (dashboard.charts && Array.isArray(dashboard.charts)) {
+        dashboard.charts.forEach(chart => {
+            if (!seenIds.has(chart.id)) {
+                allCharts.push(chart);
+                seenIds.add(chart.id);
+            }
+        });
+    }
+
+    return allCharts;
+}
+
 // Show Toast Notification
 function showToast(message, type = 'info') {
     // Create toast element
@@ -90,15 +120,35 @@ function toggleSidebar() {
 
 // Switch Between Views
 function switchView(viewName) {
+    // Check if we're leaving the editor - if so, reset editor state
+    const editorView = document.getElementById('dashboard-editor-view');
+    if (editorView && editorView.classList.contains('active')) {
+        // Clear editor state when leaving
+        editorState = {
+            dashboardId: null,
+            dashboardName: null,
+            currentCharts: [],
+            availableCharts: [],
+            draggedIndex: null,
+            currentFilters: [],
+            availableFields: [],
+            tabs: [],
+            currentTabId: null,
+            dashboardData: null
+        };
+    }
+
     // Hide all views
     document.querySelectorAll('.view-content').forEach(view => {
         view.classList.remove('active');
+        view.style.display = 'none';  // Explicitly hide
     });
 
     // Show selected view
     const targetView = document.getElementById(viewName + '-view');
     if (targetView) {
         targetView.classList.add('active');
+        targetView.style.display = 'block';  // Explicitly show
     }
 
     // Update navigation active state
@@ -162,9 +212,8 @@ async function loadDashboardsAndChartsCount() {
         let totalCharts = 0;
         if (dashboardsData.dashboards) {
             dashboardsData.dashboards.forEach(dashboard => {
-                if (dashboard.charts) {
-                    totalCharts += dashboard.charts.length;
-                }
+                const charts = getDashboardCharts(dashboard);
+                totalCharts += charts.length;
             });
         }
         document.getElementById('total-charts').textContent = totalCharts;
@@ -542,8 +591,8 @@ async function findModelUsage(modelName) {
 
         if (data.dashboards) {
             data.dashboards.forEach(dashboard => {
-                if (dashboard.charts) {
-                    dashboard.charts.forEach(chart => {
+                if (getDashboardCharts(dashboard)) {
+                    getDashboardCharts(dashboard).forEach(chart => {
                         // Check if the chart uses this model
                         if (chart.model === modelName || chart.model === `gold.${modelName}` ||
                             chart.model === `silver.${modelName}` || chart.model === `bronze.${modelName}` ||
@@ -1151,7 +1200,10 @@ let editorState = {
     availableCharts: [],
     draggedIndex: null,
     currentFilters: [],
-    availableFields: []  // Store all available fields from dashboard models
+    availableFields: [],  // Store all available fields from dashboard models
+    tabs: [],  // Store tabs with their charts
+    currentTabId: null,  // Currently selected tab in editor
+    dashboardData: null  // Store full dashboard data
 };
 
 async function openDashboardEditor(dashboardId, dashboardName) {
@@ -1181,7 +1233,29 @@ async function loadEditorData() {
         // Load current dashboard charts
         const dashboardResponse = await fetch(`/api/dashboards/${editorState.dashboardId}`);
         const dashboardData = await dashboardResponse.json();
-        editorState.currentCharts = dashboardData.charts || [];
+        editorState.dashboardData = dashboardData;
+
+        // Handle tab structure
+        if (dashboardData.tabs && dashboardData.tabs.length > 0) {
+            // Tab-based structure
+            editorState.tabs = dashboardData.tabs.map(tab => ({
+                id: tab.id,
+                name: tab.name,
+                charts: tab.charts || []
+            }));
+
+            editorState.currentTabId = editorState.tabs[0].id;  // Select first tab
+        } else {
+            // Legacy flat structure - create a default tab
+            editorState.tabs = [{
+                id: 'tab_default',
+                name: 'All Charts',
+                charts: dashboardData.charts || []
+            }];
+            editorState.currentTabId = 'tab_default';
+        }
+
+        editorState.currentCharts = getDashboardCharts(dashboardData);
         editorState.currentFilters = dashboardData.filters || [];
 
         // Load all available charts
@@ -1193,6 +1267,7 @@ async function loadEditorData() {
         await fetchAvailableFields();
 
         // Render the editor
+        renderEditorTabs();
         renderDashboardFilters();
         renderEditorCharts();
         renderAvailableCharts();
@@ -1246,22 +1321,139 @@ async function fetchAvailableFields() {
     }
 }
 
+// Tab Management Functions
+function renderEditorTabs() {
+    const tabsContainer = document.getElementById('editor-tabs-container');
+    if (!tabsContainer) {
+        console.warn('Tabs container not found in editor');
+        return;
+    }
+
+    tabsContainer.innerHTML = '';
+
+    // Create tab bar with add button
+    const tabBar = document.createElement('div');
+    tabBar.className = 'editor-tab-bar';
+    tabBar.style.cssText = 'display: flex; gap: 8px; align-items: center; margin-bottom: 24px; flex-wrap: wrap;';
+
+    // Render tabs
+    editorState.tabs.forEach(tab => {
+        const tabBtn = document.createElement('button');
+        tabBtn.className = 'editor-tab-btn';
+        tabBtn.dataset.tabId = tab.id;
+
+        if (tab.id === editorState.currentTabId) {
+            tabBtn.classList.add('active');
+        }
+
+        const chartCount = tab.charts ? tab.charts.length : 0;
+
+        tabBtn.innerHTML = `
+            <span class="tab-name">${tab.name}</span>
+            <span class="tab-chart-count">${chartCount}</span>
+            <button class="tab-edit-btn" onclick="event.stopPropagation(); renameEditorTab('${tab.id}')" title="Rename tab">✏️</button>
+            ${editorState.tabs.length > 1 ? `<button class="tab-delete-btn" onclick="event.stopPropagation(); deleteEditorTab('${tab.id}')" title="Delete tab">✕</button>` : ''}
+        `;
+
+        tabBtn.onclick = () => switchEditorTab(tab.id);
+        tabBar.appendChild(tabBtn);
+    });
+
+    // Add "New Tab" button
+    const newTabBtn = document.createElement('button');
+    newTabBtn.className = 'editor-new-tab-btn';
+    newTabBtn.innerHTML = '+ New Tab';
+    newTabBtn.onclick = createNewEditorTab;
+    tabBar.appendChild(newTabBtn);
+
+    tabsContainer.appendChild(tabBar);
+}
+
+function switchEditorTab(tabId) {
+    editorState.currentTabId = tabId;
+    renderEditorTabs();
+    renderEditorCharts();
+}
+
+function createNewEditorTab() {
+    const tabName = prompt('Enter name for new tab:', 'New Tab');
+    if (!tabName) return;
+
+    const newTabId = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newTab = {
+        id: newTabId,
+        name: tabName,
+        charts: []
+    };
+
+    editorState.tabs.push(newTab);
+    editorState.currentTabId = newTabId;
+    renderEditorTabs();
+    renderEditorCharts();
+    showToast(`Created tab "${tabName}"`, 'success');
+}
+
+function renameEditorTab(tabId) {
+    const tab = editorState.tabs.find(t => t.id === tabId);
+    if (!tab) return;
+
+    const newName = prompt('Enter new name for tab:', tab.name);
+    if (!newName || newName === tab.name) return;
+
+    tab.name = newName;
+    renderEditorTabs();
+    showToast(`Renamed tab to "${newName}"`, 'success');
+}
+
+function deleteEditorTab(tabId) {
+    if (editorState.tabs.length <= 1) {
+        showToast('Cannot delete the only tab', 'error');
+        return;
+    }
+
+    const tab = editorState.tabs.find(t => t.id === tabId);
+    if (!tab) return;
+
+    const chartCount = tab.charts ? tab.charts.length : 0;
+    const confirmMsg = chartCount > 0
+        ? `Delete tab "${tab.name}" and its ${chartCount} chart(s)?`
+        : `Delete tab "${tab.name}"?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    // Remove the tab
+    editorState.tabs = editorState.tabs.filter(t => t.id !== tabId);
+
+    // Switch to first tab if we deleted the current tab
+    if (editorState.currentTabId === tabId) {
+        editorState.currentTabId = editorState.tabs[0].id;
+    }
+
+    renderEditorTabs();
+    renderEditorCharts();
+    showToast(`Deleted tab "${tab.name}"`, 'success');
+}
+
 function renderEditorCharts() {
     const grid = document.getElementById('editor-chart-grid');
     grid.innerHTML = '';
 
-    if (editorState.currentCharts.length === 0) {
+    // Get charts for the current tab
+    const currentTab = editorState.tabs.find(tab => tab.id === editorState.currentTabId);
+    const tabCharts = currentTab ? currentTab.charts : [];
+
+    if (tabCharts.length === 0) {
         grid.innerHTML = `
             <div class="empty-editor-state">
                 <div class="empty-editor-icon">📊</div>
-                <div class="empty-editor-text">No charts in this dashboard yet</div>
+                <div class="empty-editor-text">No charts in this tab yet</div>
                 <div style="font-size: 0.875rem; color: var(--color-text-secondary);">Add charts from the sidebar</div>
             </div>
         `;
         return;
     }
 
-    editorState.currentCharts.forEach((chart, index) => {
+    tabCharts.forEach((chart, index) => {
         const chartCard = document.createElement('div');
         chartCard.className = 'editor-chart-card';
         chartCard.draggable = true;
@@ -1305,9 +1497,16 @@ function renderAvailableCharts() {
     const list = document.getElementById('available-charts-list');
     list.innerHTML = '';
 
-    // Filter out charts already in dashboard
+    // Get IDs of charts that are assigned to tabs in THIS dashboard
+    const chartsInTabsIds = editorState.tabs.flatMap(tab => tab.charts.map(c => c.id));
+
+    // Filter to show:
+    // 1. Charts from currentCharts (this dashboard) that are NOT in any tab (unassigned)
+    // 2. Charts from availableCharts that are NOT in currentCharts (from other dashboards or unassigned globally)
     const currentChartIds = editorState.currentCharts.map(c => c.id);
-    const availableCharts = editorState.availableCharts.filter(c => !currentChartIds.includes(c.id));
+    const unassignedInDashboard = editorState.currentCharts.filter(c => !chartsInTabsIds.includes(c.id));
+    const chartsFromOther = editorState.availableCharts.filter(c => !currentChartIds.includes(c.id));
+    const availableCharts = [...unassignedInDashboard, ...chartsFromOther];
 
     if (availableCharts.length === 0) {
         list.innerHTML = '<p style="color: var(--color-text-secondary); font-size: 0.875rem; text-align: center; padding: 1rem;">All charts are in use</p>';
@@ -1451,22 +1650,42 @@ async function renderChartPreview(canvasId, chartConfig) {
 }
 
 function addChartToEditor(chart) {
-    editorState.currentCharts.push(chart);
-    renderEditorCharts();
-    renderAvailableCharts();
-    showToast(`Added "${chart.title || chart.id}" to dashboard`, 'success');
+    // Add chart to the current tab
+    const currentTab = editorState.tabs.find(tab => tab.id === editorState.currentTabId);
+    if (currentTab) {
+        currentTab.charts.push(chart);
+
+        // Only add to currentCharts if it's not already there (e.g., coming from another dashboard)
+        const chartExists = editorState.currentCharts.some(c => c.id === chart.id);
+        if (!chartExists) {
+            editorState.currentCharts.push(chart);
+        }
+
+        renderEditorTabs();
+        renderEditorCharts();
+        renderAvailableCharts();
+        showToast(`Added "${chart.title || chart.id}" to tab "${currentTab.name}"`, 'success');
+    }
 }
 
 function removeChartFromEditor(index) {
-    if (!editorState.currentCharts || index < 0 || index >= editorState.currentCharts.length) {
-        console.error(`Invalid index ${index} for currentCharts`, editorState.currentCharts);
+    // Remove chart from current tab
+    const currentTab = editorState.tabs.find(tab => tab.id === editorState.currentTabId);
+    if (!currentTab || index < 0 || index >= currentTab.charts.length) {
+        console.error(`Invalid index ${index} for tab charts`, currentTab);
         return;
     }
-    const chart = editorState.currentCharts[index];
-    editorState.currentCharts.splice(index, 1);
+
+    const chart = currentTab.charts[index];
+    currentTab.charts.splice(index, 1);
+
+    // Don't update currentCharts - it should represent all charts in this dashboard
+    // The chart is still part of the dashboard, just unassigned from tabs
+
+    renderEditorTabs();
     renderEditorCharts();
     renderAvailableCharts();
-    showToast(`Removed "${chart.title || chart.id}" from dashboard`, 'info');
+    showToast(`Removed "${chart.title || chart.id}" from tab`, 'info');
 }
 
 // Drag and Drop handlers
@@ -1525,11 +1744,16 @@ function handleDrop(e) {
 
 async function saveDashboardEdit() {
     try {
+        // Calculate unassigned charts (in currentCharts but not in any tab)
+        const chartsInTabs = editorState.tabs.flatMap(tab => tab.charts.map(c => c.id));
+        const unassignedCharts = editorState.currentCharts.filter(c => !chartsInTabs.includes(c.id));
+
         const response = await fetch(`/api/dashboards/${editorState.dashboardId}`, {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                charts: editorState.currentCharts,
+                tabs: editorState.tabs,  // Charts assigned to tabs
+                charts: unassignedCharts,  // Charts in dashboard but not assigned to any tab
                 filters: editorState.currentFilters
             })
         });
@@ -1715,7 +1939,7 @@ async function loadDashboards() {
                 <div class="empty-state">
                     <div class="empty-state-icon">📊</div>
                     <h3>No dashboards configured</h3>
-                    <p>Create a <code>dashboards.yml</code> file to define dashboards with charts.</p>
+                    <p>Create a new dashboard to organize your charts. You can also create standalone charts that aren't assigned to any dashboard.</p>
                 </div>
             `;
             return;
@@ -1768,7 +1992,7 @@ async function loadDashboards() {
                         </div>
                     </td>
                     <td style="text-align: center; white-space: nowrap;">
-                        <span class="chart-count-badge">${dashboard.charts?.length || 0}</span>
+                        <span class="chart-count-badge">${getDashboardCharts(dashboard)?.length || 0}</span>
                     </td>
                     <td style="white-space: nowrap;">
                         <div style="display: flex; align-items: center; gap: 6px;">
@@ -1814,7 +2038,7 @@ async function loadDashboards() {
             headerLeft.innerHTML = `
                 <span>📊</span>
                 <span class="dashboard-name" style="color: #111827 !important;">${dashboard.name}</span>
-                <span class="dashboard-id">${dashboard.charts?.length || 0} charts</span>
+                <span class="dashboard-id">${getDashboardCharts(dashboard)?.length || 0} charts</span>
             `;
 
             // Right side with action buttons
@@ -1973,13 +2197,13 @@ async function loadDashboardCharts(dashboardId, container, filters = {}) {
         const data = await response.json();
 
         const dashboard = data.dashboards.find(d => d.id === dashboardId);
-        if (!dashboard || !dashboard.charts) {
+        if (!dashboard || !getDashboardCharts(dashboard)) {
             console.log('No dashboard or charts found for:', dashboardId);
             container.innerHTML = '<p style="color: #888;">No charts configured for this dashboard</p>';
             return;
         }
 
-        console.log('Found dashboard with', dashboard.charts.length, 'charts');
+        console.log('Found dashboard with', getDashboardCharts(dashboard).length, 'charts');
 
         // Show loading state
         container.innerHTML = '<p style="color: #888;">⏳ Loading charts...</p>';
@@ -1992,7 +2216,7 @@ async function loadDashboardCharts(dashboardId, container, filters = {}) {
 
         // Render each chart sequentially to avoid overwhelming the server
         let chartsRendered = 0;
-        for (const chartConfig of dashboard.charts) {
+        for (const chartConfig of getDashboardCharts(dashboard)) {
             // Add dashboard_id to chart config so edit button knows which dashboard it belongs to
             const chartWithDashboard = { ...chartConfig, dashboard_id: dashboardId };
             // Pass both filters and filter expressions to charts
@@ -2507,12 +2731,12 @@ function getChartColors(chartConfig, dataLength) {
 // Load all charts catalog
 async function loadAllCharts() {
     try {
-        const response = await fetch('/api/dashboards');
+        const response = await fetch('/api/charts');
         const data = await response.json();
 
         const chartsList = document.getElementById('all-charts-list');
 
-        if (data.dashboards.length === 0) {
+        if (!data.charts || data.charts.length === 0) {
             chartsList.innerHTML = '<p style="color: #888;">No charts available</p>';
             return;
         }
@@ -2520,19 +2744,12 @@ async function loadAllCharts() {
         // Clear the list
         chartsList.innerHTML = '';
 
-        // Collect all charts from all dashboards
-        const allCharts = [];
-        data.dashboards.forEach(dashboard => {
-            if (dashboard.charts) {
-                dashboard.charts.forEach(chart => {
-                    allCharts.push({
-                        ...chart,
-                        dashboardName: dashboard.name,
-                        dashboardId: dashboard.id
-                    });
-                });
-            }
-        });
+        // Use all charts from the API
+        const allCharts = data.charts.map(chart => ({
+            ...chart,
+            dashboardName: 'Standalone',
+            dashboardId: null
+        }));
 
         // Display based on view mode
         if (chartsViewMode === 'table') {
@@ -2627,8 +2844,9 @@ async function loadAllCharts() {
                         <span class="chart-badge chart-badge-type">${chart.type}</span>
                         <span class="chart-badge chart-badge-model">${chart.model}</span>
                     </div>
-                    <button class="chart-item-delete-btn" title="Delete chart" style="position: absolute; top: 10px; right: 10px; background: rgba(239, 68, 68, 0.9); color: white; border: none; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; z-index: 10;">🗑️</button>
-                    <button class="chart-item-edit-btn" title="Edit chart">✏️</button>
+                    <button class="chart-item-delete-btn" title="Delete chart" style="right: 10px;">🗑️</button>
+                    <button class="chart-item-edit-btn" title="Edit chart" style="right: 50px;">✏️</button>
+                    <button class="chart-item-query-btn" title="View query" style="right: 90px;">📋</button>
                 `;
 
                 // Delete button click handler
@@ -2643,6 +2861,13 @@ async function loadAllCharts() {
                 editBtn.onclick = (e) => {
                     e.stopPropagation();
                     editChart(chart);
+                };
+
+                // Query button click handler
+                const queryBtn = card.querySelector('.chart-item-query-btn');
+                queryBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    showChartQuery(chart);
                 };
 
                 // Click on card to edit chart (opens in chart builder)
@@ -2660,7 +2885,7 @@ async function loadAllCharts() {
         // Show total count
         const countDiv = document.createElement('div');
         countDiv.className = 'charts-count';
-        countDiv.textContent = `📊 Total: ${allCharts.length} charts across ${data.dashboards.length} dashboards`;
+        countDiv.textContent = `📊 Total: ${allCharts.length} charts in the library`;
         chartsList.appendChild(countDiv);
 
     } catch (error) {
@@ -2929,6 +3154,13 @@ let currentChart = null;
 
 // Load available connections into the chart builder dropdown
 async function loadChartConnections() {
+    // Clear the editing chart ID to start fresh
+    currentEditingChartId = null;
+
+    // Reset the chart builder form
+    const chartTitle = document.getElementById('chartTitle');
+    if (chartTitle) chartTitle.value = '';
+
     try {
         const response = await fetch('/api/connections/list');
         const data = await response.json();
@@ -4845,6 +5077,50 @@ async function editChart(chartConfig) {
 }
 
 // Delete a chart with confirmation
+function showChartQuery(chart) {
+    // Build the SQL query based on chart configuration
+    let query = '';
+
+    if (chart.type === 'table') {
+        // Table chart query
+        const columns = chart.columns && chart.columns.length > 0
+            ? chart.columns.join(', ')
+            : '*';
+        query = `SELECT ${columns}\nFROM ${chart.model}\nLIMIT 1000;`;
+    } else if (chart.type === 'metric') {
+        // Metric chart query
+        query = `SELECT ${chart.aggregation}(${chart.y_axis}) as value\nFROM ${chart.model};`;
+    } else {
+        // Regular chart query (bar, line, pie, etc.)
+        let selectClause = `${chart.x_axis}`;
+        if (chart.y_axis) {
+            selectClause += `, ${chart.aggregation}(${chart.y_axis}) as value`;
+        }
+        if (chart.category) {
+            selectClause += `, ${chart.category}`;
+        }
+
+        query = `SELECT ${selectClause}\nFROM ${chart.model}`;
+
+        if (chart.x_axis) {
+            query += `\nGROUP BY ${chart.x_axis}`;
+            if (chart.category) {
+                query += `, ${chart.category}`;
+            }
+        }
+
+        if (chart.y_axis) {
+            query += `\nORDER BY value DESC`;
+        }
+
+        query += ';';
+    }
+
+    // Show query in a modal/alert
+    const message = `SQL Query for "${chart.title}":\n\n${query}`;
+    alert(message);
+}
+
 async function deleteChart(chartConfig) {
     if (!confirm(`Are you sure you want to delete "${chartConfig.title}"? This action cannot be undone.`)) {
         return;
@@ -5158,13 +5434,9 @@ async function saveChart() {
     const yAxis = document.getElementById('chartYAxis').value;
     const aggregation = document.getElementById('chartAggregation').value;
     const dashboardSelect = document.getElementById('chartDashboard');
-    let dashboardId = dashboardSelect.value;
+    let dashboardId = dashboardSelect.value || null;  // null means standalone chart
 
-    // Validation
-    if (!dashboardId) {
-        alert('Please select a dashboard');
-        return;
-    }
+    // No validation for dashboard - it's optional now (standalone charts allowed)
 
     // For table charts, only table is required
     if (chartType === 'table') {
@@ -5323,22 +5595,45 @@ async function saveChart() {
 }
 
 async function showChartSavedModal(dashboardId, chartId, title) {
-    // Fetch dashboard name from API
-    let dashboardName = 'Custom Charts'; // Default fallback
-    try {
-        const response = await fetch('/api/dashboards');
-        const data = await response.json();
-        const dashboard = data.dashboards?.find(d => d.id === dashboardId);
-        if (dashboard) {
-            dashboardName = dashboard.name;
+    // Handle standalone charts (no dashboard)
+    const isStandalone = !dashboardId || dashboardId === 'null';
+
+    let dashboardName = null;
+    if (!isStandalone) {
+        // Fetch dashboard name from API
+        try {
+            const response = await fetch('/api/dashboards');
+            const data = await response.json();
+            const dashboard = data.dashboards?.find(d => d.id === dashboardId);
+            if (dashboard) {
+                dashboardName = dashboard.name;
+            }
+        } catch (error) {
+            console.error('Error fetching dashboard name:', error);
         }
-    } catch (error) {
-        console.error('Error fetching dashboard name:', error);
     }
 
     const modal = document.createElement('div');
     modal.className = 'modal active';
     modal.id = 'chart-saved-modal';
+
+    // Different message for standalone vs dashboard charts
+    const messageHtml = isStandalone
+        ? `Your chart "<strong>${title}</strong>" has been saved as a standalone chart in the global chart library.`
+        : `Your chart "<strong>${title}</strong>" has been saved to the "<strong>${dashboardName}</strong>" dashboard.`;
+
+    // Different buttons for standalone vs dashboard charts
+    const buttonsHtml = isStandalone
+        ? `<button class="btn btn-primary" style="width: 100%;" onclick="closeChartSavedModal();">
+               Continue Creating Charts
+           </button>`
+        : `<button class="btn btn-primary" style="width: 100%;" onclick="viewChartInDashboard('${dashboardId}'); closeChartSavedModal();">
+               📊 View in Dashboard
+           </button>
+           <button class="btn btn-secondary" style="width: 100%;" onclick="closeChartSavedModal();">
+               Continue Creating Charts
+           </button>`;
+
     modal.innerHTML = `
         <div class="modal-overlay" onclick="closeChartSavedModal()"></div>
         <div class="modal-container" style="max-width: 500px;">
@@ -5352,15 +5647,10 @@ async function showChartSavedModal(dashboardId, chartId, title) {
             </div>
             <div class="modal-body">
                 <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">
-                    Your chart "<strong>${title}</strong>" has been saved to the "<strong>${dashboardName}</strong>" dashboard.
+                    ${messageHtml}
                 </p>
                 <div style="display: flex; gap: 0.75rem; flex-direction: column;">
-                    <button class="btn btn-primary" style="width: 100%;" onclick="viewChartInDashboard('${dashboardId}'); closeChartSavedModal();">
-                        📊 View in Dashboard
-                    </button>
-                    <button class="btn btn-secondary" style="width: 100%;" onclick="closeChartSavedModal();">
-                        Continue Creating Charts
-                    </button>
+                    ${buttonsHtml}
                 </div>
             </div>
         </div>
@@ -5368,10 +5658,19 @@ async function showChartSavedModal(dashboardId, chartId, title) {
     document.body.appendChild(modal);
 }
 
-function closeChartSavedModal() {
+async function closeChartSavedModal() {
     const modal = document.getElementById('chart-saved-modal');
     if (modal) {
         modal.remove();
+    }
+
+    // Reload dashboards to show the newly created chart
+    await loadDashboards();
+
+    // Also refresh the charts list if currently viewing charts
+    const chartsView = document.getElementById('charts-view');
+    if (chartsView && chartsView.classList.contains('active')) {
+        await loadAllCharts();
     }
 }
 
@@ -5379,8 +5678,11 @@ async function viewChartInDashboard(dashboardId) {
     // Switch to dashboards view
     switchView('dashboards');
 
-    // Wait for dashboards to load
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Reload dashboards to get the latest data
+    await loadDashboards();
+
+    // Wait a bit for rendering
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     // Expand the dashboard
     const dashboardCard = document.getElementById('dashboard-' + dashboardId);
@@ -5992,7 +6294,7 @@ async function loadDashboardFilters(dashboardId, container) {
         // Create filter dropdowns
         for (const filter of dashboard.filters) {
             // Get model from filter config, fallback to first chart's model
-            const model = filter.model || (dashboard.charts && dashboard.charts.length > 0 ? dashboard.charts[0].model : null);
+            const model = filter.model || (getDashboardCharts(dashboard) && getDashboardCharts(dashboard).length > 0 ? getDashboardCharts(dashboard)[0].model : null);
 
             if (!model) {
                 console.warn(`No model found for filter ${filter.field}`);

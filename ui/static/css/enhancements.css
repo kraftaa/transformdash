@@ -616,3 +616,95 @@ body.dark-mode .dashboard-card:hover {
     vertical-align: middle;
 }
 
+/* ============================================
+   EDITOR TAB STYLES
+   ============================================ */
+
+.editor-tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #374151;
+}
+
+.editor-tab-btn:hover {
+    background: #f9fafb;
+    border-color: #667eea;
+}
+
+.editor-tab-btn.active {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+    box-shadow: 0 1px 3px rgba(102, 126, 234, 0.3);
+}
+
+.editor-tab-btn .tab-name {
+    flex: 1;
+}
+
+.editor-tab-btn .tab-chart-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    background: #e0e7ff;
+    color: #4338ca;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.editor-tab-btn.active .tab-chart-count {
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+}
+
+.editor-tab-btn .tab-edit-btn,
+.editor-tab-btn .tab-delete-btn {
+    background: transparent;
+    border: none;
+    padding: 2px 4px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.editor-tab-btn .tab-edit-btn:hover,
+.editor-tab-btn .tab-delete-btn:hover {
+    opacity: 1;
+}
+
+.editor-tab-btn.active .tab-edit-btn,
+.editor-tab-btn.active .tab-delete-btn {
+    color: white;
+}
+
+.editor-new-tab-btn {
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px dashed #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #667eea;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.editor-new-tab-btn:hover {
+    background: #f0f4ff;
+    border-color: #667eea;
+}
+

@@ -2117,7 +2117,9 @@ body.dark-mode .code-block {
     z-index: 10;
 }
 
-.chart-item-card:hover .chart-item-edit-btn {
+.chart-item-card:hover .chart-item-edit-btn,
+.chart-item-card:hover .chart-item-delete-btn,
+.chart-item-card:hover .chart-item-query-btn {
     opacity: 1;
 }
 
@@ -2130,6 +2132,22 @@ body.dark-mode .code-block {
 body.dark-mode .chart-item-edit-btn:hover {
     background: var(--color-gray-700);
     color: var(--color-primary-light);
+}
+
+.chart-item-delete-btn,
+.chart-item-query-btn {
+    position: absolute;
+    top: var(--space-3);
+    background: transparent;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+    font-size: 1.2rem;
+    opacity: 0;
+    z-index: 10;
 }
 
 .chart-item-icon {

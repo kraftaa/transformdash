@@ -21,6 +21,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from transformations.dbt_loader import DBTModelLoader
 from transformations import DAG
 from orchestration.history import RunHistory
+import datasets_api
 
 app = FastAPI(title="TransformDash", description="Hybrid Data Transformation Platform")
 
@@ -208,19 +209,54 @@ async def get_exposures():
 
 @app.get("/api/dashboards")
 async def get_dashboards():
-    """Get dashboard configurations with charts from dashboards.yml"""
+    """Get dashboard configurations from database"""
     try:
-        import yaml
-        dashboards_file = models_dir / "dashboards.yml"
+        from connection_manager import connection_manager
 
-        if not dashboards_file.exists():
-            return {"dashboards": []}
+        with connection_manager.get_connection() as pg:
+            # Get all dashboards
+            dashboards_query = """
+                SELECT id, name, description, created_at, updated_at
+                FROM dashboards
+                ORDER BY name
+            """
+            dashboards = pg.execute(dashboards_query, fetch=True)
 
-        with open(dashboards_file, 'r') as f:
-            data = yaml.safe_load(f)
+            result = []
+            for dashboard in dashboards:
+                dashboard_id = dashboard['id']
 
-        return {"dashboards": data.get('dashboards', [])}
+                # Get tabs for this dashboard
+                tabs_query = """
+                    SELECT id, name, position
+                    FROM dashboard_tabs
+                    WHERE dashboard_id = %s
+                    ORDER BY position
+                """
+                tabs = pg.execute(tabs_query, (dashboard_id,), fetch=True)
+
+                # Get filters for this dashboard
+                filters_query = """
+                    SELECT field, label, model, expression, apply_to_tabs
+                    FROM dashboard_filters
+                    WHERE dashboard_id = %s
+                    ORDER BY position
+                """
+                filters = pg.execute(filters_query, (dashboard_id,), fetch=True)
+
+                result.append({
+                    'id': dashboard['id'],
+                    'name': dashboard['name'],
+                    'description': dashboard['description'],
+                    'tabs': [{'id': t['id'], 'name': t['name']} for t in tabs],
+                    'filters': [dict(f) for f in filters]
+                })
+
+            return {"dashboards": result}
     except Exception as e:
+        import traceback
+        import logging
+        logging.error(f"Error getting dashboards: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -302,165 +338,181 @@ async def create_dashboard(request: Request):
 
 @app.get("/api/charts")
 async def get_all_charts():
-    """Get all charts from all dashboards"""
+    """Get all charts from the database"""
     try:
-        import yaml
+        import logging
+        import json
+        from connection_manager import connection_manager
 
-        dashboards_file = models_dir / "dashboards.yml"
+        logging.info("Fetching all charts from database")
 
-        if not dashboards_file.exists():
-            return {"charts": []}
+        with connection_manager.get_connection() as pg:
+            # Query all charts from the charts table
+            charts_data = pg.execute("""
+                SELECT
+                    c.id,
+                    c.chart_number,
+                    c.title,
+                    c.type,
+                    c.model,
+                    c.connection_id,
+                    c.x_axis,
+                    c.y_axis,
+                    c.aggregation,
+                    c.columns,
+                    c.category,
+                    c.config,
+                    c.created_at,
+                    c.updated_at
+                FROM charts c
+                ORDER BY c.chart_number ASC
+            """, fetch=True)
 
-        with open(dashboards_file, 'r') as f:
-            data = yaml.safe_load(f) or {}
+            all_charts = []
+            # Handle case where charts_data might be None or empty list
+            if charts_data:
+                for chart in charts_data:
+                    chart_dict = {
+                        'id': chart['id'],
+                        'chart_number': chart['chart_number'],
+                        'title': chart['title'],
+                        'type': chart['type'],
+                        'model': chart['model'],
+                        'connection_id': chart['connection_id'],
+                        'x_axis': chart['x_axis'],
+                        'y_axis': chart['y_axis'],
+                        'aggregation': chart['aggregation'],
+                        'columns': chart['columns'] if chart['columns'] else [],
+                        'category': chart['category'],
+                        'config': chart['config'] if chart['config'] else {},
+                        'created_at': str(chart['created_at']) if chart['created_at'] else None,
+                        'updated_at': str(chart['updated_at']) if chart['updated_at'] else None
+                    }
+                    all_charts.append(chart_dict)
 
-        all_charts = []
-        for dashboard in data.get('dashboards', []):
-            dashboard_name = dashboard.get('name', '')
-            for chart in dashboard.get('charts', []):
-                chart_copy = chart.copy()
-                chart_copy['dashboardName'] = dashboard_name
-                chart_copy['dashboardId'] = dashboard.get('id', '')
-                all_charts.append(chart_copy)
+            logging.info(f"Fetched {len(all_charts)} charts from database")
+            return {"charts": all_charts}
 
-        return {"charts": all_charts}
     except Exception as e:
+        import logging
+        import traceback
+        logging.error(f"Error fetching charts: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/charts/save")
 async def save_chart(request: Request):
-    """Save a chart configuration to dashboards.yml"""
+    """Save a chart configuration to database"""
     try:
-        import yaml
         import logging
+        import json
+        from connection_manager import connection_manager
 
         # Parse request body
         body = await request.json()
         logging.info(f"Received chart save request: {body}")
 
-        dashboards_file = models_dir / "dashboards.yml"
-        logging.info(f"Dashboards file path: {dashboards_file}")
-
         # Get chart config from request
-        chart_config = {
-            "id": body.get("id"),
-            "title": body.get("title"),
-            "type": body.get("type"),
-            "model": body.get("model"),
-            "x_axis": body.get("x_axis"),
-            "y_axis": body.get("y_axis"),
-            "aggregation": body.get("aggregation", "sum")
-        }
+        chart_id = body.get("id")
+        chart_title = body.get("title")
+        chart_type = body.get("type")
+        chart_model = body.get("model")
+        x_axis = body.get("x_axis", "")
+        y_axis = body.get("y_axis", "")
+        aggregation = body.get("aggregation", "sum")
+        columns = body.get("columns", None)  # For table charts
+        category = body.get("category", None)  # For stacked charts
+        config = body.get("config", None)  # Additional config
 
-        # For table charts, add columns field if provided
-        if body.get("type") == "table" and "columns" in body:
-            chart_config["columns"] = body.get("columns")
+        # Get the target dashboard ID from the request (None means standalone chart)
+        target_dashboard_id = body.get('dashboard_id', None)
+        tab_id = body.get('tab_id', None)  # NULL means unassigned
+        logging.info(f"Target dashboard ID: {target_dashboard_id}, tab: {tab_id}")
 
-        # For stacked bar charts, add category field if provided
-        if body.get("type") == "bar-stacked" and "category" in body:
-            chart_config["category"] = body.get("category")
+        with connection_manager.get_connection() as pg:
+            # Handle creating a new dashboard if requested
+            if target_dashboard_id == '__new__':
+                new_dashboard_name = body.get('dashboard_name', 'New Dashboard')
+                new_dashboard_description = body.get('dashboard_description', '')
+                target_dashboard_id = new_dashboard_name.lower().replace(' ', '_').replace('-', '_')
 
-        logging.info(f"Chart config: {chart_config}")
+                # Check if dashboard exists
+                existing_dashboard = pg.execute(
+                    "SELECT id FROM dashboards WHERE id = %s",
+                    (target_dashboard_id,),
+                    fetch=True
+                )
 
-        # Load existing dashboards or create new structure
-        if dashboards_file.exists():
-            with open(dashboards_file, 'r') as f:
-                data = yaml.safe_load(f) or {}
-            logging.info(f"Loaded existing dashboards: {len(data.get('dashboards', []))} dashboards")
-        else:
-            data = {}
-            logging.info("No existing dashboards file, creating new")
+                if not existing_dashboard:
+                    # Create new dashboard
+                    pg.execute("""
+                        INSERT INTO dashboards (id, name, description)
+                        VALUES (%s, %s, %s)
+                    """, (target_dashboard_id, new_dashboard_name, new_dashboard_description))
 
-        if 'dashboards' not in data:
-            data['dashboards'] = []
+                    # Create default tab
+                    pg.execute("""
+                        INSERT INTO dashboard_tabs (id, dashboard_id, name, position)
+                        VALUES (%s, %s, %s, %s)
+                    """, (f"{target_dashboard_id}_tab_default", target_dashboard_id, 'All Charts', 0))
 
-        # Get the target dashboard ID from the request, default to 'custom_charts'
-        target_dashboard_id = body.get('dashboard_id', 'custom_charts')
-        logging.info(f"Target dashboard ID: {target_dashboard_id}")
+                    tab_id = f"{target_dashboard_id}_tab_default"
+                    logging.info(f"Created new dashboard: {target_dashboard_id}")
 
-        # Handle creating a new dashboard if requested
-        if target_dashboard_id == '__new__':
-            # Create a new dashboard with provided name and description
-            new_dashboard_name = body.get('dashboard_name', 'New Dashboard')
-            new_dashboard_description = body.get('dashboard_description', '')
-            target_dashboard_id = new_dashboard_name.lower().replace(' ', '_').replace('-', '_')
+            # Check if dashboard exists (only if dashboard_id provided)
+            if target_dashboard_id:
+                dashboard_check = pg.execute(
+                    "SELECT id FROM dashboards WHERE id = %s",
+                    (target_dashboard_id,),
+                    fetch=True
+                )
 
-            # Check if this new dashboard already exists
-            existing = False
-            for dashboard in data['dashboards']:
-                if dashboard.get('id') == target_dashboard_id:
-                    existing = True
-                    break
+                if not dashboard_check:
+                    raise HTTPException(status_code=404, detail=f"Dashboard {target_dashboard_id} not found")
 
-            if not existing:
-                new_dashboard = {
-                    'id': target_dashboard_id,
-                    'name': new_dashboard_name,
-                    'description': new_dashboard_description,
-                    'charts': []
-                }
-                data['dashboards'].append(new_dashboard)
-                logging.info(f"Created new dashboard: {target_dashboard_id}")
+            # Insert or update chart in charts table
+            pg.execute("""
+                INSERT INTO charts (id, title, type, model, x_axis, y_axis, aggregation, columns, category, config)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                    title = EXCLUDED.title,
+                    type = EXCLUDED.type,
+                    model = EXCLUDED.model,
+                    x_axis = EXCLUDED.x_axis,
+                    y_axis = EXCLUDED.y_axis,
+                    aggregation = EXCLUDED.aggregation,
+                    columns = EXCLUDED.columns,
+                    category = EXCLUDED.category,
+                    config = EXCLUDED.config,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (
+                chart_id, chart_title, chart_type, chart_model,
+                x_axis, y_axis, aggregation,
+                json.dumps(columns) if columns else None,
+                category,
+                json.dumps(config) if config else None
+            ))
 
-        # Find or create the target dashboard
-        target_dashboard = None
-        for dashboard in data['dashboards']:
-            if dashboard.get('id') == target_dashboard_id:
-                target_dashboard = dashboard
-                break
-
-        if not target_dashboard:
-            # Dashboard doesn't exist, create it (fallback behavior)
-            target_dashboard = {
-                'id': target_dashboard_id,
-                'name': target_dashboard_id.replace('_', ' ').title(),
-                'description': 'User-created charts',
-                'charts': []
-            }
-            data['dashboards'].append(target_dashboard)
-            logging.info(f"Created new dashboard: {target_dashboard_id}")
-        else:
-            logging.info(f"Found existing dashboard: {target_dashboard_id}")
-
-        # First, remove the chart from ALL other dashboards to prevent duplication
-        # This ensures a chart belongs to only one dashboard at a time
-        for dashboard in data['dashboards']:
-            if dashboard.get('id') != target_dashboard_id and 'charts' in dashboard:
-                original_count = len(dashboard['charts'])
-                dashboard['charts'] = [c for c in dashboard['charts'] if c.get('id') != chart_config['id']]
-                if len(dashboard['charts']) < original_count:
-                    logging.info(f"Removed chart {chart_config['id']} from dashboard {dashboard.get('id')}")
-
-        # Add chart to target dashboard
-        if 'charts' not in target_dashboard:
-            target_dashboard['charts'] = []
-
-        # Check if chart with same ID exists in target dashboard and update it
-        chart_exists = False
-        for i, chart in enumerate(target_dashboard['charts']):
-            if chart.get('id') == chart_config['id']:
-                target_dashboard['charts'][i] = chart_config
-                chart_exists = True
-                logging.info(f"Updated existing chart: {chart_config['id']}")
-                break
-
-        if not chart_exists:
-            target_dashboard['charts'].append(chart_config)
-            logging.info(f"Added new chart: {chart_config['id']}")
-
-        # Save back to file
-        with open(dashboards_file, 'w') as f:
-            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
-
-        logging.info(f"Successfully saved chart to {dashboards_file}")
+            # Insert or update dashboard_charts junction (only if dashboard_id provided)
+            if target_dashboard_id:
+                pg.execute("""
+                    INSERT INTO dashboard_charts (dashboard_id, chart_id, tab_id, position)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (dashboard_id, chart_id, tab_id) DO UPDATE SET
+                        position = EXCLUDED.position
+                """, (target_dashboard_id, chart_id, tab_id, 0))
+                logging.info(f"Successfully saved chart {chart_id} to dashboard {target_dashboard_id}")
+            else:
+                logging.info(f"Successfully saved standalone chart {chart_id} (no dashboard assignment)")
 
         return {
             "success": True,
             "message": "Chart saved successfully!",
             "dashboard_id": target_dashboard_id,
-            "chart_id": chart_config['id']
+            "chart_id": chart_id
         }
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         error_detail = f"{str(e)}\n{traceback.format_exc()}"
@@ -599,25 +651,110 @@ async def add_chart_to_dashboard(dashboard_id: str, request: Request):
 
 @app.get("/api/dashboards/{dashboard_id}")
 async def get_dashboard(dashboard_id: str):
-    """Get a specific dashboard by ID"""
+    """Get a specific dashboard by ID from database"""
     try:
-        import yaml
+        from connection_manager import connection_manager
 
-        dashboards_file = models_dir / "dashboards.yml"
+        with connection_manager.get_connection() as pg:
+            # Get dashboard details
+            dashboard_query = """
+                SELECT id, name, description, created_at, updated_at
+                FROM dashboards
+                WHERE id = %s
+            """
+            dashboard_result = pg.execute(dashboard_query, (dashboard_id,), fetch=True)
 
-        if not dashboards_file.exists():
-            raise HTTPException(status_code=404, detail="Dashboards file not found")
+            if not dashboard_result:
+                raise HTTPException(status_code=404, detail=f"Dashboard {dashboard_id} not found")
 
-        # Load dashboards
-        with open(dashboards_file, 'r') as f:
-            data = yaml.safe_load(f) or {}
+            dashboard = dashboard_result[0]
 
-        # Find the specific dashboard
-        for dashboard in data.get('dashboards', []):
-            if dashboard.get('id') == dashboard_id:
-                return dashboard
+            # Get tabs for this dashboard
+            tabs_query = """
+                SELECT id, name, position
+                FROM dashboard_tabs
+                WHERE dashboard_id = %s
+                ORDER BY position
+            """
+            tabs = pg.execute(tabs_query, (dashboard_id,), fetch=True)
 
-        raise HTTPException(status_code=404, detail=f"Dashboard {dashboard_id} not found")
+            # Get all charts assigned to this dashboard with their tab assignments
+            assigned_charts_query = """
+                SELECT
+                    c.id, c.title, c.type, c.model, c.x_axis, c.y_axis,
+                    c.aggregation, c.columns, c.category, c.config,
+                    dc.tab_id, dc.position
+                FROM charts c
+                JOIN dashboard_charts dc ON c.id = dc.chart_id
+                WHERE dc.dashboard_id = %s
+                ORDER BY dc.position
+            """
+            assigned_charts = pg.execute(assigned_charts_query, (dashboard_id,), fetch=True)
+
+            # Organize charts by tab
+            tabs_with_charts = []
+            unassigned_charts = []
+
+            for tab in tabs:
+                tab_charts = [
+                    {
+                        'id': chart['id'],
+                        'title': chart['title'],
+                        'type': chart['type'],
+                        'model': chart['model'],
+                        'x_axis': chart['x_axis'],
+                        'y_axis': chart['y_axis'],
+                        'aggregation': chart['aggregation'],
+                        'columns': chart['columns'],
+                        'category': chart['category'],
+                        'config': chart['config']
+                    }
+                    for chart in assigned_charts
+                    if chart['tab_id'] == tab['id']
+                ]
+
+                tabs_with_charts.append({
+                    'id': tab['id'],
+                    'name': tab['name'],
+                    'position': tab['position'],
+                    'charts': tab_charts
+                })
+
+            # Get unassigned charts (tab_id is NULL)
+            unassigned_charts = [
+                {
+                    'id': chart['id'],
+                    'title': chart['title'],
+                    'type': chart['type'],
+                    'model': chart['model'],
+                    'x_axis': chart['x_axis'],
+                    'y_axis': chart['y_axis'],
+                    'aggregation': chart['aggregation'],
+                    'columns': chart['columns'],
+                    'category': chart['category'],
+                    'config': chart['config']
+                }
+                for chart in assigned_charts
+                if chart['tab_id'] is None
+            ]
+
+            # Get filters for this dashboard
+            filters_query = """
+                SELECT field, label, model, expression, apply_to_tabs
+                FROM dashboard_filters
+                WHERE dashboard_id = %s
+                ORDER BY position
+            """
+            filters = pg.execute(filters_query, (dashboard_id,), fetch=True)
+
+            return {
+                'id': dashboard['id'],
+                'name': dashboard['name'],
+                'description': dashboard['description'],
+                'tabs': tabs_with_charts,
+                'charts': unassigned_charts,  # Unassigned charts
+                'filters': [dict(f) for f in filters]
+            }
 
     except HTTPException:
         raise
@@ -630,51 +767,152 @@ async def get_dashboard(dashboard_id: str):
 
 @app.put("/api/dashboards/{dashboard_id}")
 async def update_dashboard(dashboard_id: str, request: Request):
-    """Update a dashboard with new chart configuration and filters"""
+    """Update a dashboard with new chart configuration and filters in database"""
     try:
-        import yaml
         import logging
+        from connection_manager import connection_manager
 
         body = await request.json()
-        new_charts = body.get("charts", [])
+        new_tabs = body.get("tabs", None)
+        new_charts = body.get("charts", None)  # Unassigned charts
         new_filters = body.get("filters", [])
 
-        dashboards_file = models_dir / "dashboards.yml"
+        with connection_manager.get_connection() as pg:
+            # Check if dashboard exists
+            dashboard_result = pg.execute(
+                "SELECT id, name FROM dashboards WHERE id = %s",
+                (dashboard_id,),
+                fetch=True
+            )
 
-        if not dashboards_file.exists():
-            raise HTTPException(status_code=404, detail="Dashboards file not found")
+            if not dashboard_result:
+                raise HTTPException(status_code=404, detail=f"Dashboard {dashboard_id} not found")
 
-        # Load dashboards
-        with open(dashboards_file, 'r') as f:
-            data = yaml.safe_load(f) or {}
+            dashboard_name = dashboard_result[0]['name']
 
-        # Find target dashboard
-        target_dashboard = None
-        for dashboard in data.get('dashboards', []):
-            if dashboard.get('id') == dashboard_id:
-                target_dashboard = dashboard
-                break
+            # Update tabs if provided
+            if new_tabs is not None:
+                # Delete existing tabs and their chart assignments
+                pg.execute("DELETE FROM dashboard_tabs WHERE dashboard_id = %s", (dashboard_id,))
 
-        if not target_dashboard:
-            raise HTTPException(status_code=404, detail=f"Dashboard {dashboard_id} not found")
+                # Insert new tabs
+                for idx, tab in enumerate(new_tabs):
+                    tab_id = tab.get('id')
+                    tab_name = tab.get('name')
 
-        # Update charts in the dashboard
-        target_dashboard['charts'] = new_charts
+                    # Create tab
+                    pg.execute("""
+                        INSERT INTO dashboard_tabs (id, dashboard_id, name, position)
+                        VALUES (%s, %s, %s, %s)
+                    """, (tab_id, dashboard_id, tab_name, idx))
 
-        # Update filters in the dashboard
-        if new_filters:
-            target_dashboard['filters'] = new_filters
-        elif 'filters' in target_dashboard:
-            # Remove filters key if empty array provided
-            del target_dashboard['filters']
+                    # Insert charts into this tab
+                    tab_charts = tab.get('charts', [])
+                    for chart_idx, chart in enumerate(tab_charts):
+                        chart_id = chart.get('id')
 
-        # Save back to file
-        with open(dashboards_file, 'w') as f:
-            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+                        # Check if chart exists in charts table; if not, create it
+                        chart_exists = pg.execute(
+                            "SELECT id FROM charts WHERE id = %s",
+                            (chart_id,),
+                            fetch=True
+                        )
+
+                        if not chart_exists:
+                            # Create chart in global charts table
+                            pg.execute("""
+                                INSERT INTO charts (id, title, type, model, x_axis, y_axis, aggregation, columns, category, config)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            """, (
+                                chart_id,
+                                chart.get('title'),
+                                chart.get('type'),
+                                chart.get('model'),
+                                chart.get('x_axis', ''),
+                                chart.get('y_axis', ''),
+                                chart.get('aggregation', 'sum'),
+                                chart.get('columns'),
+                                chart.get('category'),
+                                chart.get('config')
+                            ))
+
+                        # Assign chart to tab via junction table
+                        pg.execute("""
+                            INSERT INTO dashboard_charts (dashboard_id, chart_id, tab_id, position)
+                            VALUES (%s, %s, %s, %s)
+                            ON CONFLICT (dashboard_id, chart_id, tab_id) DO UPDATE SET
+                                position = EXCLUDED.position
+                        """, (dashboard_id, chart_id, tab_id, chart_idx))
+
+            # Update unassigned charts (charts with tab_id = NULL)
+            if new_charts is not None:
+                # Delete existing unassigned charts for this dashboard
+                pg.execute(
+                    "DELETE FROM dashboard_charts WHERE dashboard_id = %s AND tab_id IS NULL",
+                    (dashboard_id,)
+                )
+
+                # Insert unassigned charts
+                for chart_idx, chart in enumerate(new_charts):
+                    chart_id = chart.get('id')
+
+                    # Check if chart exists; if not, create it
+                    chart_exists = pg.execute(
+                        "SELECT id FROM charts WHERE id = %s",
+                        (chart_id,),
+                        fetch=True
+                    )
+
+                    if not chart_exists:
+                        pg.execute("""
+                            INSERT INTO charts (id, title, type, model, x_axis, y_axis, aggregation, columns, category, config)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            chart_id,
+                            chart.get('title'),
+                            chart.get('type'),
+                            chart.get('model'),
+                            chart.get('x_axis', ''),
+                            chart.get('y_axis', ''),
+                            chart.get('aggregation', 'sum'),
+                            chart.get('columns'),
+                            chart.get('category'),
+                            chart.get('config')
+                        ))
+
+                    # Assign chart as unassigned (tab_id = NULL)
+                    pg.execute("""
+                        INSERT INTO dashboard_charts (dashboard_id, chart_id, tab_id, position)
+                        VALUES (%s, %s, NULL, %s)
+                        ON CONFLICT (dashboard_id, chart_id, tab_id) DO UPDATE SET
+                            position = EXCLUDED.position
+                    """, (dashboard_id, chart_id, chart_idx))
+
+            # Update filters if provided
+            if new_filters is not None:
+                # Delete existing filters
+                pg.execute("DELETE FROM dashboard_filters WHERE dashboard_id = %s", (dashboard_id,))
+
+                # Insert new filters
+                for filter_idx, filter_def in enumerate(new_filters):
+                    pg.execute("""
+                        INSERT INTO dashboard_filters (dashboard_id, field, label, model, expression, apply_to_tabs, position)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        dashboard_id,
+                        filter_def.get('field'),
+                        filter_def.get('label'),
+                        filter_def.get('model'),
+                        filter_def.get('expression'),
+                        filter_def.get('apply_to_tabs', []),
+                        filter_idx
+                    ))
+
+            logging.info(f"Successfully updated dashboard {dashboard_id}")
 
         return {
             "success": True,
-            "message": f"Dashboard '{target_dashboard.get('name', dashboard_id)}' updated successfully!"
+            "message": f"Dashboard '{dashboard_name}' updated successfully!"
         }
     except HTTPException:
         raise
@@ -683,6 +921,50 @@ async def update_dashboard(dashboard_id: str, request: Request):
         logging.error(f"Error updating dashboard: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ============================================================================
+# Datasets API Routes
+# ============================================================================
+
+@app.get("/api/datasets")
+async def get_datasets():
+    """Get all datasets"""
+    return await datasets_api.get_all_datasets()
+
+
+@app.get("/api/datasets/{dataset_id}")
+async def get_dataset(dataset_id: str):
+    """Get a single dataset by ID"""
+    return await datasets_api.get_dataset_by_id(dataset_id)
+
+
+@app.post("/api/datasets")
+async def create_dataset_endpoint(request: Request):
+    """Create a new dataset"""
+    return await datasets_api.create_dataset(request)
+
+
+@app.put("/api/datasets/{dataset_id}")
+async def update_dataset_endpoint(dataset_id: str, request: Request):
+    """Update an existing dataset"""
+    return await datasets_api.update_dataset(dataset_id, request)
+
+
+@app.delete("/api/datasets/{dataset_id}")
+async def delete_dataset_endpoint(dataset_id: str):
+    """Delete a dataset"""
+    return await datasets_api.delete_dataset(dataset_id)
+
+
+@app.post("/api/datasets/preview")
+async def preview_dataset_endpoint(request: Request):
+    """Preview data from a dataset"""
+    return await datasets_api.preview_dataset(request)
+
+
+# ============================================================================
+# Table/Column Metadata Routes
+# ============================================================================
 
 @app.get("/api/tables/{table_name}/columns")
 async def get_table_columns(table_name: str, schema: str = "public", connection_id: str = None):
