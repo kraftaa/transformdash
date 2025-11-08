@@ -283,6 +283,7 @@ body {
     position: relative;
     font-size: 0.9375rem;
     font-weight: 500;
+    margin-bottom: 8px;
 }
 
 .nav-item:hover {

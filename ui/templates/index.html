@@ -69,7 +69,7 @@
 
             <div class="nav-section">
                 <div class="nav-section-title">Analytics</div>
-                <a href="#" class="nav-item" data-view="query-lab" onclick="switchView('query-lab')">
+                <a href="#" class="nav-item" data-view="query-lab" onclick="event.preventDefault(); event.stopPropagation(); switchView('query-lab'); return false;">
                     <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
                         <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
@@ -77,7 +77,7 @@
                     </svg>
                     <span class="nav-text">SQL Query Lab</span>
                 </a>
-                <a href="#" class="nav-item" data-view="charts" onclick="switchView('charts')">
+                <a href="#" class="nav-item" data-view="charts" onclick="event.preventDefault(); event.stopPropagation(); switchView('charts'); return false;">
                     <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
                     </svg>
