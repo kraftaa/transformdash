@@ -2875,11 +2875,32 @@ async function loadAllCharts() {
 
                 // Query button click handler
                 const queryBtn = card.querySelector('.chart-item-query-btn');
-                queryBtn.onclick = (e) => {
+                queryBtn.onclick = async (e) => {
                     e.stopPropagation();
                     console.log('📋 QUERY BUTTON CLICKED! Chart:', chart.title);
                     console.log('Chart config:', chart);
-                    showChartQuery(chart);
+
+                    // Generate SQL directly here
+                    let sql = '';
+                    if (chart.type === 'table') {
+                        if (chart.columns && Array.isArray(chart.columns) && chart.columns.length > 0) {
+                            const columnsList = chart.columns.map(col => col.name || col).join(', ');
+                            sql = `SELECT ${columnsList}\nFROM public.${chart.model}\nLIMIT 100`;
+                        } else {
+                            sql = `SELECT *\nFROM public.${chart.model}\nLIMIT 100`;
+                        }
+                    } else {
+                        sql = `SELECT *\nFROM public.${chart.model}\nLIMIT 100`;
+                    }
+
+                    // Copy to clipboard
+                    try {
+                        await navigator.clipboard.writeText(sql);
+                        alert('✅ SQL Query copied to clipboard!\n\n' + sql);
+                    } catch (err) {
+                        alert('SQL Query:\n\n' + sql + '\n\n(Click OK, then manually copy from console)');
+                        console.log('SQL Query for copying:', sql);
+                    }
                 };
 
                 // Click on card to edit chart (opens in chart builder)
@@ -4814,17 +4835,28 @@ function showChartQuery(chartConfig) {
         currentSqlQuery = sql;
 
         // Update modal content
+        console.log('🔍 Looking for modal elements...');
         const modalTitle = document.getElementById('sqlQueryModalTitle');
         const modalCode = document.getElementById('sqlQueryCode');
         const modal = document.getElementById('sqlQueryModal');
         const copyButton = document.getElementById('copySqlButton');
 
+        console.log('Modal elements found:', {
+            modalTitle: !!modalTitle,
+            modalCode: !!modalCode,
+            modal: !!modal,
+            copyButton: !!copyButton
+        });
+
         if (!modalTitle || !modalCode || !modal || !copyButton) {
             // Fallback to alert if modal elements don't exist
+            console.error('❌ Modal elements missing! Check HTML for sqlQueryModal');
             alert('SQL Query:\n\n' + sql + '\n\n(Modal not found - check console for query)');
             console.log('SQL Query:', sql);
             return;
         }
+
+        console.log('✅ All modal elements found, showing modal...');
 
         modalTitle.textContent = `SQL Query: ${chartConfig.title}`;
         modalCode.textContent = sql;
