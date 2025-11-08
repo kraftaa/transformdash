@@ -270,9 +270,248 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// Edit dataset (placeholder for now)
-function editDataset(datasetId) {
-    alert('Edit dataset feature coming soon! Dataset ID: ' + datasetId);
+// Global variable to store current dataset being edited
+let currentEditingDataset = null;
+
+// Edit dataset - opens full editor view
+async function editDataset(datasetId) {
+    try {
+        // Fetch dataset details
+        const response = await fetch(`/api/datasets/${datasetId}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.detail || 'Failed to load dataset');
+        }
+
+        const dataset = data.dataset;
+        currentEditingDataset = dataset;
+
+        // Populate editor fields
+        document.getElementById('dataset-editor-title').textContent = dataset.name;
+        document.getElementById('dataset-editor-subtitle').textContent = dataset.description || 'No description';
+
+        document.getElementById('edit-dataset-name').value = dataset.name;
+        document.getElementById('edit-dataset-description').value = dataset.description || '';
+        document.getElementById('edit-dataset-connection').textContent = dataset.connection_id || 'Default Connection';
+
+        // Source type
+        const sourceLabel = dataset.source_type === 'sql' ? 'Custom SQL' : 'Table';
+        document.getElementById('edit-dataset-source-type').textContent = sourceLabel;
+
+        // Show table info if applicable
+        if (dataset.source_type === 'table') {
+            document.getElementById('edit-dataset-table-info').style.display = 'block';
+            const schema = dataset.schema_name || 'public';
+            document.getElementById('edit-dataset-table-ref').textContent = `${schema}.${dataset.table_name}`;
+        } else {
+            document.getElementById('edit-dataset-table-info').style.display = 'none';
+        }
+
+        // Load columns
+        await loadDatasetColumns(dataset);
+
+        // Load query
+        loadDatasetQuery(dataset);
+
+        // Switch to editor view
+        document.getElementById('datasets-view').style.display = 'none';
+        document.getElementById('dataset-editor-view').style.display = 'block';
+
+        // Reset to overview tab
+        switchEditorTab('overview');
+
+    } catch (error) {
+        console.error('Error loading dataset:', error);
+        alert('Error loading dataset: ' + error.message);
+    }
+}
+
+// Close dataset editor and return to list
+function closeDatasetEditor() {
+    document.getElementById('dataset-editor-view').style.display = 'none';
+    document.getElementById('datasets-view').style.display = 'block';
+    currentEditingDataset = null;
+}
+
+// Switch between editor tabs
+function switchEditorTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.editor-tab').forEach(tab => {
+        const tabId = tab.id.replace('editor-tab-', '');
+        if (tabId === tabName) {
+            tab.style.color = '#667eea';
+            tab.style.fontWeight = '600';
+            tab.style.borderBottom = '2px solid #667eea';
+            tab.style.marginBottom = '-2px';
+        } else {
+            tab.style.color = '#6b7280';
+            tab.style.fontWeight = '500';
+            tab.style.borderBottom = 'none';
+            tab.style.marginBottom = '0';
+        }
+    });
+
+    // Update content visibility
+    document.querySelectorAll('.editor-tab-content').forEach(content => {
+        content.style.display = 'none';
+    });
+    document.getElementById(`editor-content-${tabName}`).style.display = 'block';
+}
+
+// Load dataset columns
+async function loadDatasetColumns(dataset) {
+    try {
+        const tbody = document.getElementById('dataset-columns-tbody');
+        tbody.innerHTML = '<tr><td colspan="3" style="padding: 2rem; text-align: center; color: #9ca3af;">Loading columns...</td></tr>';
+
+        // Preview the dataset to get columns
+        const previewPayload = {
+            source_type: dataset.source_type,
+            limit: 1
+        };
+
+        if (dataset.source_type === 'table') {
+            previewPayload.table_name = dataset.table_name;
+            previewPayload.schema_name = dataset.schema_name || 'public';
+        } else {
+            previewPayload.sql_query = dataset.sql_query;
+        }
+
+        const response = await fetch('/api/datasets/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(previewPayload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.detail || 'Failed to load columns');
+        }
+
+        if (data.columns && data.columns.length > 0) {
+            tbody.innerHTML = data.columns.map(col => {
+                // Try to infer type from data
+                let dataType = 'unknown';
+                if (data.data && data.data.length > 0) {
+                    const val = data.data[0][col];
+                    if (typeof val === 'number') {
+                        dataType = Number.isInteger(val) ? 'integer' : 'numeric';
+                    } else if (typeof val === 'boolean') {
+                        dataType = 'boolean';
+                    } else if (typeof val === 'string') {
+                        dataType = 'text';
+                    }
+                }
+
+                return `
+                    <tr style="border-bottom: 1px solid #f3f4f6;">
+                        <td style="padding: 12px; font-family: monospace; color: #1f2937;">${col}</td>
+                        <td style="padding: 12px; color: #6b7280;">${dataType}</td>
+                        <td style="padding: 12px; color: #6b7280;">Yes</td>
+                    </tr>
+                `;
+            }).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="3" style="padding: 2rem; text-align: center; color: #9ca3af;">No columns found</td></tr>';
+        }
+
+    } catch (error) {
+        console.error('Error loading columns:', error);
+        const tbody = document.getElementById('dataset-columns-tbody');
+        tbody.innerHTML = `<tr><td colspan="3" style="padding: 2rem; text-align: center; color: #dc2626;">Error: ${error.message}</td></tr>`;
+    }
+}
+
+// Refresh dataset columns
+async function refreshDatasetColumns() {
+    if (currentEditingDataset) {
+        await loadDatasetColumns(currentEditingDataset);
+        showToast('Columns refreshed', 'success');
+    }
+}
+
+// Load dataset query for display
+function loadDatasetQuery(dataset) {
+    const queryDisplay = document.getElementById('dataset-query-display');
+
+    if (dataset.source_type === 'sql') {
+        queryDisplay.textContent = dataset.sql_query;
+    } else {
+        const schema = dataset.schema_name || 'public';
+        queryDisplay.textContent = `SELECT *\nFROM ${schema}.${dataset.table_name};`;
+    }
+}
+
+// Copy dataset query to clipboard
+function copyDatasetQuery() {
+    const queryText = document.getElementById('dataset-query-display').textContent;
+    navigator.clipboard.writeText(queryText).then(() => {
+        showToast('SQL copied to clipboard', 'success');
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+        alert('Failed to copy to clipboard');
+    });
+}
+
+// Add metric (placeholder)
+function addMetric() {
+    alert('Add metric feature coming soon! This will allow you to define calculated fields like SUM(amount), AVG(price), etc.');
+}
+
+// Update dataset query (placeholder)
+function updateDatasetQuery() {
+    alert('Update query feature coming soon!');
+}
+
+// Save dataset changes
+async function saveDatasetChanges() {
+    if (!currentEditingDataset) {
+        alert('No dataset loaded');
+        return;
+    }
+
+    try {
+        const name = document.getElementById('edit-dataset-name').value.trim();
+        const description = document.getElementById('edit-dataset-description').value.trim();
+
+        if (!name) {
+            alert('Dataset name is required');
+            return;
+        }
+
+        const payload = {
+            name: name,
+            description: description
+        };
+
+        const response = await fetch(`/api/datasets/${currentEditingDataset.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.detail || 'Failed to update dataset');
+        }
+
+        showToast('Dataset updated successfully!', 'success');
+
+        // Update title
+        document.getElementById('dataset-editor-title').textContent = name;
+        document.getElementById('dataset-editor-subtitle').textContent = description || 'No description';
+
+        // Update current dataset object
+        currentEditingDataset.name = name;
+        currentEditingDataset.description = description;
+
+    } catch (error) {
+        console.error('Error saving dataset:', error);
+        alert('Error saving dataset: ' + error.message);
+    }
 }
 
 // Delete dataset

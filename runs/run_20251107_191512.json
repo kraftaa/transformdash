@@ -1,0 +1,351 @@
+{
+  "run_id": "run_20251107_191512",
+  "timestamp": "2025-11-07T19:15:13.399928",
+  "summary": {
+    "total_models": 33,
+    "successes": 1,
+    "failures": 32,
+    "total_execution_time": 0.596858,
+    "models": {
+      "stg_products": {
+        "execution_time": 0.029568,
+        "timestamp": "2025-11-07T19:15:12.832490",
+        "status": "failed",
+        "error": "column \"name\" does not exist\nLINE 7:     name as product_name,\n            ^\n"
+      },
+      "stg_customers": {
+        "execution_time": 0.060235,
+        "timestamp": "2025-11-07T19:15:12.892834",
+        "status": "success"
+      },
+      "stg_stock_levels": {
+        "execution_time": 0.023399,
+        "timestamp": "2025-11-07T19:15:12.916313",
+        "status": "failed",
+        "error": "relation \"raw.stock_levels\" does not exist\nLINE 11: FROM raw.stock_levels\n              ^\n"
+      },
+      "stg_shipments": {
+        "execution_time": 0.009208,
+        "timestamp": "2025-11-07T19:15:12.925603",
+        "status": "failed",
+        "error": "relation \"raw.shipments\" does not exist\nLINE 20: FROM raw.shipments\n              ^\n"
+      },
+      "stg_returns": {
+        "execution_time": 0.008914,
+        "timestamp": "2025-11-07T19:15:12.934598",
+        "status": "failed",
+        "error": "relation \"raw.returns\" does not exist\nLINE 12: FROM raw.returns\n              ^\n"
+      },
+      "stg_suppliers": {
+        "execution_time": 0.026095,
+        "timestamp": "2025-11-07T19:15:12.960788",
+        "status": "failed",
+        "error": "relation \"raw.suppliers\" does not exist\nLINE 13: FROM raw.suppliers\n              ^\n"
+      },
+      "stg_orders": {
+        "execution_time": 0.017952,
+        "timestamp": "2025-11-07T19:15:12.978818",
+        "status": "failed",
+        "error": "column \"status\" does not exist\nLINE 11:         status\n                 ^\n"
+      },
+      "stg_promotions": {
+        "execution_time": 0.013219,
+        "timestamp": "2025-11-07T19:15:12.992121",
+        "status": "failed",
+        "error": "relation \"raw.promotions\" does not exist\nLINE 15: FROM raw.promotions\n              ^\n"
+      },
+      "stg_commissions": {
+        "execution_time": 0.011638,
+        "timestamp": "2025-11-07T19:15:13.003909",
+        "status": "failed",
+        "error": "relation \"raw.commissions\" does not exist\nLINE 13: FROM raw.commissions\n              ^\n"
+      },
+      "stg_order_items": {
+        "execution_time": 0.013372,
+        "timestamp": "2025-11-07T19:15:13.017388",
+        "status": "failed",
+        "error": "relation \"raw.order_items\" does not exist\nLINE 13: FROM raw.order_items\n              ^\n"
+      },
+      "stg_purchase_orders": {
+        "execution_time": 0.010091,
+        "timestamp": "2025-11-07T19:15:13.027592",
+        "status": "failed",
+        "error": "relation \"raw.purchase_orders\" does not exist\nLINE 12: FROM raw.purchase_orders\n              ^\n"
+      },
+      "stg_warehouses": {
+        "execution_time": 0.015271,
+        "timestamp": "2025-11-07T19:15:13.043000",
+        "status": "failed",
+        "error": "relation \"raw.warehouses\" does not exist\nLINE 11: FROM raw.warehouses\n              ^\n"
+      },
+      "stg_employees": {
+        "execution_time": 0.015995,
+        "timestamp": "2025-11-07T19:15:13.059120",
+        "status": "failed",
+        "error": "relation \"raw.employees\" does not exist\nLINE 14: FROM raw.employees\n              ^\n"
+      },
+      "stg_campaigns": {
+        "execution_time": 0.018545,
+        "timestamp": "2025-11-07T19:15:13.077794",
+        "status": "failed",
+        "error": "relation \"raw.campaigns\" does not exist\nLINE 14: FROM raw.campaigns\n              ^\n"
+      },
+      "stg_payment_transactions": {
+        "execution_time": 0.023902,
+        "timestamp": "2025-11-07T19:15:13.101849",
+        "status": "failed",
+        "error": "relation \"raw.payment_transactions\" does not exist\nLINE 13: FROM raw.payment_transactions\n              ^\n"
+      },
+      "stg_carriers": {
+        "execution_time": 0.015263,
+        "timestamp": "2025-11-07T19:15:13.117233",
+        "status": "failed",
+        "error": "relation \"raw.carriers\" does not exist\nLINE 10: FROM raw.carriers\n              ^\n"
+      },
+      "int_return_analysis": {
+        "execution_time": 0.022906,
+        "timestamp": "2025-11-07T19:15:13.140218",
+        "status": "failed",
+        "error": "relation \"public.stg_returns\" does not exist\nLINE 15: FROM public.stg_returns r\n              ^\n"
+      },
+      "int_customer_orders": {
+        "execution_time": 0.017932,
+        "timestamp": "2025-11-07T19:15:13.158272",
+        "status": "failed",
+        "error": "relation \"public.stg_orders\" does not exist\nLINE 14:     from public.stg_orders o\n                  ^\n"
+      },
+      "int_promo_utilization": {
+        "execution_time": 0.015286,
+        "timestamp": "2025-11-07T19:15:13.173696",
+        "status": "failed",
+        "error": "relation \"public.stg_promotions\" does not exist\nLINE 23: FROM public.stg_promotions p\n              ^\n"
+      },
+      "int_order_details": {
+        "execution_time": 0.012264,
+        "timestamp": "2025-11-07T19:15:13.187009",
+        "status": "failed",
+        "error": "relation \"public.stg_order_items\" does not exist\nLINE 19: FROM public.stg_order_items oi\n              ^\n"
+      },
+      "int_supplier_orders": {
+        "execution_time": 0.013122,
+        "timestamp": "2025-11-07T19:15:13.200570",
+        "status": "failed",
+        "error": "relation \"public.stg_purchase_orders\" does not exist\nLINE 16: FROM public.stg_purchase_orders po\n              ^\n"
+      },
+      "int_inventory_summary": {
+        "execution_time": 0.014733,
+        "timestamp": "2025-11-07T19:15:13.215410",
+        "status": "failed",
+        "error": "relation \"public.stg_stock_levels\" does not exist\nLINE 17: FROM public.stg_stock_levels sl\n              ^\n"
+      },
+      "int_sales_commissions": {
+        "execution_time": 0.023032,
+        "timestamp": "2025-11-07T19:15:13.238534",
+        "status": "failed",
+        "error": "relation \"public.stg_commissions\" does not exist\nLINE 19: FROM public.stg_commissions c\n              ^\n"
+      },
+      "int_employee_performance": {
+        "execution_time": 0.011307,
+        "timestamp": "2025-11-07T19:15:13.249943",
+        "status": "failed",
+        "error": "relation \"public.stg_employees\" does not exist\nLINE 24: FROM public.stg_employees e\n              ^\n"
+      },
+      "int_campaign_performance": {
+        "execution_time": 0.0083,
+        "timestamp": "2025-11-07T19:15:13.258312",
+        "status": "failed",
+        "error": "relation \"public.stg_campaigns\" does not exist\nLINE 24: FROM public.stg_campaigns c\n              ^\n"
+      },
+      "int_payment_reconciliation": {
+        "execution_time": 0.017607,
+        "timestamp": "2025-11-07T19:15:13.276009",
+        "status": "failed",
+        "error": "relation \"public.stg_payment_transactions\" does not exist\nLINE 19: FROM public.stg_payment_transactions pt\n              ^\n"
+      },
+      "int_shipment_tracking": {
+        "execution_time": 0.019581,
+        "timestamp": "2025-11-07T19:15:13.295680",
+        "status": "failed",
+        "error": "relation \"public.stg_shipments\" does not exist\nLINE 25: FROM public.stg_shipments sh\n              ^\n"
+      },
+      "fct_customer_returns": {
+        "execution_time": 0.023392,
+        "timestamp": "2025-11-07T19:15:13.319352",
+        "status": "failed",
+        "error": "relation \"public.int_return_analysis\" does not exist\nLINE 17: FROM public.int_return_analysis\n              ^\n"
+      },
+      "fct_orders": {
+        "execution_time": 0.016337,
+        "timestamp": "2025-11-07T19:15:13.335797",
+        "status": "failed",
+        "error": "relation \"public.int_customer_orders\" does not exist\nLINE 23:     from public.int_customer_orders\n                  ^\n"
+      },
+      "fct_sales_performance": {
+        "execution_time": 0.011107,
+        "timestamp": "2025-11-07T19:15:13.346994",
+        "status": "failed",
+        "error": "relation \"public.int_order_details\" does not exist\nLINE 19:     FROM public.int_order_details\n                  ^\n"
+      },
+      "fct_inventory_metrics": {
+        "execution_time": 0.018525,
+        "timestamp": "2025-11-07T19:15:13.365594",
+        "status": "failed",
+        "error": "relation \"public.int_inventory_summary\" does not exist\nLINE 19: FROM public.int_inventory_summary\n              ^\n"
+      },
+      "fct_marketing_roi": {
+        "execution_time": 0.017553,
+        "timestamp": "2025-11-07T19:15:13.383266",
+        "status": "failed",
+        "error": "relation \"public.int_campaign_performance\" does not exist\nLINE 15:     FROM public.int_campaign_performance\n                  ^\n"
+      },
+      "fct_shipping_logistics": {
+        "execution_time": 0.016145,
+        "timestamp": "2025-11-07T19:15:13.399534",
+        "status": "failed",
+        "error": "relation \"public.int_shipment_tracking\" does not exist\nLINE 23: FROM public.int_shipment_tracking\n              ^\n"
+      }
+    },
+    "logs": [
+      "[2025-11-07 19:15:12.802] [INFO] Starting transformation pipeline",
+      "[2025-11-07 19:15:12.802] [INFO] Execution order: stg_products \u2192 stg_customers \u2192 stg_stock_levels \u2192 stg_shipments \u2192 stg_returns \u2192 stg_suppliers \u2192 stg_orders \u2192 stg_promotions \u2192 stg_commissions \u2192 stg_order_items \u2192 stg_purchase_orders \u2192 stg_warehouses \u2192 stg_employees \u2192 stg_campaigns \u2192 stg_payment_transactions \u2192 stg_carriers \u2192 int_return_analysis \u2192 int_customer_orders \u2192 int_promo_utilization \u2192 int_order_details \u2192 int_supplier_orders \u2192 int_inventory_summary \u2192 int_sales_commissions \u2192 int_employee_performance \u2192 int_campaign_performance \u2192 int_payment_reconciliation \u2192 int_shipment_tracking \u2192 fct_customer_returns \u2192 fct_orders \u2192 fct_sales_performance \u2192 fct_inventory_metrics \u2192 fct_marketing_roi \u2192 fct_shipping_logistics",
+      "[2025-11-07 19:15:12.802] [INFO] Executing: stg_products [sql]",
+      "[2025-11-07 19:15:12.832] [ERROR] Failed: stg_products - column \"name\" does not exist\nLINE 7:     name as product_name,\n            ^\n",
+      "[2025-11-07 19:15:12.832] [INFO] Executing: stg_customers [sql]",
+      "[2025-11-07 19:15:12.892] [SUCCESS] Completed: stg_customers in 0.060s",
+      "[2025-11-07 19:15:12.892] [INFO] Executing: stg_stock_levels [sql]",
+      "[2025-11-07 19:15:12.916] [ERROR] Failed: stg_stock_levels - relation \"raw.stock_levels\" does not exist\nLINE 11: FROM raw.stock_levels\n              ^\n",
+      "[2025-11-07 19:15:12.916] [INFO] Executing: stg_shipments [sql]",
+      "[2025-11-07 19:15:12.925] [ERROR] Failed: stg_shipments - relation \"raw.shipments\" does not exist\nLINE 20: FROM raw.shipments\n              ^\n",
+      "[2025-11-07 19:15:12.925] [INFO] Executing: stg_returns [sql]",
+      "[2025-11-07 19:15:12.934] [ERROR] Failed: stg_returns - relation \"raw.returns\" does not exist\nLINE 12: FROM raw.returns\n              ^\n",
+      "[2025-11-07 19:15:12.934] [INFO] Executing: stg_suppliers [sql]",
+      "[2025-11-07 19:15:12.960] [ERROR] Failed: stg_suppliers - relation \"raw.suppliers\" does not exist\nLINE 13: FROM raw.suppliers\n              ^\n",
+      "[2025-11-07 19:15:12.960] [INFO] Executing: stg_orders [sql]",
+      "[2025-11-07 19:15:12.978] [ERROR] Failed: stg_orders - column \"status\" does not exist\nLINE 11:         status\n                 ^\n",
+      "[2025-11-07 19:15:12.978] [INFO] Executing: stg_promotions [sql]",
+      "[2025-11-07 19:15:12.992] [ERROR] Failed: stg_promotions - relation \"raw.promotions\" does not exist\nLINE 15: FROM raw.promotions\n              ^\n",
+      "[2025-11-07 19:15:12.992] [INFO] Executing: stg_commissions [sql]",
+      "[2025-11-07 19:15:13.003] [ERROR] Failed: stg_commissions - relation \"raw.commissions\" does not exist\nLINE 13: FROM raw.commissions\n              ^\n",
+      "[2025-11-07 19:15:13.003] [INFO] Executing: stg_order_items [sql]",
+      "[2025-11-07 19:15:13.017] [ERROR] Failed: stg_order_items - relation \"raw.order_items\" does not exist\nLINE 13: FROM raw.order_items\n              ^\n",
+      "[2025-11-07 19:15:13.017] [INFO] Executing: stg_purchase_orders [sql]",
+      "[2025-11-07 19:15:13.027] [ERROR] Failed: stg_purchase_orders - relation \"raw.purchase_orders\" does not exist\nLINE 12: FROM raw.purchase_orders\n              ^\n",
+      "[2025-11-07 19:15:13.027] [INFO] Executing: stg_warehouses [sql]",
+      "[2025-11-07 19:15:13.043] [ERROR] Failed: stg_warehouses - relation \"raw.warehouses\" does not exist\nLINE 11: FROM raw.warehouses\n              ^\n",
+      "[2025-11-07 19:15:13.043] [INFO] Executing: stg_employees [sql]",
+      "[2025-11-07 19:15:13.059] [ERROR] Failed: stg_employees - relation \"raw.employees\" does not exist\nLINE 14: FROM raw.employees\n              ^\n",
+      "[2025-11-07 19:15:13.059] [INFO] Executing: stg_campaigns [sql]",
+      "[2025-11-07 19:15:13.077] [ERROR] Failed: stg_campaigns - relation \"raw.campaigns\" does not exist\nLINE 14: FROM raw.campaigns\n              ^\n",
+      "[2025-11-07 19:15:13.077] [INFO] Executing: stg_payment_transactions [sql]",
+      "[2025-11-07 19:15:13.101] [ERROR] Failed: stg_payment_transactions - relation \"raw.payment_transactions\" does not exist\nLINE 13: FROM raw.payment_transactions\n              ^\n",
+      "[2025-11-07 19:15:13.101] [INFO] Executing: stg_carriers [sql]",
+      "[2025-11-07 19:15:13.117] [ERROR] Failed: stg_carriers - relation \"raw.carriers\" does not exist\nLINE 10: FROM raw.carriers\n              ^\n",
+      "[2025-11-07 19:15:13.117] [INFO] Executing: int_return_analysis [sql]",
+      "[2025-11-07 19:15:13.140] [ERROR] Failed: int_return_analysis - relation \"public.stg_returns\" does not exist\nLINE 15: FROM public.stg_returns r\n              ^\n",
+      "[2025-11-07 19:15:13.140] [INFO] Executing: int_customer_orders [sql]",
+      "[2025-11-07 19:15:13.158] [ERROR] Failed: int_customer_orders - relation \"public.stg_orders\" does not exist\nLINE 14:     from public.stg_orders o\n                  ^\n",
+      "[2025-11-07 19:15:13.158] [INFO] Executing: int_promo_utilization [sql]",
+      "[2025-11-07 19:15:13.173] [ERROR] Failed: int_promo_utilization - relation \"public.stg_promotions\" does not exist\nLINE 23: FROM public.stg_promotions p\n              ^\n",
+      "[2025-11-07 19:15:13.173] [INFO] Executing: int_order_details [sql]",
+      "[2025-11-07 19:15:13.187] [ERROR] Failed: int_order_details - relation \"public.stg_order_items\" does not exist\nLINE 19: FROM public.stg_order_items oi\n              ^\n",
+      "[2025-11-07 19:15:13.187] [INFO] Executing: int_supplier_orders [sql]",
+      "[2025-11-07 19:15:13.200] [ERROR] Failed: int_supplier_orders - relation \"public.stg_purchase_orders\" does not exist\nLINE 16: FROM public.stg_purchase_orders po\n              ^\n",
+      "[2025-11-07 19:15:13.200] [INFO] Executing: int_inventory_summary [sql]",
+      "[2025-11-07 19:15:13.215] [ERROR] Failed: int_inventory_summary - relation \"public.stg_stock_levels\" does not exist\nLINE 17: FROM public.stg_stock_levels sl\n              ^\n",
+      "[2025-11-07 19:15:13.215] [INFO] Executing: int_sales_commissions [sql]",
+      "[2025-11-07 19:15:13.238] [ERROR] Failed: int_sales_commissions - relation \"public.stg_commissions\" does not exist\nLINE 19: FROM public.stg_commissions c\n              ^\n",
+      "[2025-11-07 19:15:13.238] [INFO] Executing: int_employee_performance [sql]",
+      "[2025-11-07 19:15:13.249] [ERROR] Failed: int_employee_performance - relation \"public.stg_employees\" does not exist\nLINE 24: FROM public.stg_employees e\n              ^\n",
+      "[2025-11-07 19:15:13.249] [INFO] Executing: int_campaign_performance [sql]",
+      "[2025-11-07 19:15:13.258] [ERROR] Failed: int_campaign_performance - relation \"public.stg_campaigns\" does not exist\nLINE 24: FROM public.stg_campaigns c\n              ^\n",
+      "[2025-11-07 19:15:13.258] [INFO] Executing: int_payment_reconciliation [sql]",
+      "[2025-11-07 19:15:13.276] [ERROR] Failed: int_payment_reconciliation - relation \"public.stg_payment_transactions\" does not exist\nLINE 19: FROM public.stg_payment_transactions pt\n              ^\n",
+      "[2025-11-07 19:15:13.276] [INFO] Executing: int_shipment_tracking [sql]",
+      "[2025-11-07 19:15:13.295] [ERROR] Failed: int_shipment_tracking - relation \"public.stg_shipments\" does not exist\nLINE 25: FROM public.stg_shipments sh\n              ^\n",
+      "[2025-11-07 19:15:13.295] [INFO] Executing: fct_customer_returns [sql]",
+      "[2025-11-07 19:15:13.319] [ERROR] Failed: fct_customer_returns - relation \"public.int_return_analysis\" does not exist\nLINE 17: FROM public.int_return_analysis\n              ^\n",
+      "[2025-11-07 19:15:13.319] [INFO] Executing: fct_orders [sql]",
+      "[2025-11-07 19:15:13.335] [ERROR] Failed: fct_orders - relation \"public.int_customer_orders\" does not exist\nLINE 23:     from public.int_customer_orders\n                  ^\n",
+      "[2025-11-07 19:15:13.335] [INFO] Executing: fct_sales_performance [sql]",
+      "[2025-11-07 19:15:13.347] [ERROR] Failed: fct_sales_performance - relation \"public.int_order_details\" does not exist\nLINE 19:     FROM public.int_order_details\n                  ^\n",
+      "[2025-11-07 19:15:13.347] [INFO] Executing: fct_inventory_metrics [sql]",
+      "[2025-11-07 19:15:13.365] [ERROR] Failed: fct_inventory_metrics - relation \"public.int_inventory_summary\" does not exist\nLINE 19: FROM public.int_inventory_summary\n              ^\n",
+      "[2025-11-07 19:15:13.365] [INFO] Executing: fct_marketing_roi [sql]",
+      "[2025-11-07 19:15:13.383] [ERROR] Failed: fct_marketing_roi - relation \"public.int_campaign_performance\" does not exist\nLINE 15:     FROM public.int_campaign_performance\n                  ^\n",
+      "[2025-11-07 19:15:13.383] [INFO] Executing: fct_shipping_logistics [sql]",
+      "[2025-11-07 19:15:13.399] [ERROR] Failed: fct_shipping_logistics - relation \"public.int_shipment_tracking\" does not exist\nLINE 23: FROM public.int_shipment_tracking\n              ^\n",
+      "[2025-11-07 19:15:13.399] [INFO] Pipeline completed in 0.597s"
+    ]
+  },
+  "logs": [
+    "[2025-11-07 19:15:12.802] [INFO] Starting transformation pipeline",
+    "[2025-11-07 19:15:12.802] [INFO] Execution order: stg_products \u2192 stg_customers \u2192 stg_stock_levels \u2192 stg_shipments \u2192 stg_returns \u2192 stg_suppliers \u2192 stg_orders \u2192 stg_promotions \u2192 stg_commissions \u2192 stg_order_items \u2192 stg_purchase_orders \u2192 stg_warehouses \u2192 stg_employees \u2192 stg_campaigns \u2192 stg_payment_transactions \u2192 stg_carriers \u2192 int_return_analysis \u2192 int_customer_orders \u2192 int_promo_utilization \u2192 int_order_details \u2192 int_supplier_orders \u2192 int_inventory_summary \u2192 int_sales_commissions \u2192 int_employee_performance \u2192 int_campaign_performance \u2192 int_payment_reconciliation \u2192 int_shipment_tracking \u2192 fct_customer_returns \u2192 fct_orders \u2192 fct_sales_performance \u2192 fct_inventory_metrics \u2192 fct_marketing_roi \u2192 fct_shipping_logistics",
+    "[2025-11-07 19:15:12.802] [INFO] Executing: stg_products [sql]",
+    "[2025-11-07 19:15:12.832] [ERROR] Failed: stg_products - column \"name\" does not exist\nLINE 7:     name as product_name,\n            ^\n",
+    "[2025-11-07 19:15:12.832] [INFO] Executing: stg_customers [sql]",
+    "[2025-11-07 19:15:12.892] [SUCCESS] Completed: stg_customers in 0.060s",
+    "[2025-11-07 19:15:12.892] [INFO] Executing: stg_stock_levels [sql]",
+    "[2025-11-07 19:15:12.916] [ERROR] Failed: stg_stock_levels - relation \"raw.stock_levels\" does not exist\nLINE 11: FROM raw.stock_levels\n              ^\n",
+    "[2025-11-07 19:15:12.916] [INFO] Executing: stg_shipments [sql]",
+    "[2025-11-07 19:15:12.925] [ERROR] Failed: stg_shipments - relation \"raw.shipments\" does not exist\nLINE 20: FROM raw.shipments\n              ^\n",
+    "[2025-11-07 19:15:12.925] [INFO] Executing: stg_returns [sql]",
+    "[2025-11-07 19:15:12.934] [ERROR] Failed: stg_returns - relation \"raw.returns\" does not exist\nLINE 12: FROM raw.returns\n              ^\n",
+    "[2025-11-07 19:15:12.934] [INFO] Executing: stg_suppliers [sql]",
+    "[2025-11-07 19:15:12.960] [ERROR] Failed: stg_suppliers - relation \"raw.suppliers\" does not exist\nLINE 13: FROM raw.suppliers\n              ^\n",
+    "[2025-11-07 19:15:12.960] [INFO] Executing: stg_orders [sql]",
+    "[2025-11-07 19:15:12.978] [ERROR] Failed: stg_orders - column \"status\" does not exist\nLINE 11:         status\n                 ^\n",
+    "[2025-11-07 19:15:12.978] [INFO] Executing: stg_promotions [sql]",
+    "[2025-11-07 19:15:12.992] [ERROR] Failed: stg_promotions - relation \"raw.promotions\" does not exist\nLINE 15: FROM raw.promotions\n              ^\n",
+    "[2025-11-07 19:15:12.992] [INFO] Executing: stg_commissions [sql]",
+    "[2025-11-07 19:15:13.003] [ERROR] Failed: stg_commissions - relation \"raw.commissions\" does not exist\nLINE 13: FROM raw.commissions\n              ^\n",
+    "[2025-11-07 19:15:13.003] [INFO] Executing: stg_order_items [sql]",
+    "[2025-11-07 19:15:13.017] [ERROR] Failed: stg_order_items - relation \"raw.order_items\" does not exist\nLINE 13: FROM raw.order_items\n              ^\n",
+    "[2025-11-07 19:15:13.017] [INFO] Executing: stg_purchase_orders [sql]",
+    "[2025-11-07 19:15:13.027] [ERROR] Failed: stg_purchase_orders - relation \"raw.purchase_orders\" does not exist\nLINE 12: FROM raw.purchase_orders\n              ^\n",
+    "[2025-11-07 19:15:13.027] [INFO] Executing: stg_warehouses [sql]",
+    "[2025-11-07 19:15:13.043] [ERROR] Failed: stg_warehouses - relation \"raw.warehouses\" does not exist\nLINE 11: FROM raw.warehouses\n              ^\n",
+    "[2025-11-07 19:15:13.043] [INFO] Executing: stg_employees [sql]",
+    "[2025-11-07 19:15:13.059] [ERROR] Failed: stg_employees - relation \"raw.employees\" does not exist\nLINE 14: FROM raw.employees\n              ^\n",
+    "[2025-11-07 19:15:13.059] [INFO] Executing: stg_campaigns [sql]",
+    "[2025-11-07 19:15:13.077] [ERROR] Failed: stg_campaigns - relation \"raw.campaigns\" does not exist\nLINE 14: FROM raw.campaigns\n              ^\n",
+    "[2025-11-07 19:15:13.077] [INFO] Executing: stg_payment_transactions [sql]",
+    "[2025-11-07 19:15:13.101] [ERROR] Failed: stg_payment_transactions - relation \"raw.payment_transactions\" does not exist\nLINE 13: FROM raw.payment_transactions\n              ^\n",
+    "[2025-11-07 19:15:13.101] [INFO] Executing: stg_carriers [sql]",
+    "[2025-11-07 19:15:13.117] [ERROR] Failed: stg_carriers - relation \"raw.carriers\" does not exist\nLINE 10: FROM raw.carriers\n              ^\n",
+    "[2025-11-07 19:15:13.117] [INFO] Executing: int_return_analysis [sql]",
+    "[2025-11-07 19:15:13.140] [ERROR] Failed: int_return_analysis - relation \"public.stg_returns\" does not exist\nLINE 15: FROM public.stg_returns r\n              ^\n",
+    "[2025-11-07 19:15:13.140] [INFO] Executing: int_customer_orders [sql]",
+    "[2025-11-07 19:15:13.158] [ERROR] Failed: int_customer_orders - relation \"public.stg_orders\" does not exist\nLINE 14:     from public.stg_orders o\n                  ^\n",
+    "[2025-11-07 19:15:13.158] [INFO] Executing: int_promo_utilization [sql]",
+    "[2025-11-07 19:15:13.173] [ERROR] Failed: int_promo_utilization - relation \"public.stg_promotions\" does not exist\nLINE 23: FROM public.stg_promotions p\n              ^\n",
+    "[2025-11-07 19:15:13.173] [INFO] Executing: int_order_details [sql]",
+    "[2025-11-07 19:15:13.187] [ERROR] Failed: int_order_details - relation \"public.stg_order_items\" does not exist\nLINE 19: FROM public.stg_order_items oi\n              ^\n",
+    "[2025-11-07 19:15:13.187] [INFO] Executing: int_supplier_orders [sql]",
+    "[2025-11-07 19:15:13.200] [ERROR] Failed: int_supplier_orders - relation \"public.stg_purchase_orders\" does not exist\nLINE 16: FROM public.stg_purchase_orders po\n              ^\n",
+    "[2025-11-07 19:15:13.200] [INFO] Executing: int_inventory_summary [sql]",
+    "[2025-11-07 19:15:13.215] [ERROR] Failed: int_inventory_summary - relation \"public.stg_stock_levels\" does not exist\nLINE 17: FROM public.stg_stock_levels sl\n              ^\n",
+    "[2025-11-07 19:15:13.215] [INFO] Executing: int_sales_commissions [sql]",
+    "[2025-11-07 19:15:13.238] [ERROR] Failed: int_sales_commissions - relation \"public.stg_commissions\" does not exist\nLINE 19: FROM public.stg_commissions c\n              ^\n",
+    "[2025-11-07 19:15:13.238] [INFO] Executing: int_employee_performance [sql]",
+    "[2025-11-07 19:15:13.249] [ERROR] Failed: int_employee_performance - relation \"public.stg_employees\" does not exist\nLINE 24: FROM public.stg_employees e\n              ^\n",
+    "[2025-11-07 19:15:13.249] [INFO] Executing: int_campaign_performance [sql]",
+    "[2025-11-07 19:15:13.258] [ERROR] Failed: int_campaign_performance - relation \"public.stg_campaigns\" does not exist\nLINE 24: FROM public.stg_campaigns c\n              ^\n",
+    "[2025-11-07 19:15:13.258] [INFO] Executing: int_payment_reconciliation [sql]",
+    "[2025-11-07 19:15:13.276] [ERROR] Failed: int_payment_reconciliation - relation \"public.stg_payment_transactions\" does not exist\nLINE 19: FROM public.stg_payment_transactions pt\n              ^\n",
+    "[2025-11-07 19:15:13.276] [INFO] Executing: int_shipment_tracking [sql]",
+    "[2025-11-07 19:15:13.295] [ERROR] Failed: int_shipment_tracking - relation \"public.stg_shipments\" does not exist\nLINE 25: FROM public.stg_shipments sh\n              ^\n",
+    "[2025-11-07 19:15:13.295] [INFO] Executing: fct_customer_returns [sql]",
+    "[2025-11-07 19:15:13.319] [ERROR] Failed: fct_customer_returns - relation \"public.int_return_analysis\" does not exist\nLINE 17: FROM public.int_return_analysis\n              ^\n",
+    "[2025-11-07 19:15:13.319] [INFO] Executing: fct_orders [sql]",
+    "[2025-11-07 19:15:13.335] [ERROR] Failed: fct_orders - relation \"public.int_customer_orders\" does not exist\nLINE 23:     from public.int_customer_orders\n                  ^\n",
+    "[2025-11-07 19:15:13.335] [INFO] Executing: fct_sales_performance [sql]",
+    "[2025-11-07 19:15:13.347] [ERROR] Failed: fct_sales_performance - relation \"public.int_order_details\" does not exist\nLINE 19:     FROM public.int_order_details\n                  ^\n",
+    "[2025-11-07 19:15:13.347] [INFO] Executing: fct_inventory_metrics [sql]",
+    "[2025-11-07 19:15:13.365] [ERROR] Failed: fct_inventory_metrics - relation \"public.int_inventory_summary\" does not exist\nLINE 19: FROM public.int_inventory_summary\n              ^\n",
+    "[2025-11-07 19:15:13.365] [INFO] Executing: fct_marketing_roi [sql]",
+    "[2025-11-07 19:15:13.383] [ERROR] Failed: fct_marketing_roi - relation \"public.int_campaign_performance\" does not exist\nLINE 15:     FROM public.int_campaign_performance\n                  ^\n",
+    "[2025-11-07 19:15:13.383] [INFO] Executing: fct_shipping_logistics [sql]",
+    "[2025-11-07 19:15:13.399] [ERROR] Failed: fct_shipping_logistics - relation \"public.int_shipment_tracking\" does not exist\nLINE 23: FROM public.int_shipment_tracking\n              ^\n",
+    "[2025-11-07 19:15:13.399] [INFO] Pipeline completed in 0.597s"
+  ]
+}

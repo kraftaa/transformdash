@@ -244,12 +244,37 @@ async def get_dashboards():
                 """
                 filters = pg.execute(filters_query, (dashboard_id,), fetch=True)
 
+                # Get charts for this dashboard
+                charts_query = """
+                    SELECT
+                        c.id,
+                        c.chart_number,
+                        c.title,
+                        c.type,
+                        c.model,
+                        c.connection_id,
+                        c.x_axis,
+                        c.y_axis,
+                        c.aggregation,
+                        c.columns,
+                        c.category,
+                        c.config,
+                        dc.tab_id,
+                        dc.position
+                    FROM charts c
+                    INNER JOIN dashboard_charts dc ON c.id = dc.chart_id
+                    WHERE dc.dashboard_id = %s
+                    ORDER BY dc.position
+                """
+                charts = pg.execute(charts_query, (dashboard_id,), fetch=True)
+
                 result.append({
                     'id': dashboard['id'],
                     'name': dashboard['name'],
                     'description': dashboard['description'],
                     'tabs': [{'id': t['id'], 'name': t['name']} for t in tabs],
-                    'filters': [dict(f) for f in filters]
+                    'filters': [dict(f) for f in filters],
+                    'charts': [dict(chart) for chart in charts]
                 })
 
             return {"dashboards": result}
@@ -347,7 +372,7 @@ async def get_all_charts():
         logging.info("Fetching all charts from database")
 
         with connection_manager.get_connection() as pg:
-            # Query all charts from the charts table
+            # Query all charts from the charts table, including their dashboard assignments
             charts_data = pg.execute("""
                 SELECT
                     c.id,
@@ -363,8 +388,11 @@ async def get_all_charts():
                     c.category,
                     c.config,
                     c.created_at,
-                    c.updated_at
+                    c.updated_at,
+                    dc.dashboard_id,
+                    dc.tab_id
                 FROM charts c
+                LEFT JOIN dashboard_charts dc ON c.id = dc.chart_id
                 ORDER BY c.chart_number ASC
             """, fetch=True)
 
@@ -386,7 +414,9 @@ async def get_all_charts():
                         'category': chart['category'],
                         'config': chart['config'] if chart['config'] else {},
                         'created_at': str(chart['created_at']) if chart['created_at'] else None,
-                        'updated_at': str(chart['updated_at']) if chart['updated_at'] else None
+                        'updated_at': str(chart['updated_at']) if chart['updated_at'] else None,
+                        'dashboard_id': chart['dashboard_id'],  # Include current dashboard assignment
+                        'tab_id': chart['tab_id']  # Include current tab assignment
                     }
                     all_charts.append(chart_dict)
 
@@ -495,6 +525,10 @@ async def save_chart(request: Request):
 
             # Insert or update dashboard_charts junction (only if dashboard_id provided)
             if target_dashboard_id:
+                # If tab_id is not set, use the default tab for this dashboard
+                if not tab_id:
+                    tab_id = f"{target_dashboard_id}_tab_default"
+
                 pg.execute("""
                     INSERT INTO dashboard_charts (dashboard_id, chart_id, tab_id, position)
                     VALUES (%s, %s, %s, %s)
@@ -503,7 +537,9 @@ async def save_chart(request: Request):
                 """, (target_dashboard_id, chart_id, tab_id, 0))
                 logging.info(f"Successfully saved chart {chart_id} to dashboard {target_dashboard_id}")
             else:
-                logging.info(f"Successfully saved standalone chart {chart_id} (no dashboard assignment)")
+                # Remove chart from all dashboards when saving as standalone
+                pg.execute("DELETE FROM dashboard_charts WHERE chart_id = %s", (chart_id,))
+                logging.info(f"Successfully saved standalone chart {chart_id} (removed from all dashboards)")
 
         return {
             "success": True,
@@ -522,48 +558,37 @@ async def save_chart(request: Request):
 
 @app.delete("/api/charts/{chart_id}")
 async def delete_chart(chart_id: str):
-    """Delete a chart from all dashboards"""
+    """Delete a chart from the database"""
     try:
-        import yaml
         import logging
+        from connection_manager import connection_manager
 
-        dashboards_file = models_dir / "dashboards.yml"
+        logging.info(f"Deleting chart: {chart_id}")
 
-        if not dashboards_file.exists():
-            raise HTTPException(status_code=404, detail="Dashboards file not found")
+        with connection_manager.get_connection() as pg:
+            # Check if chart exists
+            chart_check = pg.execute(
+                "SELECT id FROM charts WHERE id = %s",
+                (chart_id,),
+                fetch=True
+            )
 
-        # Load dashboards
-        with open(dashboards_file, 'r') as f:
-            data = yaml.safe_load(f) or {'dashboards': []}
+            if not chart_check:
+                raise HTTPException(status_code=404, detail=f"Chart {chart_id} not found")
 
-        # Track if chart was found and deleted
-        chart_found = False
-        dashboard_name = None
+            # Delete from dashboard_charts junction table first (foreign key constraint)
+            pg.execute("DELETE FROM dashboard_charts WHERE chart_id = %s", (chart_id,))
+            logging.info(f"Removed chart {chart_id} from all dashboards")
 
-        # Remove chart from all dashboards
-        for dashboard in data['dashboards']:
-            if 'charts' in dashboard:
-                original_count = len(dashboard['charts'])
-                dashboard['charts'] = [c for c in dashboard['charts'] if c.get('id') != chart_id]
-                if len(dashboard['charts']) < original_count:
-                    chart_found = True
-                    dashboard_name = dashboard.get('name', dashboard.get('id'))
-                    logging.info(f"Deleted chart {chart_id} from dashboard {dashboard.get('id')}")
+            # Delete the chart itself
+            pg.execute("DELETE FROM charts WHERE id = %s", (chart_id,))
+            logging.info(f"Successfully deleted chart {chart_id}")
 
-        if not chart_found:
-            raise HTTPException(status_code=404, detail=f"Chart {chart_id} not found in any dashboard")
-
-        # Save back to file
-        with open(dashboards_file, 'w') as f:
-            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
-
-        logging.info(f"Successfully deleted chart {chart_id}")
-
-        return {
-            "success": True,
-            "message": f"Chart deleted successfully from {dashboard_name}!",
-            "chart_id": chart_id
-        }
+            return {
+                "success": True,
+                "message": f"Chart deleted successfully",
+                "chart_id": chart_id
+            }
     except HTTPException:
         raise
     except Exception as e:

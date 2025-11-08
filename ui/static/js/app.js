@@ -175,6 +175,8 @@ function switchView(viewName) {
             loadLineageGraph();
             break;
         case 'charts':
+            // Clear editing state when going back to charts list
+            currentEditingChartId = null;
             loadAllCharts();
             break;
         case 'chart-builder':
@@ -2197,13 +2199,21 @@ async function loadDashboardCharts(dashboardId, container, filters = {}) {
         const data = await response.json();
 
         const dashboard = data.dashboards.find(d => d.id === dashboardId);
-        if (!dashboard || !getDashboardCharts(dashboard)) {
-            console.log('No dashboard or charts found for:', dashboardId);
+        if (!dashboard) {
+            console.log('Dashboard not found:', dashboardId);
+            container.innerHTML = '<p style="color: #888;">Dashboard not found</p>';
+            return;
+        }
+
+        // Use dashboard.charts from the new database structure
+        const dashboardCharts = dashboard.charts || [];
+        if (dashboardCharts.length === 0) {
+            console.log('No charts found for dashboard:', dashboardId);
             container.innerHTML = '<p style="color: #888;">No charts configured for this dashboard</p>';
             return;
         }
 
-        console.log('Found dashboard with', getDashboardCharts(dashboard).length, 'charts');
+        console.log('Found dashboard with', dashboardCharts.length, 'charts');
 
         // Show loading state
         container.innerHTML = '<p style="color: #888;">⏳ Loading charts...</p>';
@@ -2216,7 +2226,7 @@ async function loadDashboardCharts(dashboardId, container, filters = {}) {
 
         // Render each chart sequentially to avoid overwhelming the server
         let chartsRendered = 0;
-        for (const chartConfig of getDashboardCharts(dashboard)) {
+        for (const chartConfig of dashboardCharts) {
             // Add dashboard_id to chart config so edit button knows which dashboard it belongs to
             const chartWithDashboard = { ...chartConfig, dashboard_id: dashboardId };
             // Pass both filters and filter expressions to charts
@@ -2867,6 +2877,8 @@ async function loadAllCharts() {
                 const queryBtn = card.querySelector('.chart-item-query-btn');
                 queryBtn.onclick = (e) => {
                     e.stopPropagation();
+                    console.log('📋 QUERY BUTTON CLICKED! Chart:', chart.title);
+                    console.log('Chart config:', chart);
                     showChartQuery(chart);
                 };
 
@@ -3154,8 +3166,8 @@ let currentChart = null;
 
 // Load available connections into the chart builder dropdown
 async function loadChartConnections() {
-    // Clear the editing chart ID to start fresh
-    currentEditingChartId = null;
+    // NOTE: DO NOT clear currentEditingChartId here! It needs to persist when editing charts.
+    // Only clear it when explicitly starting a new chart via the "New Chart" button.
 
     // Reset the chart builder form
     const chartTitle = document.getElementById('chartTitle');
@@ -4696,90 +4708,145 @@ function initializeResizers() {
 let currentSqlQuery = '';
 
 function showChartQuery(chartConfig) {
-    // Build the SQL query based on chart configuration
-    let sql = '';
-
-    if (chartConfig.type === 'metric') {
-        // Metric query
-        const metricField = chartConfig.metric || chartConfig.y_axis;
-        const agg = (chartConfig.aggregation || 'sum').toUpperCase();
-        sql = `SELECT ${agg}(${metricField}) as value\nFROM public.${chartConfig.model}`;
-
-        // Add filters
-        if (chartConfig.filters && Array.isArray(chartConfig.filters) && chartConfig.filters.length > 0) {
-            const whereClauses = chartConfig.filters.map(f => {
-                if (f.value === 'CURRENT_YEAR') {
-                    return `${f.field} = EXTRACT(YEAR FROM CURRENT_DATE)`;
-                } else if (f.value === 'CURRENT_MONTH') {
-                    return `${f.field} = EXTRACT(MONTH FROM CURRENT_DATE)`;
-                } else {
-                    return `${f.field} ${f.operator} '${f.value}'`;
-                }
-            });
-            sql += `\nWHERE ` + whereClauses.join(' AND ');
-        }
-    } else if (chartConfig.metrics && Array.isArray(chartConfig.metrics)) {
-        // Multi-metric query
-        const metricSelects = chartConfig.metrics.map(m => {
-            const agg = (m.aggregation || 'sum').toUpperCase();
-            return `${agg}(${m.field}) as ${m.field}`;
-        }).join(',\n      ');
-
-        sql = `SELECT\n    ${chartConfig.x_axis} as label,\n      ${metricSelects}\nFROM public.${chartConfig.model}`;
-        sql += `\nWHERE ${chartConfig.x_axis} IS NOT NULL`;
-
-        // Add filters
-        if (chartConfig.filters && Array.isArray(chartConfig.filters) && chartConfig.filters.length > 0) {
-            const whereClauses = chartConfig.filters.map(f => `${f.field} ${f.operator} '${f.value}'`);
-            sql += ' AND ' + whereClauses.join(' AND ');
+    try {
+        // Validate chart config has necessary fields
+        if (!chartConfig || !chartConfig.model) {
+            alert('Cannot generate query: Chart is missing required model/table information');
+            console.error('Invalid chart config:', chartConfig);
+            return;
         }
 
-        sql += `\nGROUP BY ${chartConfig.x_axis}\nORDER BY ${chartConfig.x_axis}\nLIMIT 50`;
-    } else {
-        // Regular chart query
-        const agg = (chartConfig.aggregation || 'sum').toUpperCase();
-        sql = `SELECT\n    ${chartConfig.x_axis} as label,\n    ${agg}(${chartConfig.y_axis}) as value\nFROM public.${chartConfig.model}`;
-        sql += `\nWHERE ${chartConfig.x_axis} IS NOT NULL`;
+        // Build the SQL query based on chart configuration
+        let sql = '';
 
-        // Add filters
-        if (chartConfig.filters && Array.isArray(chartConfig.filters) && chartConfig.filters.length > 0) {
-            const whereClauses = chartConfig.filters.map(f => {
-                if (f.value === 'CURRENT_YEAR') {
-                    return `${f.field} = EXTRACT(YEAR FROM CURRENT_DATE)`;
-                } else if (f.value === 'CURRENT_MONTH') {
-                    return `${f.field} = EXTRACT(MONTH FROM CURRENT_DATE)`;
-                } else {
-                    return `${f.field} ${f.operator} '${f.value}'`;
-                }
-            });
-            sql += ' AND ' + whereClauses.join(' AND ');
+        if (chartConfig.type === 'table') {
+            // Table query - simple SELECT with columns
+            if (chartConfig.columns && Array.isArray(chartConfig.columns) && chartConfig.columns.length > 0) {
+                const columnsList = chartConfig.columns.map(col => col.name || col).join(', ');
+                sql = `SELECT ${columnsList}\nFROM public.${chartConfig.model}`;
+            } else {
+                sql = `SELECT *\nFROM public.${chartConfig.model}`;
+            }
+
+            // Add filters if any
+            if (chartConfig.filters && Array.isArray(chartConfig.filters) && chartConfig.filters.length > 0) {
+                const whereClauses = chartConfig.filters.map(f => {
+                    if (f.value === 'CURRENT_YEAR') {
+                        return `${f.field} = EXTRACT(YEAR FROM CURRENT_DATE)`;
+                    } else if (f.value === 'CURRENT_MONTH') {
+                        return `${f.field} = EXTRACT(MONTH FROM CURRENT_DATE)`;
+                    } else {
+                        return `${f.field} ${f.operator} '${f.value}'`;
+                    }
+                });
+                sql += `\nWHERE ` + whereClauses.join(' AND ');
+            }
+
+            sql += `\nLIMIT 100`;
+        } else if (chartConfig.type === 'metric') {
+            // Metric query
+            const metricField = chartConfig.metric || chartConfig.y_axis;
+            if (!metricField) {
+                alert('Cannot generate query: Metric field is missing');
+                return;
+            }
+            const agg = (chartConfig.aggregation || 'sum').toUpperCase();
+            sql = `SELECT ${agg}(${metricField}) as value\nFROM public.${chartConfig.model}`;
+
+            // Add filters
+            if (chartConfig.filters && Array.isArray(chartConfig.filters) && chartConfig.filters.length > 0) {
+                const whereClauses = chartConfig.filters.map(f => {
+                    if (f.value === 'CURRENT_YEAR') {
+                        return `${f.field} = EXTRACT(YEAR FROM CURRENT_DATE)`;
+                    } else if (f.value === 'CURRENT_MONTH') {
+                        return `${f.field} = EXTRACT(MONTH FROM CURRENT_DATE)`;
+                    } else {
+                        return `${f.field} ${f.operator} '${f.value}'`;
+                    }
+                });
+                sql += `\nWHERE ` + whereClauses.join(' AND ');
+            }
+        } else if (chartConfig.metrics && Array.isArray(chartConfig.metrics)) {
+            // Multi-metric query
+            const metricSelects = chartConfig.metrics.map(m => {
+                const agg = (m.aggregation || 'sum').toUpperCase();
+                return `${agg}(${m.field}) as ${m.field}`;
+            }).join(',\n      ');
+
+            sql = `SELECT\n    ${chartConfig.x_axis} as label,\n      ${metricSelects}\nFROM public.${chartConfig.model}`;
+            sql += `\nWHERE ${chartConfig.x_axis} IS NOT NULL`;
+
+            // Add filters
+            if (chartConfig.filters && Array.isArray(chartConfig.filters) && chartConfig.filters.length > 0) {
+                const whereClauses = chartConfig.filters.map(f => `${f.field} ${f.operator} '${f.value}'`);
+                sql += ' AND ' + whereClauses.join(' AND ');
+            }
+
+            sql += `\nGROUP BY ${chartConfig.x_axis}\nORDER BY ${chartConfig.x_axis}\nLIMIT 50`;
+        } else {
+            // Regular chart query
+            if (!chartConfig.x_axis || !chartConfig.y_axis) {
+                alert('Cannot generate query: Chart is missing x_axis or y_axis configuration');
+                return;
+            }
+            const agg = (chartConfig.aggregation || 'sum').toUpperCase();
+            sql = `SELECT\n    ${chartConfig.x_axis} as label,\n    ${agg}(${chartConfig.y_axis}) as value\nFROM public.${chartConfig.model}`;
+            sql += `\nWHERE ${chartConfig.x_axis} IS NOT NULL`;
+
+            // Add filters
+            if (chartConfig.filters && Array.isArray(chartConfig.filters) && chartConfig.filters.length > 0) {
+                const whereClauses = chartConfig.filters.map(f => {
+                    if (f.value === 'CURRENT_YEAR') {
+                        return `${f.field} = EXTRACT(YEAR FROM CURRENT_DATE)`;
+                    } else if (f.value === 'CURRENT_MONTH') {
+                        return `${f.field} = EXTRACT(MONTH FROM CURRENT_DATE)`;
+                    } else {
+                        return `${f.field} ${f.operator} '${f.value}'`;
+                    }
+                });
+                sql += ' AND ' + whereClauses.join(' AND ');
+            }
+
+            sql += `\nGROUP BY ${chartConfig.x_axis}\nORDER BY ${chartConfig.x_axis}\nLIMIT 50`;
         }
 
-        sql += `\nGROUP BY ${chartConfig.x_axis}\nORDER BY ${chartConfig.x_axis}\nLIMIT 50`;
+        // Store SQL for copying
+        currentSqlQuery = sql;
+
+        // Update modal content
+        const modalTitle = document.getElementById('sqlQueryModalTitle');
+        const modalCode = document.getElementById('sqlQueryCode');
+        const modal = document.getElementById('sqlQueryModal');
+        const copyButton = document.getElementById('copySqlButton');
+
+        if (!modalTitle || !modalCode || !modal || !copyButton) {
+            // Fallback to alert if modal elements don't exist
+            alert('SQL Query:\n\n' + sql + '\n\n(Modal not found - check console for query)');
+            console.log('SQL Query:', sql);
+            return;
+        }
+
+        modalTitle.textContent = `SQL Query: ${chartConfig.title}`;
+        modalCode.textContent = sql;
+
+        // Reset button text
+        copyButton.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            Copy SQL
+        `;
+
+        // Show modal
+        modal.style.display = 'flex';
+
+        // Also log to console for easy copying
+        console.log('SQL Query:', sql);
+    } catch (error) {
+        console.error('Error generating SQL query:', error);
+        alert('Error generating SQL query: ' + error.message + '\n\nCheck console for details');
     }
-
-    // Store SQL for copying
-    currentSqlQuery = sql;
-
-    // Update modal content
-    document.getElementById('sqlQueryModalTitle').textContent = `SQL Query: ${chartConfig.title}`;
-    document.getElementById('sqlQueryCode').textContent = sql;
-
-    // Reset button text
-    const copyButton = document.getElementById('copySqlButton');
-    copyButton.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 0.5rem;">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-        </svg>
-        Copy SQL
-    `;
-
-    // Show query in a simple alert for now
-    alert('SQL Query:\n\n' + sql + '\n\n(Use the copy button below to copy this query)');
-
-    // Also log to console for easy copying
-    console.log('SQL Query:', sql);
 }
 
 function copySqlQuery() {
@@ -4850,7 +4917,7 @@ async function editChart(chartConfig) {
         }
     }
 
-    // Set dashboard to the chart's dashboard or default to first one
+    // Set dashboard to the chart's dashboard or leave as standalone
     if (dashboardEl) {
         // Check for both dashboard_id and dashboardId (different sources use different naming)
         const dashboardId = chartConfig.dashboard_id || chartConfig.dashboardId;
@@ -4858,10 +4925,10 @@ async function editChart(chartConfig) {
             console.log(`Setting dashboard to: ${dashboardId}`);
             dashboardEl.value = dashboardId;
             console.log(`Dashboard field value after setting: ${dashboardEl.value}`);
-        } else if (dashboardEl.options.length > 2) {
-            // Skip placeholder and "Create New", select first actual dashboard
-            console.log('No dashboard_id in chart config, using first available dashboard');
-            dashboardEl.selectedIndex = 2;
+        } else {
+            // Chart is standalone (no dashboard assignment), leave dropdown at placeholder
+            console.log('No dashboard_id in chart config, leaving as standalone chart');
+            dashboardEl.selectedIndex = 0; // Select the placeholder/standalone option
         }
     }
 
@@ -5463,7 +5530,8 @@ async function saveChart() {
     }
 
     // Handle "Create New Dashboard" option
-    if (dashboardId === '__new__') {
+    const isCreatingNewDashboard = (dashboardId === '__new__');
+    if (isCreatingNewDashboard) {
         const newDashboardName = document.getElementById('newDashboardName').value;
         const newDashboardDescription = document.getElementById('newDashboardDescription').value;
 
@@ -5472,8 +5540,8 @@ async function saveChart() {
             return;
         }
 
-        // Create new dashboard ID
-        dashboardId = newDashboardName.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        // Keep dashboard_id as '__new__' for backend to recognize
+        // Don't change it here
     }
 
     const saveBtn = document.getElementById('saveChartBtn');
