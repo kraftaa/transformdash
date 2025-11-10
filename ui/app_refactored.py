@@ -113,7 +113,7 @@ async def get_lineage():
 
 @app.get("/api/models/{model_name}/code")
 async def get_model_code(model_name: str):
-    """Get the SQL code for a specific model"""
+    """Get the code for a specific model (SQL or Python)"""
     try:
         models = loader.load_all_models()
         model = next((m for m in models if m.name == model_name), None)
@@ -121,9 +121,20 @@ async def get_model_code(model_name: str):
         if not model:
             raise HTTPException(status_code=404, detail=f"Model {model_name} not found")
 
+        # Get code - for SQL models use sql_query, for Python models read file
+        code = model.sql_query
+        if code is None and hasattr(model, 'file_path') and model.file_path:
+            # Python model - read the file
+            try:
+                with open(model.file_path, 'r') as f:
+                    code = f.read()
+            except Exception as e:
+                code = f"# Error reading file: {e}"
+
         return {
             "name": model.name,
-            "code": model.sql_query,
+            "code": code,
+            "type": model.model_type.value,
             "config": getattr(model, 'config', {}),
             "depends_on": model.depends_on,
             "file_path": getattr(model, 'file_path', '')
@@ -164,6 +175,81 @@ async def execute_transformations():
             }
         }
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/execute/{model_name}")
+async def execute_single_model(model_name: str):
+    """Execute a single transformation model (and its dependencies)"""
+    try:
+        from orchestration import TransformationEngine
+
+        # Load all models (need dependencies)
+        all_models = loader.load_all_models()
+
+        # Find the target model
+        target_model = next((m for m in all_models if m.name == model_name), None)
+        if not target_model:
+            raise HTTPException(status_code=404, detail=f"Model '{model_name}' not found")
+
+        # Get all dependencies (recursively)
+        def get_dependencies(model_name, all_models):
+            model = next((m for m in all_models if m.name == model_name), None)
+            if not model:
+                return []
+
+            deps = []
+            for dep_name in model.depends_on:
+                deps.extend(get_dependencies(dep_name, all_models))
+                dep_model = next((m for m in all_models if m.name == dep_name), None)
+                if dep_model and dep_model not in deps:
+                    deps.append(dep_model)
+
+            return deps
+
+        # Get all models needed (dependencies + target)
+        dependency_models = get_dependencies(model_name, all_models)
+        models_to_run = dependency_models + [target_model]
+
+        # Run models
+        engine = TransformationEngine(models_to_run)
+        context = engine.run(verbose=False)
+
+        # Get summary
+        summary = context.get_summary()
+
+        # Check if target model succeeded
+        if target_model.status != "completed":
+            return {
+                "status": "failed",
+                "model": {
+                    'name': target_model.name,
+                    'type': target_model.model_type.value,
+                    'status': target_model.status,
+                    'error': target_model.error
+                },
+                "message": f"Model '{model_name}' failed to execute",
+                "dependencies_run": len(dependency_models),
+                "summary": summary
+            }
+
+        return {
+            "status": "completed",
+            "model": {
+                'name': target_model.name,
+                'type': target_model.model_type.value,
+                'status': target_model.status
+            },
+            "message": f"Model '{model_name}' executed successfully",
+            "dependencies_run": len(dependency_models),
+            "summary": summary
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error running model {model_name}: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

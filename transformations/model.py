@@ -41,6 +41,8 @@ class TransformationModel:
             if self.model_type == ModelType.PYTHON:
                 if self.python_func:
                     self.result = self.python_func(context)
+                    # Write Python model results to database
+                    self._write_python_result_to_db()
                 else:
                     raise ValueError(f"No Python function defined for model {self.name}")
             elif self.model_type == ModelType.SQL:
@@ -137,6 +139,55 @@ class TransformationModel:
                 result_df = pg.query_to_dataframe(rendered_sql)
 
             return result_df
+
+    def _write_python_result_to_db(self) -> None:
+        """
+        Write Python model DataFrame result to database
+        Creates a table or view based on materialization strategy
+        """
+        if not isinstance(self.result, pd.DataFrame):
+            raise ValueError(f"Python model {self.name} result must be a pandas DataFrame")
+
+        from postgres import PostgresConnector
+
+        mat_type = getattr(self, 'config', {}).get('materialized', 'table')
+
+        with PostgresConnector() as pg:
+            if mat_type == 'view':
+                # For views, we need to store the DataFrame as a temp table first,
+                # then create a view referencing it
+                # For simplicity, we'll just create a table for Python models
+                # TODO: Implement proper view creation for Python models
+                mat_type = 'table'
+
+            if mat_type == 'table' or mat_type == 'incremental':
+                # Drop existing table
+                drop_sql = f"DROP TABLE IF EXISTS public.{self.name}"
+                pg.execute(drop_sql)
+
+                # Write DataFrame to database using pandas to_sql
+                # This requires sqlalchemy engine
+                from sqlalchemy import create_engine
+                import os
+
+                db_host = os.getenv("POSTGRES_HOST", "localhost")
+                db_port = os.getenv("POSTGRES_PORT", "5432")
+                db_name = os.getenv("POSTGRES_DB", "transformdash")
+                db_user = os.getenv("POSTGRES_USER", "postgres")
+                db_pass = os.getenv("POSTGRES_PASSWORD", "postgres")
+
+                engine = create_engine(f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}")
+
+                # Write DataFrame to table
+                self.result.to_sql(
+                    name=self.name,
+                    con=engine,
+                    schema='public',
+                    if_exists='replace',
+                    index=False
+                )
+
+                engine.dispose()
 
     def __repr__(self):
         return f"Model(name={self.name}, type={self.model_type.value}, depends_on={self.depends_on}, status={self.status})"
