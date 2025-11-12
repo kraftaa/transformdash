@@ -83,7 +83,7 @@
                     </svg>
                     <span class="nav-text">Charts</span>
                 </a>
-                <a href="#" class="nav-item" data-view="datasets" onclick="switchView('datasets')">
+                <a href="#" class="nav-item" data-view="datasets" onclick="event.preventDefault(); event.stopPropagation(); switchView('datasets'); return false;">
                     <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
                         <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
@@ -91,7 +91,7 @@
                     </svg>
                     <span class="nav-text">Datasets</span>
                 </a>
-                <a href="#" class="nav-item" data-view="runs" onclick="switchView('runs')">
+                <a href="#" class="nav-item" data-view="runs" onclick="event.preventDefault(); event.stopPropagation(); switchView('runs'); return false;">
                     <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
                     </svg>
@@ -1230,10 +1230,13 @@
                     <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">Source Type</label>
                     <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
                         <button id="sourceTypeTable" class="btn btn-secondary" onclick="switchDatasetSourceType('table')" style="flex: 1; background: #667eea; color: white;">
-                            Table
+                            📊 Table
                         </button>
                         <button id="sourceTypeSQL" class="btn btn-secondary" onclick="switchDatasetSourceType('sql')" style="flex: 1;">
-                            Custom SQL
+                            💻 Custom SQL
+                        </button>
+                        <button id="sourceTypeCSV" class="btn btn-secondary" onclick="switchDatasetSourceType('csv')" style="flex: 1;">
+                            📁 CSV Upload
                         </button>
                     </div>
                 </div>
@@ -1256,6 +1259,19 @@
                         <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">SQL Query*</label>
                         <textarea id="datasetSQLQuery" placeholder="SELECT * FROM your_table WHERE..." style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.875rem; min-height: 150px; resize: vertical; font-family: 'JetBrains Mono', monospace;"></textarea>
                         <p style="margin-top: 0.5rem; font-size: 0.75rem; color: #6b7280;">Write your custom SQL query. This will be the data source for your dataset.</p>
+                    </div>
+                </div>
+
+                <!-- CSV Upload Mode -->
+                <div id="csvModeConfig" style="display: none;">
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">Upload CSV File*</label>
+                        <input type="file" id="datasetCSVFile" accept=".csv" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.875rem;">
+                        <p style="margin-top: 0.5rem; font-size: 0.75rem; color: #6b7280;">Select a CSV file to upload. The file will be stored and loaded as a dataset.</p>
+                        <div id="csvFileInfo" style="display: none; margin-top: 0.5rem; padding: 0.5rem; background: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 4px; font-size: 0.75rem; color: #1e40af;">
+                            <strong>Selected file:</strong> <span id="csvFileName"></span><br>
+                            <strong>Size:</strong> <span id="csvFileSize"></span>
+                        </div>
                     </div>
                 </div>
 

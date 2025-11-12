@@ -14,75 +14,144 @@ function openDatasetBuilder() {
     document.getElementById('datasetSQLQuery').value = '';
     document.getElementById('datasetPreview').style.display = 'none';
 
+    // Reset CSV file input
+    const csvFileInput = document.getElementById('datasetCSVFile');
+    if (csvFileInput) {
+        csvFileInput.value = '';
+        document.getElementById('csvFileInfo').style.display = 'none';
+    }
+
     // Reset to table mode
     switchDatasetSourceType('table');
 
     // Show modal
     document.getElementById('datasetBuilderModal').style.display = 'block';
+
+    // Add file input change listener
+    if (csvFileInput && !csvFileInput.dataset.listenerAttached) {
+        csvFileInput.addEventListener('change', handleCSVFileSelection);
+        csvFileInput.dataset.listenerAttached = 'true';
+    }
 }
 
-// Switch between table and SQL source types
+// Handle CSV file selection
+function handleCSVFileSelection(event) {
+    const file = event.target.files[0];
+    if (file) {
+        const fileSizeKB = (file.size / 1024).toFixed(2);
+        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        const sizeStr = file.size > 1024 * 1024 ? `${fileSizeMB} MB` : `${fileSizeKB} KB`;
+
+        document.getElementById('csvFileName').textContent = file.name;
+        document.getElementById('csvFileSize').textContent = sizeStr;
+        document.getElementById('csvFileInfo').style.display = 'block';
+
+        // Auto-fill dataset name if empty
+        const nameInput = document.getElementById('datasetName');
+        if (!nameInput.value) {
+            const baseName = file.name.replace(/\.csv$/i, '').replace(/[^a-z0-9_]/gi, '_');
+            nameInput.value = baseName;
+        }
+    }
+}
+
+// Switch between table, SQL, and CSV source types
 function switchDatasetSourceType(type) {
     currentDatasetSourceType = type;
 
     // Update button styles
     const tableBtn = document.getElementById('sourceTypeTable');
     const sqlBtn = document.getElementById('sourceTypeSQL');
+    const csvBtn = document.getElementById('sourceTypeCSV');
 
+    // Reset all buttons
+    tableBtn.style.background = '';
+    tableBtn.style.color = '';
+    sqlBtn.style.background = '';
+    sqlBtn.style.color = '';
+    csvBtn.style.background = '';
+    csvBtn.style.color = '';
+
+    // Hide all config sections
+    document.getElementById('tableModeConfig').style.display = 'none';
+    document.getElementById('sqlModeConfig').style.display = 'none';
+    document.getElementById('csvModeConfig').style.display = 'none';
+
+    // Show selected mode
     if (type === 'table') {
         tableBtn.style.background = '#667eea';
         tableBtn.style.color = 'white';
-        sqlBtn.style.background = '';
-        sqlBtn.style.color = '';
-
         document.getElementById('tableModeConfig').style.display = 'block';
-        document.getElementById('sqlModeConfig').style.display = 'none';
-    } else {
+    } else if (type === 'sql') {
         sqlBtn.style.background = '#667eea';
         sqlBtn.style.color = 'white';
-        tableBtn.style.background = '';
-        tableBtn.style.color = '';
-
-        document.getElementById('tableModeConfig').style.display = 'none';
         document.getElementById('sqlModeConfig').style.display = 'block';
+    } else if (type === 'csv') {
+        csvBtn.style.background = '#667eea';
+        csvBtn.style.color = 'white';
+        document.getElementById('csvModeConfig').style.display = 'block';
     }
 }
 
 // Preview dataset data
 async function previewDataset() {
     try {
-        const previewPayload = {
-            source_type: currentDatasetSourceType,
-            limit: 10
-        };
+        let response;
 
-        if (currentDatasetSourceType === 'table') {
-            const tableName = document.getElementById('datasetTableName').value.trim();
-            const schema = document.getElementById('datasetSchema').value.trim() || 'public';
+        if (currentDatasetSourceType === 'csv') {
+            // Handle CSV file preview
+            const fileInput = document.getElementById('datasetCSVFile');
+            const file = fileInput.files[0];
 
-            if (!tableName) {
-                alert('Please enter a table name');
+            if (!file) {
+                alert('Please select a CSV file');
                 return;
             }
 
-            previewPayload.table_name = tableName;
-            previewPayload.schema_name = schema;
+            // Upload file and get preview
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('preview_only', 'true');
+
+            response = await fetch('/api/datasets/upload-csv', {
+                method: 'POST',
+                body: formData
+            });
         } else {
-            const sqlQuery = document.getElementById('datasetSQLQuery').value.trim();
+            // Handle table or SQL preview
+            const previewPayload = {
+                source_type: currentDatasetSourceType,
+                limit: 10
+            };
 
-            if (!sqlQuery) {
-                alert('Please enter a SQL query');
-                return;
+            if (currentDatasetSourceType === 'table') {
+                const tableName = document.getElementById('datasetTableName').value.trim();
+                const schema = document.getElementById('datasetSchema').value.trim() || 'public';
+
+                if (!tableName) {
+                    alert('Please enter a table name');
+                    return;
+                }
+
+                previewPayload.table_name = tableName;
+                previewPayload.schema_name = schema;
+            } else {
+                const sqlQuery = document.getElementById('datasetSQLQuery').value.trim();
+
+                if (!sqlQuery) {
+                    alert('Please enter a SQL query');
+                    return;
+                }
+
+                previewPayload.sql_query = sqlQuery;
             }
 
-            previewPayload.sql_query = sqlQuery;
+            response = await fetch('/api/datasets/preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(previewPayload)
+            });
         }
-
-        const response = await fetch('/api/datasets/preview', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(previewPayload)
-        });
 
         const data = await response.json();
 
@@ -97,17 +166,20 @@ async function previewDataset() {
         if (data.data && data.data.length > 0) {
             let tableHTML = '<table style="width: 100%; border-collapse: collapse; font-size: 0.75rem;"><thead><tr>';
 
+            // Extract column names - handle both string arrays and object arrays
+            const columnNames = data.columns.map(col => typeof col === 'string' ? col : col.name);
+
             // Headers
-            data.columns.forEach(col => {
-                tableHTML += `<th style="padding: 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; background: white; position: sticky; top: 0;">${col}</th>`;
+            columnNames.forEach(colName => {
+                tableHTML += `<th style="padding: 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; background: white; position: sticky; top: 0;">${colName}</th>`;
             });
             tableHTML += '</tr></thead><tbody>';
 
             // Rows
             data.data.forEach(row => {
                 tableHTML += '<tr style="border-bottom: 1px solid #f3f4f6;">';
-                data.columns.forEach(col => {
-                    const val = row[col];
+                columnNames.forEach(colName => {
+                    const val = row[colName];
                     tableHTML += `<td style="padding: 8px;">${val !== null && val !== undefined ? val : ''}</td>`;
                 });
                 tableHTML += '</tr>';
@@ -159,7 +231,7 @@ async function saveDataset() {
 
             payload.table_name = tableName;
             payload.schema_name = schema;
-        } else {
+        } else if (currentDatasetSourceType === 'sql') {
             const sqlQuery = document.getElementById('datasetSQLQuery').value.trim();
 
             if (!sqlQuery) {
@@ -168,6 +240,38 @@ async function saveDataset() {
             }
 
             payload.sql_query = sqlQuery;
+        } else if (currentDatasetSourceType === 'csv') {
+            const fileInput = document.getElementById('datasetCSVFile');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                alert('Please select a CSV file');
+                return;
+            }
+
+            // Upload CSV file first
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('dataset_id', datasetId);
+            formData.append('dataset_name', name);
+            formData.append('dataset_description', description);
+
+            const uploadResponse = await fetch('/api/datasets/upload-csv', {
+                method: 'POST',
+                body: formData
+            });
+
+            const uploadData = await uploadResponse.json();
+
+            if (!uploadResponse.ok) {
+                throw new Error(uploadData.detail || 'Failed to upload CSV file');
+            }
+
+            // Close modal and refresh
+            document.getElementById('datasetBuilderModal').style.display = 'none';
+            alert('Dataset created successfully!');
+            await loadDatasets();
+            return;
         }
 
         const response = await fetch('/api/datasets', {
@@ -365,7 +469,28 @@ async function loadDatasetColumns(dataset) {
         const tbody = document.getElementById('dataset-columns-tbody');
         tbody.innerHTML = '<tr><td colspan="3" style="padding: 2rem; text-align: center; color: #9ca3af;">Loading columns...</td></tr>';
 
-        // Preview the dataset to get columns
+        // For CSV datasets, columns are already stored in the dataset object
+        if (dataset.source_type === 'csv') {
+            if (dataset.columns && dataset.columns.length > 0) {
+                tbody.innerHTML = dataset.columns.map(col => {
+                    const colName = typeof col === 'string' ? col : col.name;
+                    const colType = typeof col === 'string' ? 'text' : (col.type || 'text').toLowerCase();
+
+                    return `
+                        <tr style="border-bottom: 1px solid #f3f4f6;">
+                            <td style="padding: 12px; font-family: monospace; color: #1f2937;">${colName}</td>
+                            <td style="padding: 12px; color: #6b7280;">${colType}</td>
+                            <td style="padding: 12px; color: #6b7280;">Yes</td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="3" style="padding: 2rem; text-align: center; color: #9ca3af;">No columns found</td></tr>';
+            }
+            return;
+        }
+
+        // For table and SQL datasets, preview the dataset to get columns
         const previewPayload = {
             source_type: dataset.source_type,
             limit: 1
@@ -436,7 +561,9 @@ async function refreshDatasetColumns() {
 function loadDatasetQuery(dataset) {
     const queryDisplay = document.getElementById('dataset-query-display');
 
-    if (dataset.source_type === 'sql') {
+    if (dataset.source_type === 'csv') {
+        queryDisplay.textContent = `-- CSV File: ${dataset.original_filename || 'uploaded file'}\n-- File path: ${dataset.file_path || 'N/A'}\n-- Rows: Data loaded from CSV file`;
+    } else if (dataset.source_type === 'sql') {
         queryDisplay.textContent = dataset.sql_query;
     } else {
         const schema = dataset.schema_name || 'public';

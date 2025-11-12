@@ -1,0 +1,11 @@
+customer_id,customer_name,region,signup_date,total_purchases,lifetime_value
+1001,Alice Johnson,North America,2023-01-15,12,1250.50
+1002,Bob Smith,Europe,2023-02-20,8,890.25
+1003,Charlie Brown,Asia,2023-03-10,15,2100.00
+1004,Diana Prince,North America,2023-03-25,5,450.75
+1005,Eve Williams,Europe,2023-04-12,20,3500.00
+1006,Frank Miller,Asia,2023-05-18,3,275.50
+1007,Grace Lee,North America,2023-06-05,18,2800.25
+1008,Henry Davis,Europe,2023-06-22,11,1450.00
+1009,Iris Chen,Asia,2023-07-08,7,680.50
+1010,Jack Wilson,North America,2023-08-14,14,1850.75

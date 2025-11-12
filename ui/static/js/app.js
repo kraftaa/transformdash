@@ -5712,7 +5712,6 @@ async function saveChart() {
             chartConfig.dashboard_description = document.getElementById('newDashboardDescription').value;
         }
 
-        console.log('DEBUG: Description value:', description);
         console.log('DEBUG: Final chartConfig being sent to backend:', chartConfig);
 
         const response = await fetch('/api/charts/save', {

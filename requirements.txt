@@ -12,6 +12,7 @@ python-dotenv>=1.0.0           # Load environment variables from .env
 # Web framework and API
 fastapi>=0.95.2                # API framework for web UI
 uvicorn>=0.23.1                # ASGI server for FastAPI
+python-multipart>=0.0.20       # File upload support for FastAPI
 
 # Templating and YAML
 jinja2>=3.1.0                  # Template engine for SQL models

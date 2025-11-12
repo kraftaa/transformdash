@@ -27,6 +27,9 @@ async def get_all_datasets():
                     d.columns,
                     d.filters,
                     d.config,
+                    d.file_path,
+                    d.original_filename,
+                    d.file_size_bytes,
                     d.created_at,
                     d.updated_at
                 FROM datasets d
@@ -48,6 +51,9 @@ async def get_all_datasets():
                         'columns': dataset['columns'] if dataset['columns'] else [],
                         'filters': dataset['filters'] if dataset['filters'] else [],
                         'config': dataset['config'] if dataset['config'] else {},
+                        'file_path': dataset.get('file_path'),
+                        'original_filename': dataset.get('original_filename'),
+                        'file_size_bytes': dataset.get('file_size_bytes'),
                         'created_at': str(dataset['created_at']) if dataset['created_at'] else None,
                         'updated_at': str(dataset['updated_at']) if dataset['updated_at'] else None
                     }
@@ -81,6 +87,9 @@ async def get_dataset_by_id(dataset_id: str):
                     d.columns,
                     d.filters,
                     d.config,
+                    d.file_path,
+                    d.original_filename,
+                    d.file_size_bytes,
                     d.created_at,
                     d.updated_at
                 FROM datasets d
@@ -103,6 +112,9 @@ async def get_dataset_by_id(dataset_id: str):
                 'columns': dataset['columns'] if dataset['columns'] else [],
                 'filters': dataset['filters'] if dataset['filters'] else [],
                 'config': dataset['config'] if dataset['config'] else {},
+                'file_path': dataset.get('file_path'),
+                'original_filename': dataset.get('original_filename'),
+                'file_size_bytes': dataset.get('file_size_bytes'),
                 'created_at': str(dataset['created_at']) if dataset['created_at'] else None,
                 'updated_at': str(dataset['updated_at']) if dataset['updated_at'] else None
             }

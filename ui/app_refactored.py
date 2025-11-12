@@ -2,7 +2,7 @@
 TransformDash Web UI - FastAPI Application (Refactored)
 Interactive lineage graphs and dashboard with separated concerns
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -11,6 +11,9 @@ from pathlib import Path
 import sys
 import pandas as pd
 import logging
+import uuid
+import os
+from datetime import datetime
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
@@ -549,7 +552,6 @@ async def save_chart(request: Request):
         chart_id = body.get("id")
         chart_title = body.get("title")
         chart_description = body.get("description", "")
-        logging.info(f"DEBUG: chart_description value = '{chart_description}'")
         chart_type = body.get("type")
         chart_model = body.get("model")
         x_axis = body.get("x_axis", "")
@@ -1091,6 +1093,168 @@ async def delete_dataset_endpoint(dataset_id: str):
 async def preview_dataset_endpoint(request: Request):
     """Preview data from a dataset"""
     return await datasets_api.preview_dataset(request)
+
+
+@app.post("/api/datasets/upload-csv")
+async def upload_csv(
+    file: UploadFile = File(...),
+    dataset_id: str = Form(None),
+    dataset_name: str = Form(None),
+    dataset_description: str = Form(None),
+    preview_only: str = Form(None)
+):
+    """Upload a CSV file and create a dataset"""
+    from postgres import PostgresConnector
+    import traceback
+
+    try:
+        # Validate file type
+        if not file.filename.endswith('.csv'):
+            raise HTTPException(status_code=400, detail="Only CSV files are supported")
+
+        # Read CSV file
+        contents = await file.read()
+
+        # Parse CSV with pandas
+        try:
+            import io
+            df = pd.read_csv(io.BytesIO(contents))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to parse CSV: {str(e)}")
+
+        # Get columns and data types
+        columns = []
+        for col in df.columns:
+            dtype = str(df[col].dtype)
+            # Map pandas dtypes to SQL types
+            if dtype.startswith('int'):
+                sql_type = 'INTEGER'
+            elif dtype.startswith('float'):
+                sql_type = 'NUMERIC'
+            elif dtype == 'bool':
+                sql_type = 'BOOLEAN'
+            elif dtype == 'datetime64':
+                sql_type = 'TIMESTAMP'
+            else:
+                sql_type = 'TEXT'
+
+            columns.append({
+                'name': col,
+                'type': sql_type
+            })
+
+        # Preview mode - just return data without saving
+        if preview_only == 'true':
+            preview_data = df.head(10).to_dict('records')
+            return {
+                "columns": columns,
+                "data": preview_data,
+                "row_count": len(df)
+            }
+
+        # Save mode - persist the file and create dataset record
+        # Create uploads directory if it doesn't exist
+        uploads_dir = Path(__file__).parent.parent / "uploads" / "csv"
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate unique filename
+        file_extension = Path(file.filename).suffix
+        unique_filename = f"{uuid.uuid4().hex}{file_extension}"
+        file_path = uploads_dir / unique_filename
+
+        # Save file
+        with open(file_path, 'wb') as f:
+            f.write(contents)
+
+        file_size = len(contents)
+
+        # Create dataset record in database
+        from connection_manager import connection_manager
+
+        # Use provided dataset_id or generate new one
+        if not dataset_id:
+            dataset_id = f"dataset_{uuid.uuid4().hex[:8]}"
+
+        # Generate table name from dataset name
+        table_name = dataset_name or file.filename.replace('.csv', '')
+        # Clean table name to be SQL-safe
+        table_name = ''.join(c if c.isalnum() or c == '_' else '_' for c in table_name.lower())
+        table_name = f"csv_{table_name}"
+
+        # Import CSV data into a database table
+        with connection_manager.get_connection() as pg:
+            import json
+
+            # Create table with columns based on detected types
+            create_cols = []
+            for col in columns:
+                col_name = col['name']
+                col_type = col['type']
+                # Escape column names with quotes to handle spaces and special chars
+                create_cols.append(f'"{col_name}" {col_type}')
+
+            create_table_sql = f"""
+                DROP TABLE IF EXISTS {table_name};
+                CREATE TABLE {table_name} (
+                    {', '.join(create_cols)}
+                );
+            """
+
+            pg.execute(create_table_sql)
+            logging.info(f"Created table {table_name} for CSV data")
+
+            # Insert data into table
+            if len(df) > 0:
+                # Use pandas to_sql for efficient bulk insert
+                from sqlalchemy import create_engine
+                import os
+
+                # Create SQLAlchemy engine from connection details
+                db_url = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/transformdash')
+                engine = create_engine(db_url)
+
+                # Insert dataframe into table
+                df.to_sql(table_name, engine, if_exists='replace', index=False)
+                logging.info(f"Inserted {len(df)} rows into {table_name}")
+
+            # Insert dataset record
+            pg.execute("""
+                INSERT INTO datasets (
+                    id, name, description, source_type,
+                    table_name, schema_name,
+                    file_path, original_filename, file_size_bytes,
+                    columns, created_at, updated_at
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, NOW(), NOW()
+                )
+            """, (
+                dataset_id,
+                dataset_name or file.filename.replace('.csv', ''),
+                dataset_description or '',
+                'csv',
+                table_name,
+                'public',
+                str(file_path),
+                file.filename,
+                file_size,
+                json.dumps(columns)
+            ))
+
+        logging.info(f"CSV dataset created: {dataset_id} from file {file.filename}, imported to table {table_name}")
+
+        return {
+            "success": True,
+            "dataset_id": dataset_id,
+            "columns": columns,
+            "row_count": len(df),
+            "file_size": file_size
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error uploading CSV: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================================
