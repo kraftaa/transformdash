@@ -276,14 +276,16 @@ body {
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-3) var(--space-5);
+    padding: var(--space-4) var(--space-5);
     color: var(--color-text-secondary);
     text-decoration: none;
     transition: all var(--transition-fast);
     position: relative;
     font-size: 0.9375rem;
     font-weight: 500;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
+    border-radius: var(--radius-md);
+    z-index: 1;
 }
 
 .nav-item:hover {
@@ -306,6 +308,7 @@ body {
     width: 3px;
     background: var(--color-primary);
     border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    pointer-events: none;
 }
 
 .nav-icon {
