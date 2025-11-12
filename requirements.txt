@@ -31,6 +31,9 @@ webdriver-manager>=4.0.1        # Automatic webdriver management
 openpyxl>=3.1.2                # Excel file creation and manipulation
 beautifulsoup4>=4.12.0          # HTML parsing
 
+# Scheduling and orchestration
+apscheduler>=3.10.4             # Background job scheduling with cron support
+
 # Optional: Orchestration (uncomment if needed)
 # celery>=5.3.1                # Task queue for scheduling
 # prefect>=2.7.9               # Workflow orchestration

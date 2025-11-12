@@ -186,6 +186,9 @@ function switchView(viewName) {
         case 'runs':
             loadRuns();
             break;
+        case 'schedules':
+            loadSchedules();
+            break;
         case 'settings':
             // Settings view is static
             break;
@@ -696,21 +699,28 @@ async function displayModels(models, filterLayer = null) {
         layerModels.forEach(model => {
             html += `
                 <div class="model-card" id="model-${model.name}">
-                    <div class="model-card-content" onclick="toggleModelCode('${model.name}')">
+                    <div class="model-card-content">
                         <div class="model-info">
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <span class="expand-icon" id="expand-model-${model.name}">▶</span>
-                                <h4 class="model-name">${model.name}</h4>
+                            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;" onclick="toggleModelCode('${model.name}')">
+                                    <span class="expand-icon" id="expand-model-${model.name}">▶</span>
+                                    <h4 class="model-name">${model.name}</h4>
+                                </div>
+                                <button class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.875rem;" onclick="event.stopPropagation(); runSingleModel('${model.name}')">
+                                    ▶ Run
+                                </button>
                             </div>
-                            <div class="model-badges">
+                            <div class="model-badges" onclick="toggleModelCode('${model.name}')" style="cursor: pointer;">
                                 <span class="badge badge-${layer}">${layer.toUpperCase()}</span>
                                 <span class="badge badge-type">${model.type.toUpperCase()}</span>
                             </div>
-                            ${model.depends_on.length > 0 ?
-                                `<div class="model-dependencies"><strong>Depends on:</strong> ${model.depends_on.join(', ')}</div>` :
-                                '<div class="model-dependencies">No dependencies</div>'}
-                            <div class="model-usage" id="usage-${model.name}" style="margin-top: 0.5rem;">
-                                <em style="color: #888; font-size: 0.875rem;">Loading usage...</em>
+                            <div onclick="toggleModelCode('${model.name}')" style="cursor: pointer;">
+                                ${model.depends_on.length > 0 ?
+                                    `<div class="model-dependencies"><strong>Depends on:</strong> ${model.depends_on.join(', ')}</div>` :
+                                    '<div class="model-dependencies">No dependencies</div>'}
+                                <div class="model-usage" id="usage-${model.name}" style="margin-top: 0.5rem;">
+                                    <em style="color: #888; font-size: 0.875rem;">Loading usage...</em>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1059,6 +1069,63 @@ async function toggleModelCode(modelName) {
     }
 }
 
+async function runSingleModel(modelName) {
+    try {
+        // Show loading toast
+        showToast(`Running model: ${modelName}...`, 'info');
+
+        // Disable the button to prevent double-clicks
+        const runButtons = document.querySelectorAll(`button[onclick*="runSingleModel('${modelName}')"]`);
+        runButtons.forEach(btn => {
+            btn.disabled = true;
+            btn.textContent = '⏳ Running...';
+        });
+
+        // Call the API to run the model
+        const response = await fetch(`/api/execute/${modelName}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+
+        // Re-enable the button
+        runButtons.forEach(btn => {
+            btn.disabled = false;
+            btn.textContent = '▶ Run';
+        });
+
+        if (data.status === 'completed') {
+            showToast(
+                `Model '${modelName}' executed successfully! ` +
+                `(${data.dependencies_run} dependencies also ran)`,
+                'success'
+            );
+        } else {
+            showToast(
+                `Model '${modelName}' failed: ${data.model.error || 'Unknown error'}`,
+                'error'
+            );
+        }
+
+        // Reload models to update status
+        await loadModels();
+
+    } catch (error) {
+        console.error('Error running model:', error);
+        showToast(`Failed to run model '${modelName}': ${error.message}`, 'error');
+
+        // Re-enable the button on error
+        const runButtons = document.querySelectorAll(`button[onclick*="runSingleModel('${modelName}')"]`);
+        runButtons.forEach(btn => {
+            btn.disabled = false;
+            btn.textContent = '▶ Run';
+        });
+    }
+}
+
 async function loadModelCodeInline(modelName) {
     const contentDiv = document.getElementById(`content-${modelName}`);
 
@@ -1135,21 +1202,11 @@ async function copyModelCode(modelName) {
     try {
         await navigator.clipboard.writeText(text);
 
-        // Show feedback
-        const btn = event.target;
-        const originalText = btn.textContent;
-        btn.textContent = '✓ Copied!';
-        btn.style.background = 'var(--color-success)';
-        btn.style.color = 'white';
-
-        setTimeout(() => {
-            btn.textContent = originalText;
-            btn.style.background = '';
-            btn.style.color = '';
-        }, 2000);
+        // Show feedback using toast
+        showToast('Code copied to clipboard!', 'success');
     } catch (error) {
         console.error('Error copying to clipboard:', error);
-        alert('Failed to copy code');
+        showToast('Failed to copy code to clipboard', 'error');
     }
 }
 
@@ -4986,6 +5043,7 @@ async function editChart(chartConfig) {
 
     // Pre-fill the form with chart data
     const titleEl = document.getElementById('chartTitle');
+    const descriptionEl = document.getElementById('chartDescription');
     const tableEl = document.getElementById('chartTable');
 
     if (!titleEl || !tableEl) {
@@ -4994,6 +5052,9 @@ async function editChart(chartConfig) {
     }
 
     titleEl.value = chartConfig.title || '';
+    if (descriptionEl) {
+        descriptionEl.value = chartConfig.description || '';
+    }
 
     // Add the table option if it doesn't exist in the select
     const tableName = chartConfig.model;
@@ -5527,6 +5588,7 @@ async function createChart() {
 
 async function saveChart() {
     const title = document.getElementById('chartTitle').value || 'Chart';
+    const description = document.getElementById('chartDescription').value || '';
     const table = document.getElementById('chartTable').value;
     let chartType = document.getElementById('chartType').value;
     const xAxis = document.getElementById('chartXAxis').value;
@@ -5601,6 +5663,7 @@ async function saveChart() {
         const chartConfig = {
             id: chartId,
             title: title,
+            description: description,
             type: chartType,  // Save the original type
             model: table,
             x_axis: xAxis,
@@ -5649,6 +5712,7 @@ async function saveChart() {
             chartConfig.dashboard_description = document.getElementById('newDashboardDescription').value;
         }
 
+        console.log('DEBUG: Description value:', description);
         console.log('DEBUG: Final chartConfig being sent to backend:', chartConfig);
 
         const response = await fetch('/api/charts/save', {
@@ -6862,6 +6926,295 @@ async function exportDashboardData(dashboardId, format) {
     } catch (error) {
         console.error('Error exporting data:', error);
         alert('Failed to export data: ' + error.message);
+    }
+}
+
+// =============================================================================
+// SCHEDULE MANAGEMENT
+// =============================================================================
+
+async function loadSchedules() {
+    try {
+        const response = await fetch('/api/schedules');
+        const data = await response.json();
+        displaySchedules(data.schedules);
+    } catch (error) {
+        console.error('Error loading schedules:', error);
+        const schedulesList = document.getElementById('schedules-list');
+        if (schedulesList) {
+            schedulesList.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">❌</div>
+                    <h3>Failed to Load Schedules</h3>
+                    <p>There was an error loading the schedules. Please try refreshing.</p>
+                </div>
+            `;
+        }
+    }
+}
+
+function displaySchedules(schedules) {
+    const schedulesList = document.getElementById('schedules-list');
+    if (!schedulesList) return;
+
+    if (schedules.length === 0) {
+        schedulesList.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">⏰</div>
+                <h3>No Schedules Yet</h3>
+                <p>Create your first schedule to automate model execution.</p>
+                <div class="empty-state-action">
+                    <button class="btn btn-primary" onclick="showCreateScheduleModal()">
+                        Create Schedule
+                    </button>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    schedulesList.innerHTML = schedules.map(schedule => {
+        const isActive = schedule.is_active;
+        const statusBadge = isActive
+            ? '<span class="badge" style="background: #10b981; color: white;">Active</span>'
+            : '<span class="badge" style="background: #6b7280; color: white;">Inactive</span>';
+
+        const lastRunStatus = schedule.last_run_status
+            ? `<span class="badge badge-${schedule.last_run_status === 'completed' ? 'success' : 'error'}">${schedule.last_run_status}</span>`
+            : '<span style="color: #888;">Never run</span>';
+
+        const nextRun = schedule.next_run_at
+            ? new Date(schedule.next_run_at).toLocaleString()
+            : 'Not scheduled';
+
+        const lastRun = schedule.last_run_at
+            ? new Date(schedule.last_run_at).toLocaleString()
+            : 'Never';
+
+        return `
+            <div class="model-card" style="margin-bottom: 1rem;">
+                <div class="model-card-content">
+                    <div class="model-info">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <h4 class="model-name">${schedule.schedule_name}</h4>
+                                ${statusBadge}
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.875rem;" onclick="event.stopPropagation(); toggleScheduleStatus(${schedule.id}, ${isActive})">
+                                    ${isActive ? '⏸ Pause' : '▶ Activate'}
+                                </button>
+                                <button class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.875rem;" onclick="event.stopPropagation(); editSchedule(${schedule.id})">
+                                    ✏️ Edit
+                                </button>
+                                <button class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.875rem; background: #ef4444; color: white;" onclick="event.stopPropagation(); deleteSchedule(${schedule.id}, '${schedule.schedule_name}')">
+                                    🗑️ Delete
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 0.75rem;">
+                            <div>
+                                <div style="font-weight: 600; color: #374151; margin-bottom: 0.25rem;">Model</div>
+                                <div style="color: #6b7280;">${schedule.model_name}</div>
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; color: #374151; margin-bottom: 0.25rem;">Schedule</div>
+                                <div style="color: #6b7280; font-family: 'JetBrains Mono', monospace; font-size: 0.875rem;">${schedule.cron_expression}</div>
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; color: #374151; margin-bottom: 0.25rem;">Timezone</div>
+                                <div style="color: #6b7280;">${schedule.timezone}</div>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 0.75rem;">
+                            <div>
+                                <div style="font-weight: 600; color: #374151; margin-bottom: 0.25rem;">Next Run</div>
+                                <div style="color: ${isActive ? '#667eea' : '#888'}; font-weight: 500;">${nextRun}</div>
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; color: #374151; margin-bottom: 0.25rem;">Last Run</div>
+                                <div style="color: #6b7280;">${lastRun}</div>
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; color: #374151; margin-bottom: 0.25rem;">Last Status</div>
+                                <div>${lastRunStatus}</div>
+                            </div>
+                        </div>
+
+                        ${schedule.description ? `
+                            <div style="margin-top: 0.75rem; padding: 0.75rem; background: #f9fafb; border-radius: 6px;">
+                                <div style="font-weight: 600; color: #374151; margin-bottom: 0.25rem;">Description</div>
+                                <div style="color: #6b7280; font-size: 0.875rem;">${schedule.description}</div>
+                            </div>
+                        ` : ''}
+
+                        <div style="margin-top: 0.75rem; font-size: 0.875rem; color: #888;">
+                            <strong>Statistics:</strong>
+                            ${schedule.total_runs || 0} total runs,
+                            ${schedule.successful_runs || 0} successful,
+                            ${schedule.failed_runs || 0} failed
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function showCreateScheduleModal() {
+    document.getElementById('scheduleModalTitle').textContent = 'Create Schedule';
+    document.getElementById('schedule-id').value = '';
+    document.getElementById('schedule-name').value = '';
+    document.getElementById('schedule-cron').value = '0 9 * * *';
+    document.getElementById('schedule-timezone').value = 'UTC';
+    document.getElementById('schedule-description').value = '';
+
+    // Load available models as checkboxes
+    try {
+        const models = modelsData; // Use globally loaded models
+        const modelsContainer = document.getElementById('schedule-models-container');
+        modelsContainer.innerHTML = models.map(m => `
+            <div style="margin-bottom: 0.5rem;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" name="schedule-models" value="${m.name}"
+                           style="margin-right: 0.5rem; cursor: pointer;">
+                    <span>${m.name}</span>
+                </label>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading models for schedule:', error);
+    }
+
+    document.getElementById('scheduleModal').style.display = 'block';
+}
+
+async function editSchedule(scheduleId) {
+    try {
+        const response = await fetch(`/api/schedules/${scheduleId}`);
+        const data = await response.json();
+        const schedule = data.schedule;
+
+        document.getElementById('scheduleModalTitle').textContent = 'Edit Schedule';
+        document.getElementById('schedule-id').value = schedule.id;
+        document.getElementById('schedule-name').value = schedule.schedule_name;
+        document.getElementById('schedule-cron').value = schedule.cron_expression;
+        document.getElementById('schedule-timezone').value = schedule.timezone;
+        document.getElementById('schedule-description').value = schedule.description || '';
+
+        // Load models as checkboxes with selected models checked
+        const models = modelsData;
+        const modelsContainer = document.getElementById('schedule-models-container');
+        const selectedModels = schedule.models || (schedule.model_name ? [schedule.model_name] : []);
+
+        modelsContainer.innerHTML = models.map(m => {
+            const isChecked = selectedModels.includes(m.name);
+            return `
+                <div style="margin-bottom: 0.5rem;">
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" name="schedule-models" value="${m.name}"
+                               ${isChecked ? 'checked' : ''}
+                               style="margin-right: 0.5rem; cursor: pointer;">
+                        <span>${m.name}</span>
+                    </label>
+                </div>
+            `;
+        }).join('');
+
+        document.getElementById('scheduleModal').style.display = 'block';
+    } catch (error) {
+        console.error('Error loading schedule for edit:', error);
+        showToast('Failed to load schedule details', 'error');
+    }
+}
+
+async function saveSchedule() {
+    const scheduleId = document.getElementById('schedule-id').value;
+    const scheduleName = document.getElementById('schedule-name').value;
+    const cronExpression = document.getElementById('schedule-cron').value;
+    const timezone = document.getElementById('schedule-timezone').value;
+    const description = document.getElementById('schedule-description').value;
+
+    // Get selected models from checkboxes
+    const selectedModels = Array.from(document.querySelectorAll('input[name="schedule-models"]:checked'))
+        .map(cb => cb.value);
+
+    if (!scheduleName || selectedModels.length === 0 || !cronExpression) {
+        showToast('Please fill in all required fields and select at least one model', 'error');
+        return;
+    }
+
+    try {
+        const url = scheduleId ? `/api/schedules/${scheduleId}` : '/api/schedules';
+        const method = scheduleId ? 'PUT' : 'POST';
+
+        const payload = scheduleId
+            ? { schedule_name: scheduleName, cron_expression: cronExpression, timezone, description, model_names: selectedModels }
+            : { schedule_name: scheduleName, model_names: selectedModels, cron_expression: cronExpression, timezone, description };
+
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to save schedule');
+        }
+
+        closeModal('scheduleModal');
+        showToast(scheduleId ? 'Schedule updated successfully' : 'Schedule created successfully', 'success');
+        await loadSchedules();
+
+    } catch (error) {
+        console.error('Error saving schedule:', error);
+        showToast('Failed to save schedule: ' + error.message, 'error');
+    }
+}
+
+async function toggleScheduleStatus(scheduleId, isActive) {
+    try {
+        const response = await fetch(`/api/schedules/${scheduleId}/toggle`, {
+            method: 'POST'
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to toggle schedule status');
+        }
+
+        const data = await response.json();
+        showToast(data.message, 'success');
+        await loadSchedules();
+
+    } catch (error) {
+        console.error('Error toggling schedule:', error);
+        showToast('Failed to toggle schedule: ' + error.message, 'error');
+    }
+}
+
+async function deleteSchedule(scheduleId, scheduleName) {
+    if (!confirm(`Are you sure you want to delete the schedule "${scheduleName}"? This action cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/schedules/${scheduleId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to delete schedule');
+        }
+
+        showToast('Schedule deleted successfully', 'success');
+        await loadSchedules();
+
+    } catch (error) {
+        console.error('Error deleting schedule:', error);
+        showToast('Failed to delete schedule: ' + error.message, 'error');
     }
 }
 

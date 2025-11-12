@@ -97,6 +97,13 @@
                     </svg>
                     <span class="nav-text">Run History</span>
                 </a>
+                <a href="#" class="nav-item" data-view="schedules" onclick="switchView('schedules')">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    <span class="nav-text">Schedules</span>
+                </a>
             </div>
 
             <div class="nav-section">
@@ -556,6 +563,11 @@
                         </div>
 
                         <div style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Description (Optional)</label>
+                            <textarea id="chartDescription" placeholder="Describe what this chart shows..." class="input" rows="2" style="resize: vertical;"></textarea>
+                        </div>
+
+                        <div style="margin-bottom: 1rem;">
                             <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">Connection</label>
                             <select id="chartConnection" onchange="loadChartSchemas()" class="input">
                                 <option value="">Select connection...</option>
@@ -956,6 +968,23 @@
                 <div id="runs-list"></div>
             </div>
 
+            <!-- Schedules View -->
+            <div id="schedules-view" class="view-content">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">Model Schedules</h1>
+                        <p class="page-subtitle">Automate transformation model execution with cron schedules</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="showCreateScheduleModal()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                        New Schedule
+                    </button>
+                </div>
+                <div id="schedules-list"></div>
+            </div>
+
             <!-- Settings View -->
             <div id="settings-view" class="view-content">
                 <div class="page-header">
@@ -1102,6 +1131,72 @@
             </div>
             <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid var(--color-border); display: flex; justify-content: flex-end; gap: 0.75rem;">
                 <button class="btn btn-secondary" onclick="closeModal('editDashboardModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule Modal -->
+    <div id="scheduleModal" class="modal">
+        <div class="modal-overlay" onclick="closeModal('scheduleModal')"></div>
+        <div class="modal-container" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 id="scheduleModalTitle">Create Schedule</h2>
+                <button class="modal-close" onclick="closeModal('scheduleModal')">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <input type="hidden" id="schedule-id" value="">
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--color-text-primary);">Schedule Name</label>
+                    <input type="text" id="schedule-name" class="input" placeholder="e.g., Daily Product Refresh" required>
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--color-text-primary);">Models</label>
+                    <div id="schedule-models-container" style="border: 1px solid var(--color-border); border-radius: 8px; padding: 0.75rem; max-height: 200px; overflow-y: auto; background: var(--color-bg-primary);">
+                        <!-- Model checkboxes will be populated here -->
+                    </div>
+                    <small style="color: var(--color-text-secondary); display: block; margin-top: 0.25rem;">Select one or more models to run on this schedule</small>
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--color-text-primary);">Cron Expression</label>
+                    <input type="text" id="schedule-cron" class="input" placeholder="0 9 * * *" required>
+                    <small style="display: block; margin-top: 0.5rem; color: #6b7280;">
+                        Format: minute hour day month day_of_week<br>
+                        Examples:
+                        <span style="cursor: pointer; color: #667eea;" onclick="document.getElementById('schedule-cron').value='0 9 * * *'">0 9 * * *</span> (daily at 9am),
+                        <span style="cursor: pointer; color: #667eea;" onclick="document.getElementById('schedule-cron').value='0 */6 * * *'">0 */6 * * *</span> (every 6 hours),
+                        <span style="cursor: pointer; color: #667eea;" onclick="document.getElementById('schedule-cron').value='0 0 * * 1'">0 0 * * 1</span> (weekly Monday midnight)
+                    </small>
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--color-text-primary);">Timezone</label>
+                    <select id="schedule-timezone" class="input">
+                        <option value="UTC">UTC</option>
+                        <option value="America/New_York">America/New_York (EST/EDT)</option>
+                        <option value="America/Chicago">America/Chicago (CST/CDT)</option>
+                        <option value="America/Los_Angeles">America/Los_Angeles (PST/PDT)</option>
+                        <option value="Europe/London">Europe/London</option>
+                        <option value="Europe/Paris">Europe/Paris</option>
+                        <option value="Asia/Tokyo">Asia/Tokyo</option>
+                        <option value="Asia/Shanghai">Asia/Shanghai</option>
+                    </select>
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--color-text-primary);">Description (Optional)</label>
+                    <textarea id="schedule-description" class="input" rows="3" placeholder="Describe the purpose of this schedule..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid var(--color-border); display: flex; justify-content: flex-end; gap: 0.75rem;">
+                <button class="btn btn-secondary" onclick="closeModal('scheduleModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveSchedule()">Save Schedule</button>
             </div>
         </div>
     </div>

@@ -479,7 +479,6 @@ async def get_all_charts():
                     c.id,
                     c.chart_number,
                     c.title,
-                    c.description,
                     c.type,
                     c.model,
                     c.connection_id,
@@ -506,7 +505,6 @@ async def get_all_charts():
                         'id': chart['id'],
                         'chart_number': chart['chart_number'],
                         'title': chart['title'],
-                        'description': chart.get('description', ''),
                         'type': chart['type'],
                         'model': chart['model'],
                         'connection_id': chart['connection_id'],
@@ -548,8 +546,6 @@ async def save_chart(request: Request):
         # Get chart config from request
         chart_id = body.get("id")
         chart_title = body.get("title")
-        chart_description = body.get("description", "")
-        logging.info(f"DEBUG: chart_description value = '{chart_description}'")
         chart_type = body.get("type")
         chart_model = body.get("model")
         x_axis = body.get("x_axis", "")
@@ -607,11 +603,10 @@ async def save_chart(request: Request):
 
             # Insert or update chart in charts table
             pg.execute("""
-                INSERT INTO charts (id, title, description, type, model, x_axis, y_axis, aggregation, columns, category, config)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO charts (id, title, type, model, x_axis, y_axis, aggregation, columns, category, config)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (id) DO UPDATE SET
                     title = EXCLUDED.title,
-                    description = EXCLUDED.description,
                     type = EXCLUDED.type,
                     model = EXCLUDED.model,
                     x_axis = EXCLUDED.x_axis,
@@ -622,7 +617,7 @@ async def save_chart(request: Request):
                     config = EXCLUDED.config,
                     updated_at = CURRENT_TIMESTAMP
             """, (
-                chart_id, chart_title, chart_description, chart_type, chart_model,
+                chart_id, chart_title, chart_type, chart_model,
                 x_axis, y_axis, aggregation,
                 json.dumps(columns) if columns else None,
                 category,
@@ -2012,7 +2007,7 @@ from pydantic import BaseModel
 
 class ScheduleCreate(BaseModel):
     schedule_name: str
-    model_names: list[str]  # Changed to support multiple models
+    model_name: str
     cron_expression: str
     description: str = None
     timezone: str = 'UTC'
@@ -2020,7 +2015,6 @@ class ScheduleCreate(BaseModel):
 
 class ScheduleUpdate(BaseModel):
     schedule_name: str = None
-    model_names: list[str] = None
     cron_expression: str = None
     description: str = None
     is_active: bool = None
@@ -2043,15 +2037,12 @@ async def list_schedules():
 
 @app.post("/api/schedules")
 async def create_schedule(schedule: ScheduleCreate):
-    """Create a new model schedule with support for multiple models"""
+    """Create a new model schedule"""
     try:
-        # Validate models exist
-        all_models = loader.load_all_models()
-        model_map = {m.name: m for m in all_models}
-
-        for model_name in schedule.model_names:
-            if model_name not in model_map:
-                raise HTTPException(status_code=404, detail=f"Model '{model_name}' not found")
+        # Validate model exists
+        models = loader.load_all_models()
+        if not any(m.name == schedule.model_name for m in models):
+            raise HTTPException(status_code=404, detail=f"Model '{schedule.model_name}' not found")
 
         # Validate cron expression
         parts = schedule.cron_expression.split()
@@ -2060,37 +2051,29 @@ async def create_schedule(schedule: ScheduleCreate):
 
         # Insert into database
         with connection_manager.get_connection() as pg:
-            # Create the schedule (no longer requires model_name)
-            result = pg.execute("""
+            result = pg.query("""
                 INSERT INTO model_schedules (
-                    schedule_name, cron_expression,
+                    schedule_name, model_name, cron_expression,
                     description, timezone, max_retries, is_active
                 )
-                VALUES (%s, %s, %s, %s, %s, TRUE)
-                RETURNING id, schedule_name, cron_expression
-            """, params=(
+                VALUES (%s, %s, %s, %s, %s, %s, TRUE)
+                RETURNING id, schedule_name, model_name, cron_expression
+            """, [
                 schedule.schedule_name,
+                schedule.model_name,
                 schedule.cron_expression,
                 schedule.description,
                 schedule.timezone,
                 schedule.max_retries
-            ), fetch=True)
+            ])
 
             schedule_record = result[0]
-            schedule_id = schedule_record['id']
-
-            # Add models to schedule_models table
-            for idx, model_name in enumerate(schedule.model_names):
-                pg.execute("""
-                    INSERT INTO schedule_models (schedule_id, model_name, execution_order)
-                    VALUES (%s, %s, %s)
-                """, params=(schedule_id, model_name, idx))
 
         # Add to scheduler
         scheduler = get_scheduler()
         success = scheduler.add_schedule(
-            schedule_id=schedule_id,
-            model_names=schedule.model_names,
+            schedule_id=schedule_record['id'],
+            model_name=schedule_record['model_name'],
             cron_expression=schedule_record['cron_expression'],
             timezone=schedule.timezone
         )
@@ -2100,11 +2083,7 @@ async def create_schedule(schedule: ScheduleCreate):
 
         return {
             "message": "Schedule created successfully",
-            "schedule": {
-                **schedule_record,
-                "models": schedule.model_names,
-                "model_count": len(schedule.model_names)
-            }
+            "schedule": schedule_record
         }
 
     except HTTPException:
@@ -2120,35 +2099,24 @@ async def get_schedule(schedule_id: int):
     try:
         with connection_manager.get_connection() as pg:
             # Get schedule details
-            schedule = pg.execute("""
+            schedule = pg.query("""
                 SELECT * FROM v_schedule_status
                 WHERE id = %s
-            """, params=(schedule_id), fetch=True)
+            """, [schedule_id])
 
             if not schedule:
                 raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
 
-            # Get associated models
-            models = pg.execute("""
-                SELECT model_name
-                FROM schedule_models
-                WHERE schedule_id = %s
-                ORDER BY model_name
-            """, params=(schedule_id,), fetch=True)
-
             # Get recent runs
-            runs = pg.execute("""
+            runs = pg.query("""
                 SELECT * FROM schedule_runs
                 WHERE schedule_id = %s
                 ORDER BY started_at DESC
                 LIMIT 50
-            """, params=(schedule_id), fetch=True)
-
-        schedule_data = schedule[0]
-        schedule_data['models'] = [m['model_name'] for m in models]
+            """, [schedule_id])
 
         return {
-            "schedule": schedule_data,
+            "schedule": schedule[0],
             "recent_runs": runs
         }
 
@@ -2194,87 +2162,39 @@ async def update_schedule(schedule_id: int, update: ScheduleUpdate):
                 updates.append("timezone = %s")
                 params.append(update.timezone)
 
-            if not updates and update.model_names is None:
+            if not updates:
                 raise HTTPException(status_code=400, detail="No fields to update")
 
             updates.append("updated_at = CURRENT_TIMESTAMP")
             params.append(schedule_id)
 
-            # Update schedule table if there are updates
-            if updates:
-                query = f"""
-                    UPDATE model_schedules
-                    SET {', '.join(updates)}
-                    WHERE id = %s
-                    RETURNING id, schedule_name, cron_expression, timezone, is_active
-                """
-                result = pg.execute(query, params)
+            # Update database
+            query = f"""
+                UPDATE model_schedules
+                SET {', '.join(updates)}
+                WHERE id = %s
+                RETURNING id, schedule_name, model_name, cron_expression, timezone, is_active
+            """
+            result = pg.query(query, params)
 
-                if not result:
-                    raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+            if not result:
+                raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
 
-                schedule_record = result[0]
-            else:
-                # Just get the existing schedule
-                schedule_record = pg.execute("""
-                    SELECT id, schedule_name, cron_expression, timezone, is_active
-                    FROM model_schedules
-                    WHERE id = %s
-                """, params=(schedule_id,), fetch=True)
-                if not schedule_record:
-                    raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
-                schedule_record = schedule_record[0]
+            schedule_record = result[0]
 
-            # Update models if provided
-            if update.model_names is not None:
-                if not update.model_names:
-                    raise HTTPException(status_code=400, detail="At least one model must be selected")
-
-                # Delete old model associations
-                pg.execute("""
-                    DELETE FROM schedule_models
-                    WHERE schedule_id = %s
-                """, params=(schedule_id,))
-
-                # Insert new model associations
-                for model_name in update.model_names:
-                    pg.execute("""
-                        INSERT INTO schedule_models (schedule_id, model_name)
-                        VALUES (%s, %s)
-                    """, params=(schedule_id, model_name))
-
-            # Get updated models for the schedule
-            models = pg.execute("""
-                SELECT model_name
-                FROM schedule_models
-                WHERE schedule_id = %s
-                ORDER BY model_name
-            """, params=(schedule_id,), fetch=True)
-            model_names = [m['model_name'] for m in models]
-
-        # Update scheduler if cron, timezone, or models changed, or if activating
-        needs_reschedule = (
-            update.cron_expression is not None or
-            update.timezone is not None or
-            update.model_names is not None or
-            (update.is_active and update.is_active == True)
-        )
-
-        if needs_reschedule:
+        # Update scheduler if cron or timezone changed, or if activating
+        if update.cron_expression is not None or update.timezone is not None or (update.is_active and update.is_active == True):
             scheduler.remove_schedule(schedule_id)
-            if schedule_record['is_active'] and model_names:
+            if schedule_record['is_active']:
                 scheduler.add_schedule(
                     schedule_id=schedule_record['id'],
-                    model_names=model_names,
+                    model_name=schedule_record['model_name'],
                     cron_expression=schedule_record['cron_expression'],
                     timezone=schedule_record['timezone']
                 )
         elif update.is_active is not None and not update.is_active:
             # Deactivating - remove from scheduler
             scheduler.remove_schedule(schedule_id)
-
-        # Add models to response
-        schedule_record['models'] = model_names
 
         return {
             "message": "Schedule updated successfully",
@@ -2317,7 +2237,7 @@ async def toggle_schedule(schedule_id: int):
     try:
         with connection_manager.get_connection() as pg:
             # Toggle is_active
-            result = pg.execute("""
+            result = pg.query("""
                 UPDATE model_schedules
                 SET is_active = NOT is_active, updated_at = CURRENT_TIMESTAMP
                 WHERE id = %s
@@ -2362,12 +2282,12 @@ async def get_schedule_runs(schedule_id: int, limit: int = 50):
     """Get run history for a schedule"""
     try:
         with connection_manager.get_connection() as pg:
-            runs = pg.execute("""
+            runs = pg.query("""
                 SELECT * FROM schedule_runs
                 WHERE schedule_id = %s
                 ORDER BY started_at DESC
                 LIMIT %s
-            """, params=(schedule_id, limit), fetch=True)
+            """, [schedule_id, limit])
 
         return {"runs": runs}
 
