@@ -68,8 +68,34 @@ class TransformationModel:
         from postgres import PostgresConnector
         from jinja2 import Template
         import re
+        import ast
 
-        # Step 1: Render Jinja2 templates
+        # Step 1: Extract config from SQL before rendering
+        config_match = re.search(r'\{\{.*?config\((.*?)\).*?\}\}', self.sql_query, flags=re.DOTALL)
+        parsed_config = {}
+        if config_match:
+            try:
+                # Extract the config parameters
+                config_str = config_match.group(1)
+                # Parse kwargs-style config (key=value) into dict
+                # Convert key=value to "key": value for JSON parsing
+                config_str = config_str.strip()
+                # Replace key= with "key": for JSON format
+                config_str = re.sub(r'(\w+)=', r'"\1":', config_str)
+                # Replace single quotes with double quotes for JSON
+                config_str = config_str.replace("'", '"')
+                # Remove trailing commas before ] or } (JSON doesn't allow them)
+                config_str = re.sub(r',(\s*[\]}])', r'\1', config_str)
+                # Parse as JSON
+                import json
+                parsed_config = json.loads(f"{{{config_str}}}")
+            except Exception as e:
+                # If parsing fails, silently continue without config
+                import logging
+                logging.debug(f"Failed to parse config: {e}")
+                pass
+
+        # Step 2: Render Jinja2 templates
         # Create Jinja2 environment with our custom functions
         template = Template(self.sql_query)
 
@@ -101,13 +127,13 @@ class TransformationModel:
             this=f"public.{self.name}"  # {{ this }} refers to current model
         )
 
-        # Step 2: Clean up the SQL (remove config lines, extra whitespace)
+        # Step 3: Clean up the SQL (remove config lines, extra whitespace)
         # Remove any standalone config() calls
         rendered_sql = re.sub(r'\{\{.*?config\(.*?\).*?\}\}', '', rendered_sql, flags=re.DOTALL)
         rendered_sql = rendered_sql.strip()
 
-        # Step 3: Execute based on materialization strategy
-        mat_type = getattr(self, 'config', {}).get('materialized', 'view')
+        # Step 4: Execute based on materialization strategy
+        mat_type = getattr(self, 'config', {}).get('materialized', parsed_config.get('materialized', 'view'))
 
         with PostgresConnector() as pg:
             if mat_type == 'view':
@@ -123,6 +149,11 @@ class TransformationModel:
                 create_sql = f"CREATE TABLE public.{self.name} AS\n{rendered_sql}"
                 pg.execute(drop_sql)
                 pg.execute(create_sql)
+
+                # Create indexes if specified in config
+                if 'indexes' in parsed_config:
+                    self._create_indexes(pg, parsed_config['indexes'])
+
                 result_df = pg.query_to_dataframe(f"SELECT * FROM public.{self.name} LIMIT 5")
 
             elif mat_type == 'incremental':
@@ -139,6 +170,35 @@ class TransformationModel:
                 result_df = pg.query_to_dataframe(rendered_sql)
 
             return result_df
+
+    def _create_indexes(self, pg, indexes: List[Dict[str, Any]]) -> None:
+        """
+        Create indexes on the table based on dbt config
+        indexes format: [{"columns": ["col1", "col2"], "unique": True}, ...]
+        """
+        for idx, index_config in enumerate(indexes):
+            columns = index_config.get('columns', [])
+            if not columns:
+                continue
+
+            is_unique = index_config.get('unique', False)
+            unique_str = 'UNIQUE ' if is_unique else ''
+
+            # Generate index name: tablename_col1_col2_idx
+            columns_str = '_'.join(columns)
+            index_name = f"{self.name}_{columns_str}_idx"
+
+            # Build column list for index
+            columns_list = ', '.join(columns)
+
+            # Create index SQL
+            create_index_sql = f"CREATE {unique_str}INDEX IF NOT EXISTS {index_name} ON public.{self.name} ({columns_list})"
+
+            try:
+                pg.execute(create_index_sql)
+                print(f"Created index {index_name} on {self.name}({columns_list})")
+            except Exception as e:
+                print(f"Warning: Failed to create index {index_name}: {str(e)}")
 
     def _write_python_result_to_db(self) -> None:
         """

@@ -816,7 +816,7 @@ async def get_dashboard(dashboard_id: str):
                 SELECT
                     c.id, c.title, c.type, c.model, c.x_axis, c.y_axis,
                     c.aggregation, c.columns, c.category, c.config,
-                    dc.tab_id, dc.position
+                    dc.tab_id, dc.position, dc.size
                 FROM charts c
                 JOIN dashboard_charts dc ON c.id = dc.chart_id
                 WHERE dc.dashboard_id = %s
@@ -840,7 +840,8 @@ async def get_dashboard(dashboard_id: str):
                         'aggregation': chart['aggregation'],
                         'columns': chart['columns'],
                         'category': chart['category'],
-                        'config': chart['config']
+                        'config': chart['config'],
+                        'size': chart.get('size', 'medium')
                     }
                     for chart in assigned_charts
                     if chart['tab_id'] == tab['id']
@@ -865,7 +866,8 @@ async def get_dashboard(dashboard_id: str):
                     'aggregation': chart['aggregation'],
                     'columns': chart['columns'],
                     'category': chart['category'],
-                    'config': chart['config']
+                    'config': chart['config'],
+                    'size': chart.get('size', 'medium')
                 }
                 for chart in assigned_charts
                 if chart['tab_id'] is None
@@ -970,12 +972,14 @@ async def update_dashboard(dashboard_id: str, request: Request):
                             ))
 
                         # Assign chart to tab via junction table
+                        chart_size = chart.get('size', 'medium')
                         pg.execute("""
-                            INSERT INTO dashboard_charts (dashboard_id, chart_id, tab_id, position)
-                            VALUES (%s, %s, %s, %s)
+                            INSERT INTO dashboard_charts (dashboard_id, chart_id, tab_id, position, size)
+                            VALUES (%s, %s, %s, %s, %s)
                             ON CONFLICT (dashboard_id, chart_id, tab_id) DO UPDATE SET
-                                position = EXCLUDED.position
-                        """, (dashboard_id, chart_id, tab_id, chart_idx))
+                                position = EXCLUDED.position,
+                                size = EXCLUDED.size
+                        """, (dashboard_id, chart_id, tab_id, chart_idx, chart_size))
 
             # Update unassigned charts (charts with tab_id = NULL)
             if new_charts is not None:
@@ -1014,12 +1018,14 @@ async def update_dashboard(dashboard_id: str, request: Request):
                         ))
 
                     # Assign chart as unassigned (tab_id = NULL)
+                    chart_size = chart.get('size', 'medium')
                     pg.execute("""
-                        INSERT INTO dashboard_charts (dashboard_id, chart_id, tab_id, position)
-                        VALUES (%s, %s, NULL, %s)
+                        INSERT INTO dashboard_charts (dashboard_id, chart_id, tab_id, position, size)
+                        VALUES (%s, %s, NULL, %s, %s)
                         ON CONFLICT (dashboard_id, chart_id, tab_id) DO UPDATE SET
-                            position = EXCLUDED.position
-                    """, (dashboard_id, chart_id, chart_idx))
+                            position = EXCLUDED.position,
+                            size = EXCLUDED.size
+                    """, (dashboard_id, chart_id, chart_idx, chart_size))
 
             # Update filters if provided
             if new_filters is not None:
@@ -1052,6 +1058,68 @@ async def update_dashboard(dashboard_id: str, request: Request):
     except Exception as e:
         import traceback
         logging.error(f"Error updating dashboard: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.patch("/api/dashboards/{dashboard_id}/metadata")
+async def update_dashboard_metadata(dashboard_id: str, request: Request):
+    """Update dashboard name and/or description"""
+    try:
+        body = await request.json()
+        name = body.get('name')
+        description = body.get('description')
+
+        logging.info(f"Updating dashboard {dashboard_id} metadata: name={name}, description={description}")
+
+        # Validate at least one field is provided
+        if name is None and description is None:
+            raise HTTPException(status_code=400, detail="At least one of 'name' or 'description' must be provided")
+
+        with connection_manager.get_connection() as pg:
+            # Check if dashboard exists
+            existing = pg.execute(
+                "SELECT id, name FROM dashboards WHERE id = %s",
+                (dashboard_id,),
+                fetch=True
+            )
+
+            if not existing or len(existing) == 0:
+                raise HTTPException(status_code=404, detail=f"Dashboard {dashboard_id} not found")
+
+            # Build dynamic UPDATE query based on what was provided
+            update_fields = []
+            update_values = []
+
+            if name is not None:
+                update_fields.append("name = %s")
+                update_values.append(name)
+
+            if description is not None:
+                update_fields.append("description = %s")
+                update_values.append(description)
+
+            update_fields.append("updated_at = NOW()")
+            update_values.append(dashboard_id)
+
+            update_query = f"""
+                UPDATE dashboards
+                SET {', '.join(update_fields)}
+                WHERE id = %s
+            """
+
+            pg.execute(update_query, tuple(update_values))
+
+            logging.info(f"Dashboard {dashboard_id} metadata updated successfully")
+            return {
+                "success": True,
+                "message": "Dashboard updated successfully"
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error updating dashboard metadata: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1271,22 +1339,44 @@ async def get_table_columns(table_name: str, schema: str = "public", connection_
         # Get connection from connection manager
         with connection_manager.get_connection(connection_id) as pg:
             # Use pg_attribute for more reliable column information
+            # Also check if column is part of any index
             query = """
+                WITH index_columns AS (
+                    SELECT
+                        i.indrelid,
+                        unnest(i.indkey) as attnum,
+                        i.indisprimary,
+                        i.indisunique
+                    FROM pg_catalog.pg_index i
+                    JOIN pg_catalog.pg_class c ON i.indrelid = c.oid
+                    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+                    WHERE n.nspname = %s
+                    AND c.relname = %s
+                )
                 SELECT
                     a.attname as column_name,
-                    pg_catalog.format_type(a.atttypid, a.atttypmod) as data_type
+                    pg_catalog.format_type(a.atttypid, a.atttypmod) as data_type,
+                    CASE
+                        WHEN bool_or(ic.indisprimary) THEN 'primary'
+                        WHEN bool_or(ic.indisunique) THEN 'unique'
+                        WHEN COUNT(ic.attnum) > 0 THEN 'index'
+                        ELSE NULL
+                    END as index_type,
+                    a.attnum as column_order
                 FROM pg_catalog.pg_attribute a
                 JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
                 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+                LEFT JOIN index_columns ic ON a.attrelid = ic.indrelid AND a.attnum = ic.attnum
                 WHERE n.nspname = %s
                 AND c.relname = %s
                 AND a.attnum > 0
                 AND NOT a.attisdropped
-                ORDER BY a.attnum
+                GROUP BY a.attname, a.atttypid, a.atttypmod, a.attnum
+                ORDER BY column_order
             """
             logging.info(f"Fetching columns for connection {connection_id or 'default'}.{schema}.{table_name}")
-            result = pg.execute(query, (schema, table_name), fetch=True)
-            columns = [{"name": row['column_name'], "type": row['data_type']} for row in result]
+            result = pg.execute(query, (schema, table_name, schema, table_name), fetch=True)
+            columns = [{"name": row['column_name'], "type": row['data_type'], "index_type": row['index_type']} for row in result]
             logging.info(f"Found {len(columns)} columns for {schema}.{table_name}")
             return {"columns": columns}
     except Exception as e:

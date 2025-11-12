@@ -1,0 +1,71 @@
+{
+  "run_id": "run_20251112_172341_30613e86",
+  "timestamp": "2025-11-12T17:23:41.774602",
+  "summary": {
+    "total_models": 5,
+    "successes": 4,
+    "failures": 1,
+    "total_execution_time": 0.451279,
+    "models": {
+      "stg_stock_levels": {
+        "execution_time": 0.192209,
+        "timestamp": "2025-11-12T17:23:41.515431",
+        "status": "success"
+      },
+      "stg_warehouses": {
+        "execution_time": 0.020416,
+        "timestamp": "2025-11-12T17:23:41.535882",
+        "status": "success"
+      },
+      "stg_products": {
+        "execution_time": 0.051187,
+        "timestamp": "2025-11-12T17:23:41.587102",
+        "status": "success"
+      },
+      "int_inventory_summary": {
+        "execution_time": 0.185201,
+        "timestamp": "2025-11-12T17:23:41.772344",
+        "status": "success"
+      },
+      "fct_inventory_metrics": {
+        "execution_time": 0.002002,
+        "timestamp": "2025-11-12T17:23:41.774413",
+        "status": "failed",
+        "error": "expected token 'end of print statement', got '='"
+      }
+    },
+    "logs": [
+      "[2025-11-12 17:23:41.323] [INFO] Starting transformation pipeline",
+      "[2025-11-12 17:23:41.323] [INFO] Execution order: stg_stock_levels \u2192 stg_warehouses \u2192 stg_products \u2192 int_inventory_summary \u2192 fct_inventory_metrics",
+      "[2025-11-12 17:23:41.323] [INFO] Executing: stg_stock_levels [sql]",
+      "[2025-11-12 17:23:41.515] [SUCCESS] Completed: stg_stock_levels in 0.192s",
+      "[2025-11-12 17:23:41.515] [INFO] Executing: stg_warehouses [sql]",
+      "[2025-11-12 17:23:41.535] [SUCCESS] Completed: stg_warehouses in 0.020s",
+      "[2025-11-12 17:23:41.535] [INFO] Executing: stg_products [sql]",
+      "[2025-11-12 17:23:41.587] [SUCCESS] Completed: stg_products in 0.051s",
+      "[2025-11-12 17:23:41.587] [INFO] Executing: int_inventory_summary [sql]",
+      "[2025-11-12 17:23:41.772] [SUCCESS] Completed: int_inventory_summary in 0.185s",
+      "[2025-11-12 17:23:41.772] [INFO] Executing: fct_inventory_metrics [sql]",
+      "[2025-11-12 17:23:41.774] [ERROR] Failed: fct_inventory_metrics - expected token 'end of print statement', got '='",
+      "[2025-11-12 17:23:41.774] [INFO] Pipeline completed in 0.451s"
+    ],
+    "run_type": "single_model",
+    "target_model": "fct_inventory_metrics",
+    "timestamp": "2025-11-12T17:23:41.774595"
+  },
+  "logs": [
+    "[2025-11-12 17:23:41.323] [INFO] Starting transformation pipeline",
+    "[2025-11-12 17:23:41.323] [INFO] Execution order: stg_stock_levels \u2192 stg_warehouses \u2192 stg_products \u2192 int_inventory_summary \u2192 fct_inventory_metrics",
+    "[2025-11-12 17:23:41.323] [INFO] Executing: stg_stock_levels [sql]",
+    "[2025-11-12 17:23:41.515] [SUCCESS] Completed: stg_stock_levels in 0.192s",
+    "[2025-11-12 17:23:41.515] [INFO] Executing: stg_warehouses [sql]",
+    "[2025-11-12 17:23:41.535] [SUCCESS] Completed: stg_warehouses in 0.020s",
+    "[2025-11-12 17:23:41.535] [INFO] Executing: stg_products [sql]",
+    "[2025-11-12 17:23:41.587] [SUCCESS] Completed: stg_products in 0.051s",
+    "[2025-11-12 17:23:41.587] [INFO] Executing: int_inventory_summary [sql]",
+    "[2025-11-12 17:23:41.772] [SUCCESS] Completed: int_inventory_summary in 0.185s",
+    "[2025-11-12 17:23:41.772] [INFO] Executing: fct_inventory_metrics [sql]",
+    "[2025-11-12 17:23:41.774] [ERROR] Failed: fct_inventory_metrics - expected token 'end of print statement', got '='",
+    "[2025-11-12 17:23:41.774] [INFO] Pipeline completed in 0.451s"
+  ]
+}

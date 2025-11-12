@@ -3,6 +3,83 @@
 // ============================================================================
 
 let currentDatasetSourceType = 'table'; // 'table' or 'sql'
+let allDatasetsData = [];
+let currentDatasetsSearchTerm = '';
+
+// Debounce utility for datasets search
+let datasetsSearchDebounceTimer = null;
+function debounceDatasetSearch(callback, delay = 300) {
+    clearTimeout(datasetsSearchDebounceTimer);
+    datasetsSearchDebounceTimer = setTimeout(callback, delay);
+}
+
+// Datasets Search Handler
+function handleDatasetsSearch(searchTerm) {
+    currentDatasetsSearchTerm = searchTerm;
+    const clearBtn = document.getElementById('datasets-search-clear');
+    if (clearBtn) {
+        clearBtn.style.display = searchTerm ? 'block' : 'none';
+    }
+    debounceDatasetSearch(() => {
+        renderFilteredDatasets();
+    });
+}
+
+function clearDatasetsSearch() {
+    document.getElementById('datasets-search').value = '';
+    currentDatasetsSearchTerm = '';
+    document.getElementById('datasets-search-clear').style.display = 'none';
+    renderFilteredDatasets();
+}
+
+function renderFilteredDatasets() {
+    const grid = document.getElementById('datasets-grid');
+
+    if (!allDatasetsData || allDatasetsData.length === 0) {
+        grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: #9ca3af;"><p>No datasets yet. Create your first dataset to get started!</p></div>';
+        return;
+    }
+
+    // Apply search filter using the global filterListItems function from app.js
+    let filteredDatasets = allDatasetsData;
+    if (currentDatasetsSearchTerm && typeof filterListItems === 'function') {
+        filteredDatasets = filterListItems(currentDatasetsSearchTerm, allDatasetsData, ['name', 'source_type', 'description']);
+    }
+
+    if (filteredDatasets.length === 0) {
+        grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: #9ca3af;"><p>No datasets match your search criteria.</p></div>';
+        return;
+    }
+
+    grid.innerHTML = filteredDatasets.map(dataset => {
+        const sourceIcon = dataset.source_type === 'sql' ? '⚡' : '📊';
+        const sourceLabel = dataset.source_type === 'sql' ? 'Custom SQL' : 'Table';
+
+        return `
+            <div class="card" style="padding: 1.5rem; border: 1px solid #e5e7eb; border-radius: 12px; background: white; transition: box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow=''">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="font-size: 1.5rem;">${sourceIcon}</span>
+                        <h3 style="margin: 0; font-size: 1.125rem; font-weight: 600; color: #1a202c;">${dataset.name}</h3>
+                    </div>
+                    <div class="dropdown" style="position: relative;">
+                        <button onclick="toggleDatasetMenu('${dataset.id}')" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; color: #6b7280; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">⋮</button>
+                        <div id="dataset-menu-${dataset.id}" class="dropdown-menu" style="display: none; position: absolute; right: 0; top: 100%; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 150px; z-index: 1000;">
+                            <button onclick="editDataset('${dataset.id}')" style="width: 100%; text-align: left; padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 0.875rem; color: #374151; transition: background 0.2s; border-radius: 8px 8px 0 0;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">✏️ Edit</button>
+                            <button onclick="deleteDataset('${dataset.id}', '${dataset.name}')" style="width: 100%; text-align: left; padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 0.875rem; color: #dc2626; transition: background 0.2s; border-radius: 0 0 8px 8px;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='none'">🗑️ Delete</button>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: inline-block; padding: 4px 10px; background: #e0e7ff; color: #667eea; border-radius: 6px; font-size: 0.75rem; font-weight: 500; margin-bottom: 0.75rem;">${sourceLabel}</div>
+                <p style="margin: 0.75rem 0 0 0; color: #6b7280; font-size: 0.875rem; line-height: 1.5;">${dataset.description || 'No description'}</p>
+                ${dataset.source_type === 'table' ?
+                    `<p style="margin: 0.5rem 0 0 0; color: #9ca3af; font-size: 0.75rem; font-family: monospace;">${dataset.schema_name || 'public'}.${dataset.table_name}</p>` :
+                    `<p style="margin: 0.5rem 0 0 0; color: #9ca3af; font-size: 0.75rem;">Custom SQL Query</p>`
+                }
+            </div>
+        `;
+    }).join('');
+}
 
 // Open the dataset builder modal
 function openDatasetBuilder() {
@@ -309,41 +386,11 @@ async function loadDatasets() {
         const response = await fetch('/api/datasets');
         const data = await response.json();
 
-        const grid = document.getElementById('datasets-grid');
+        // Store datasets globally for search
+        allDatasetsData = data.datasets || [];
 
-        if (!data.datasets || data.datasets.length === 0) {
-            grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: #9ca3af;"><p>No datasets yet. Create your first dataset to get started!</p></div>';
-            return;
-        }
-
-        grid.innerHTML = data.datasets.map(dataset => {
-            const sourceIcon = dataset.source_type === 'sql' ? '⚡' : '📊';
-            const sourceLabel = dataset.source_type === 'sql' ? 'Custom SQL' : 'Table';
-
-            return `
-                <div class="card" style="padding: 1.5rem; border: 1px solid #e5e7eb; border-radius: 12px; background: white; transition: box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow=''">
-                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <span style="font-size: 1.5rem;">${sourceIcon}</span>
-                            <h3 style="margin: 0; font-size: 1.125rem; font-weight: 600; color: #1a202c;">${dataset.name}</h3>
-                        </div>
-                        <div class="dropdown" style="position: relative;">
-                            <button onclick="toggleDatasetMenu('${dataset.id}')" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; color: #6b7280; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">⋮</button>
-                            <div id="dataset-menu-${dataset.id}" class="dropdown-menu" style="display: none; position: absolute; right: 0; top: 100%; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 150px; z-index: 1000;">
-                                <button onclick="editDataset('${dataset.id}')" style="width: 100%; text-align: left; padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 0.875rem; color: #374151; transition: background 0.2s; border-radius: 8px 8px 0 0;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">✏️ Edit</button>
-                                <button onclick="deleteDataset('${dataset.id}', '${dataset.name}')" style="width: 100%; text-align: left; padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 0.875rem; color: #dc2626; transition: background 0.2s; border-radius: 0 0 8px 8px;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='none'">🗑️ Delete</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div style="display: inline-block; padding: 4px 10px; background: #e0e7ff; color: #667eea; border-radius: 6px; font-size: 0.75rem; font-weight: 500; margin-bottom: 0.75rem;">${sourceLabel}</div>
-                    <p style="margin: 0.75rem 0 0 0; color: #6b7280; font-size: 0.875rem; line-height: 1.5;">${dataset.description || 'No description'}</p>
-                    ${dataset.source_type === 'table' ?
-                        `<p style="margin: 0.5rem 0 0 0; color: #9ca3af; font-size: 0.75rem; font-family: monospace;">${dataset.schema_name || 'public'}.${dataset.table_name}</p>` :
-                        `<p style="margin: 0.5rem 0 0 0; color: #9ca3af; font-size: 0.75rem;">Custom SQL Query</p>`
-                    }
-                </div>
-            `;
-        }).join('');
+        // Use the rendering function that handles search
+        renderFilteredDatasets();
 
     } catch (error) {
         console.error('Error loading datasets:', error);

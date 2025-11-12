@@ -373,6 +373,18 @@
                         </button>
                     </div>
                 </div>
+                <!-- Search Box -->
+                <div class="search-container" style="margin-bottom: 1rem; max-width: 400px;">
+                    <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                    </svg>
+                    <input type="text" id="dashboards-search" class="search-input" placeholder="Search dashboards by name, description, creator..." oninput="handleDashboardsSearch(this.value)">
+                    <button onclick="clearDashboardsSearch()" style="position: absolute; right: 10px; background: none; border: none; color: #6b7280; cursor: pointer; display: none;" id="dashboards-search-clear">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
                 <div id="dashboards-list"></div>
             </div>
 
@@ -384,6 +396,13 @@
                         <p class="page-subtitle">Arrange charts and customize layout</p>
                     </div>
                     <div class="header-actions">
+                        <button class="btn btn-secondary" onclick="openDashboardSettingsModal()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"/>
+                                <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"/>
+                            </svg>
+                            Settings
+                        </button>
                         <button class="btn btn-secondary" onclick="cancelDashboardEdit()">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M18 6L6 18M6 6l12 12"/>
@@ -468,6 +487,18 @@
                     </div>
                 </div>
                 <div id="execution-status"></div>
+                <!-- Search Box -->
+                <div class="search-container" style="margin-bottom: 1rem; max-width: 400px;">
+                    <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                    </svg>
+                    <input type="text" id="models-search" class="search-input" placeholder="Search models by name, description, layer..." oninput="handleModelsSearch(this.value)">
+                    <button onclick="clearModelsSearch()" style="position: absolute; right: 10px; background: none; border: none; color: #6b7280; cursor: pointer; display: none;" id="models-search-clear">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
                 <div id="models-list"></div>
             </div>
 
@@ -510,6 +541,19 @@
                             ✨ Create New Chart
                         </button>
                     </div>
+                </div>
+
+                <!-- Search Box -->
+                <div class="search-container" style="margin-bottom: 1rem; max-width: 400px;">
+                    <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                    </svg>
+                    <input type="text" id="charts-search" class="search-input" placeholder="Search charts by title, type, model, dashboard..." oninput="handleChartsSearch(this.value)">
+                    <button onclick="clearChartsSearch()" style="position: absolute; right: 10px; background: none; border: none; color: #6b7280; cursor: pointer; display: none;" id="charts-search-clear">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                    </button>
                 </div>
 
                 <!-- All Charts List -->
@@ -710,6 +754,19 @@
                     </button>
                 </div>
 
+                <!-- Search Box -->
+                <div class="search-container" style="margin-bottom: 1rem; max-width: 400px;">
+                    <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                    </svg>
+                    <input type="text" id="datasets-search" class="search-input" placeholder="Search datasets by name, source type, description..." oninput="handleDatasetsSearch(this.value)">
+                    <button onclick="clearDatasetsSearch()" style="position: absolute; right: 10px; background: none; border: none; color: #6b7280; cursor: pointer; display: none;" id="datasets-search-clear">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+
                 <div id="datasets-list" class="content-section">
                     <div id="datasets-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
                         <!-- Datasets will be loaded here -->
@@ -877,6 +934,19 @@
                             <select id="schema-selector" onchange="onSchemaChange()" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.85rem; background: white;">
                                 <option value="">Loading...</option>
                             </select>
+                        </div>
+
+                        <!-- Search Box for Tables -->
+                        <div style="position: relative; margin-bottom: 12px;">
+                            <svg style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: #9ca3af;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                            </svg>
+                            <input type="text" id="tables-search" placeholder="Search tables..." oninput="handleTablesSearch(this.value)" style="width: 100%; padding: 6px 8px 6px 28px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.8rem;">
+                            <button onclick="clearTablesSearch()" style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #6b7280; cursor: pointer; display: none; padding: 2px;" id="tables-search-clear">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M18 6L6 18M6 6l12 12"/>
+                                </svg>
+                            </button>
                         </div>
 
                         <div id="schema-browser">
@@ -1131,6 +1201,49 @@
             </div>
             <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid var(--color-border); display: flex; justify-content: flex-end; gap: 0.75rem;">
                 <button class="btn btn-secondary" onclick="closeModal('editDashboardModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Settings Modal -->
+    <div id="dashboardSettingsModal" class="modal">
+        <div class="modal-overlay" onclick="closeModal('dashboardSettingsModal')"></div>
+        <div class="modal-container" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>Dashboard Settings</h2>
+                <button class="modal-close" onclick="closeModal('dashboardSettingsModal')">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary);">
+                        Dashboard Name
+                    </label>
+                    <input
+                        type="text"
+                        id="dashboardSettingsName"
+                        placeholder="Enter dashboard name"
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--color-border); border-radius: 6px; font-size: 0.9375rem;"
+                    />
+                </div>
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--color-text-primary);">
+                        Description
+                    </label>
+                    <textarea
+                        id="dashboardSettingsDescription"
+                        placeholder="Enter dashboard description (optional)"
+                        rows="4"
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--color-border); border-radius: 6px; font-size: 0.9375rem; resize: vertical;"
+                    ></textarea>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid var(--color-border); display: flex; justify-content: flex-end; gap: 0.75rem;">
+                <button class="btn btn-secondary" onclick="closeModal('dashboardSettingsModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="saveDashboardSettings()">Save Changes</button>
             </div>
         </div>
     </div>

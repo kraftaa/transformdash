@@ -152,7 +152,7 @@
 
         .charts-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            grid-template-columns: repeat(4, 1fr);
             gap: 24px;
         }
 
@@ -166,6 +166,54 @@
 
         .chart-container:hover {
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Chart size classes */
+        .chart-size-small {
+            grid-column: span 1;
+        }
+
+        .chart-size-medium {
+            grid-column: span 2;
+        }
+
+        .chart-size-large {
+            grid-column: span 3;
+        }
+
+        .chart-size-full {
+            grid-column: span 4;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 1200px) {
+            .charts-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .chart-size-small {
+                grid-column: span 1;
+            }
+            .chart-size-medium {
+                grid-column: span 1;
+            }
+            .chart-size-large {
+                grid-column: span 2;
+            }
+            .chart-size-full {
+                grid-column: span 2;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            .chart-size-small,
+            .chart-size-medium,
+            .chart-size-large,
+            .chart-size-full {
+                grid-column: span 1;
+            }
         }
 
         .chart-title {
@@ -326,11 +374,10 @@
 
         async function loadDashboard() {
             try {
-                // Fetch dashboard config
-                const response = await fetch('/api/dashboards');
-                const data = await response.json();
+                // Fetch dashboard config - use the specific dashboard endpoint
+                const response = await fetch(`/api/dashboards/${dashboardId}`);
+                const dashboard = await response.json();
 
-                const dashboard = data.dashboards.find(d => d.id === dashboardId);
                 if (!dashboard) {
                     throw new Error('Dashboard not found');
                 }
@@ -404,7 +451,7 @@
             // Create tab buttons
             tabsContainer.innerHTML = dashboard.tabs.map((tab, index) => {
                 const isActive = index === 0 ? 'active' : '';
-                return `<button class="dashboard-tab ${isActive}" onclick="switchTab('${tab.id}')">${tab.name}</button>`;
+                return `<button class="dashboard-tab ${isActive}" onclick="switchTab('${tab.id}', event)">${tab.name}</button>`;
             }).join('');
 
             // Load first tab by default
@@ -414,14 +461,16 @@
             }
         }
 
-        async function switchTab(tabId) {
+        async function switchTab(tabId, event) {
             if (!currentDashboard || !currentDashboard.tabs) return;
 
             // Update active tab button
             document.querySelectorAll('.dashboard-tab').forEach(btn => {
                 btn.classList.remove('active');
             });
-            event.target.classList.add('active');
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
 
             // Find and load the tab
             const tab = currentDashboard.tabs.find(t => t.id === tabId);
@@ -445,7 +494,8 @@
                 currentChartConfigs[chartConfig.id] = chartConfig;
 
                 const chartDiv = document.createElement('div');
-                chartDiv.className = 'chart-container';
+                const chartSize = chartConfig.size || 'medium';
+                chartDiv.className = `chart-container chart-size-${chartSize}`;
 
                 // Build filter display HTML if chart has filters (skip invalid ones)
                 let filtersHTML = '';
@@ -492,7 +542,8 @@
                 currentChartConfigs[chartConfig.id] = chartConfig;
 
                 const chartDiv = document.createElement('div');
-                chartDiv.className = 'chart-container';
+                const chartSize = chartConfig.size || 'medium';
+                chartDiv.className = `chart-container chart-size-${chartSize}`;
 
                 // Build filter display HTML if chart has filters (skip invalid ones)
                 let filtersHTML = '';

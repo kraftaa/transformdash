@@ -46,6 +46,20 @@ function toggleDashboardsView(mode) {
 // UTILITY FUNCTIONS
 // ============================================
 
+// Generic search/filter function for lists
+function filterListItems(searchTerm, items, searchFields) {
+    const term = searchTerm.toLowerCase().trim();
+    if (!term) return items;
+
+    return items.filter(item => {
+        return searchFields.some(field => {
+            const value = item[field];
+            if (value === null || value === undefined) return false;
+            return String(value).toLowerCase().includes(term);
+        });
+    });
+}
+
 // Helper function to get ALL charts from dashboard (both assigned to tabs and unassigned)
 function getDashboardCharts(dashboard) {
     let allCharts = [];
@@ -625,12 +639,18 @@ async function displayModels(models, filterLayer = null) {
     const modelsList = document.getElementById('models-list');
     if (!modelsList) return; // Not in models view
 
-    if (models.length === 0) {
+    // Apply search filter
+    let filteredModels = models;
+    if (currentModelsSearchTerm) {
+        filteredModels = filterListItems(currentModelsSearchTerm, models, ['name', 'description', 'layer']);
+    }
+
+    if (filteredModels.length === 0) {
         modelsList.innerHTML = `
             <div style="text-align: center; padding: 60px 20px; background: white; border-radius: 12px; border: 1px solid var(--color-border);">
                 <div style="font-size: 4em; margin-bottom: 20px;">📦</div>
                 <h3 style="margin-bottom: 10px;">No Models Found</h3>
-                <p style="color: #888;">Add SQL or Python transformation models to the models/ directory to get started.</p>
+                <p style="color: #888;">${currentModelsSearchTerm ? 'No models match your search criteria.' : 'Add SQL or Python transformation models to the models/ directory to get started.'}</p>
             </div>
         `;
         return;
@@ -638,9 +658,9 @@ async function displayModels(models, filterLayer = null) {
 
     // Group models by layer
     const groupedModels = {
-        bronze: models.filter(m => getModelLayer(m.name) === 'bronze'),
-        silver: models.filter(m => getModelLayer(m.name) === 'silver'),
-        gold: models.filter(m => getModelLayer(m.name) === 'gold')
+        bronze: filteredModels.filter(m => getModelLayer(m.name) === 'bronze'),
+        silver: filteredModels.filter(m => getModelLayer(m.name) === 'silver'),
+        gold: filteredModels.filter(m => getModelLayer(m.name) === 'gold')
     };
 
     // Apply filter if specified
@@ -790,6 +810,150 @@ async function displayModels(models, filterLayer = null) {
             }
         }
     });
+}
+
+// ============================================
+// SEARCH HANDLERS
+// ============================================
+
+// Debounce utility
+let searchDebounceTimer = null;
+function debounceSearch(callback, delay = 300) {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(callback, delay);
+}
+
+// 1. Models Search
+let currentModelsSearchTerm = '';
+function handleModelsSearch(searchTerm) {
+    currentModelsSearchTerm = searchTerm;
+    const clearBtn = document.getElementById('models-search-clear');
+    if (clearBtn) {
+        clearBtn.style.display = searchTerm ? 'block' : 'none';
+    }
+    debounceSearch(() => {
+        displayModels(modelsData, currentModelFilter);
+    });
+}
+
+function clearModelsSearch() {
+    document.getElementById('models-search').value = '';
+    currentModelsSearchTerm = '';
+    document.getElementById('models-search-clear').style.display = 'none';
+    displayModels(modelsData, currentModelFilter);
+}
+
+// 2. Dashboards Search
+let allDashboardsData = [];
+let currentDashboardsSearchTerm = '';
+function handleDashboardsSearch(searchTerm) {
+    currentDashboardsSearchTerm = searchTerm;
+    const clearBtn = document.getElementById('dashboards-search-clear');
+    if (clearBtn) {
+        clearBtn.style.display = searchTerm ? 'block' : 'none';
+    }
+    debounceSearch(() => {
+        loadDashboards();
+    });
+}
+
+function clearDashboardsSearch() {
+    document.getElementById('dashboards-search').value = '';
+    currentDashboardsSearchTerm = '';
+    document.getElementById('dashboards-search-clear').style.display = 'none';
+    loadDashboards();
+}
+
+// 3. Charts Search
+let allChartsData = [];
+let currentChartsSearchTerm = '';
+function handleChartsSearch(searchTerm) {
+    currentChartsSearchTerm = searchTerm;
+    const clearBtn = document.getElementById('charts-search-clear');
+    if (clearBtn) {
+        clearBtn.style.display = searchTerm ? 'block' : 'none';
+    }
+    debounceSearch(() => {
+        loadAllCharts();
+    });
+}
+
+function clearChartsSearch() {
+    document.getElementById('charts-search').value = '';
+    currentChartsSearchTerm = '';
+    document.getElementById('charts-search-clear').style.display = 'none';
+    loadAllCharts();
+}
+
+// 4. SQL Lab Tables Search
+let allTablesData = [];
+let currentTablesSearchTerm = '';
+function handleTablesSearch(searchTerm) {
+    currentTablesSearchTerm = searchTerm;
+    const clearBtn = document.getElementById('tables-search-clear');
+    if (clearBtn) {
+        clearBtn.style.display = searchTerm ? 'block' : 'none';
+    }
+    debounceSearch(() => {
+        filterTablesDisplay();
+    });
+}
+
+function clearTablesSearch() {
+    document.getElementById('tables-search').value = '';
+    currentTablesSearchTerm = '';
+    document.getElementById('tables-search-clear').style.display = 'none';
+    filterTablesDisplay();
+}
+
+function filterTablesDisplay() {
+    const browser = document.getElementById('schema-browser');
+    if (!allTablesData || allTablesData.length === 0) return;
+
+    const filteredTables = currentTablesSearchTerm
+        ? filterListItems(currentTablesSearchTerm, allTablesData, ['name'])
+        : allTablesData;
+
+    if (filteredTables.length === 0) {
+        browser.innerHTML = '<p style="color: #888; font-size: 0.85rem;">No tables found matching your search</p>';
+        return;
+    }
+
+    let html = '<div style="font-size: 0.85rem;">';
+    for (const table of filteredTables) {
+        const tableName = table.name || table;
+        const tableType = table.type || 'table';
+        const tableSize = table.size || '';
+        const icon = tableType === 'view' ? '👁️' : tableType === 'materialized_view' ? '💾' : '📋';
+
+        html += `
+            <div style="margin-bottom: 12px; background: #f8f9fa; border-radius: 6px; overflow: hidden;">
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; cursor: pointer; transition: background 0.2s;"
+                     onclick="toggleTableDetails('${tableName}')"
+                     onmouseover="this.style.background='#e9ecef'"
+                     onmouseout="this.style.background='#f8f9fa'">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; color: #495057; margin-bottom: 4px;">
+                            <span id="expand-icon-${tableName}" style="display: inline-block; width: 12px; transition: transform 0.2s;">▶</span>
+                            ${icon} ${tableName}
+                        </div>
+                        <div style="font-size: 0.75rem; color: #6c757d;">${tableType}${tableSize ? ' • ' + tableSize : ''}</div>
+                    </div>
+                    <div style="position: relative;">
+                        <button onclick="event.stopPropagation(); showTableMenu('${tableName}', event)"
+                                style="background: none; border: none; color: #667eea; cursor: pointer; font-size: 1.2rem; padding: 4px 8px;">
+                            ⋮
+                        </button>
+                    </div>
+                </div>
+                <div id="table-details-${tableName}" style="display: none; padding: 0 8px 8px 8px; background: white; border-top: 1px solid #e9ecef;">
+                    <div style="font-size: 0.75rem; color: #888; margin: 8px 0 4px 0;">Loading columns...</div>
+                </div>
+            </div>
+        `;
+    }
+    html += '</div>';
+    browser.innerHTML = html;
 }
 
 // Navigate to a specific dashboard
@@ -1400,21 +1564,28 @@ function renderEditorTabs() {
         const tabBtn = document.createElement('button');
         tabBtn.className = 'editor-tab-btn';
         tabBtn.dataset.tabId = tab.id;
+        tabBtn.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--color-bg-secondary); border: 2px solid transparent; border-radius: 8px; cursor: pointer; transition: all 0.2s; position: relative;';
 
         if (tab.id === editorState.currentTabId) {
             tabBtn.classList.add('active');
+            tabBtn.style.background = 'var(--color-primary)';
+            tabBtn.style.color = 'white';
+            tabBtn.style.borderColor = 'var(--color-primary)';
         }
 
         const chartCount = tab.charts ? tab.charts.length : 0;
 
         tabBtn.innerHTML = `
-            <span class="tab-name">${tab.name}</span>
-            <span class="tab-chart-count">${chartCount}</span>
-            <button class="tab-edit-btn" onclick="event.stopPropagation(); renameEditorTab('${tab.id}')" title="Rename tab">✏️</button>
-            ${editorState.tabs.length > 1 ? `<button class="tab-delete-btn" onclick="event.stopPropagation(); deleteEditorTab('${tab.id}')" title="Delete tab">✕</button>` : ''}
+            <span class="tab-name" style="font-weight: 600;">${tab.name}</span>
+            <span class="tab-chart-count" style="background: ${tab.id === editorState.currentTabId ? 'rgba(255,255,255,0.3)' : 'var(--color-bg-tertiary)'}; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem;">${chartCount}</span>
+            <button class="tab-edit-btn" onclick="event.stopPropagation(); renameEditorTab('${tab.id}')" title="Rename tab" style="background: none; border: none; cursor: pointer; padding: 4px; font-size: 1rem; opacity: 0.7; line-height: 1;">✏️</button>
+            ${editorState.tabs.length > 1 ? `<button class="tab-delete-btn" onclick="event.stopPropagation(); deleteEditorTab('${tab.id}')" title="Delete tab" style="background: none; border: none; cursor: pointer; padding: 4px; font-size: 1rem; opacity: 0.7; line-height: 1;">✕</button>` : ''}
         `;
 
-        tabBtn.onclick = () => switchEditorTab(tab.id);
+        tabBtn.onclick = (e) => {
+            console.log('Tab clicked:', tab.id);
+            switchDashboardEditorTab(tab.id);
+        };
         tabBar.appendChild(tabBtn);
     });
 
@@ -1422,13 +1593,15 @@ function renderEditorTabs() {
     const newTabBtn = document.createElement('button');
     newTabBtn.className = 'editor-new-tab-btn';
     newTabBtn.innerHTML = '+ New Tab';
+    newTabBtn.style.cssText = 'padding: 10px 16px; background: var(--color-bg-secondary); border: 2px dashed var(--color-border); border-radius: 8px; cursor: pointer; color: var(--color-text-secondary); transition: all 0.2s;';
     newTabBtn.onclick = createNewEditorTab;
     tabBar.appendChild(newTabBtn);
 
     tabsContainer.appendChild(tabBar);
 }
 
-function switchEditorTab(tabId) {
+function switchDashboardEditorTab(tabId) {
+    console.log('Switching to dashboard tab:', tabId, 'Current:', editorState.currentTabId);
     editorState.currentTabId = tabId;
     renderEditorTabs();
     renderEditorCharts();
@@ -1520,6 +1693,8 @@ function renderEditorCharts() {
 
         const canvasId = `editor-chart-preview-${index}`;
 
+        const currentSize = chart.size || 'medium';
+
         chartCard.innerHTML = `
             <div class="editor-chart-header">
                 <div class="editor-chart-title">${chart.title || chart.id}</div>
@@ -1534,6 +1709,17 @@ function renderEditorCharts() {
             </div>
             <div class="editor-chart-info">Model: ${chart.model}</div>
             <div class="editor-chart-info">${chart.x_axis} vs ${chart.y_axis} (${chart.aggregation || 'count'})</div>
+            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border);">
+                <label style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">
+                    Chart Size
+                </label>
+                <select onchange="updateChartSize(${index}, this.value)" style="width: 100%; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; background: white; font-size: 0.875rem; cursor: pointer;">
+                    <option value="small" ${currentSize === 'small' ? 'selected' : ''}>Small (1/4 width)</option>
+                    <option value="medium" ${currentSize === 'medium' ? 'selected' : ''}>Medium (1/2 width)</option>
+                    <option value="large" ${currentSize === 'large' ? 'selected' : ''}>Large (3/4 width)</option>
+                    <option value="full" ${currentSize === 'full' ? 'selected' : ''}>Full width</option>
+                </select>
+            </div>
             <span class="editor-chart-type">${chart.type}</span>
         `;
 
@@ -1747,6 +1933,35 @@ function removeChartFromEditor(index) {
     showToast(`Removed "${chart.title || chart.id}" from tab`, 'info');
 }
 
+function updateChartSize(index, size) {
+    // Update chart size in current tab
+    const currentTab = editorState.tabs.find(tab => tab.id === editorState.currentTabId);
+    if (!currentTab || index < 0 || index >= currentTab.charts.length) {
+        console.error(`Invalid index ${index} for tab charts`, currentTab);
+        return;
+    }
+
+    const chart = currentTab.charts[index];
+    chart.size = size;
+
+    // Update the size in currentCharts as well if it exists there
+    const currentChart = editorState.currentCharts.find(c => c.id === chart.id);
+    if (currentChart) {
+        currentChart.size = size;
+    }
+
+    // Re-render to show updated size (dropdown will show new selection)
+    renderEditorCharts();
+
+    const sizeLabels = {
+        'small': '1/4 width',
+        'medium': '1/2 width',
+        'large': '3/4 width',
+        'full': 'full width'
+    };
+    showToast(`Updated "${chart.title || chart.id}" to ${sizeLabels[size]}`, 'success');
+}
+
 // Drag and Drop handlers
 function handleDragStart(e) {
     editorState.draggedIndex = parseInt(e.target.dataset.index);
@@ -1860,6 +2075,73 @@ function cancelDashboardEdit() {
     switchView('dashboards');
 }
 
+// ============= Dashboard Settings Management =============
+
+function openDashboardSettingsModal() {
+    // Load current dashboard data into the form
+    if (editorState.dashboardData) {
+        document.getElementById('dashboardSettingsName').value = editorState.dashboardData.name || '';
+        document.getElementById('dashboardSettingsDescription').value = editorState.dashboardData.description || '';
+    }
+
+    // Open the modal
+    const modal = document.getElementById('dashboardSettingsModal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+async function saveDashboardSettings() {
+    const name = document.getElementById('dashboardSettingsName').value.trim();
+    const description = document.getElementById('dashboardSettingsDescription').value.trim();
+
+    // Validate name is not empty
+    if (!name) {
+        showToast('Dashboard name is required', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/dashboards/${editorState.dashboardId}/metadata`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name: name,
+                description: description
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            // Update local state
+            editorState.dashboardName = name;
+            if (editorState.dashboardData) {
+                editorState.dashboardData.name = name;
+                editorState.dashboardData.description = description;
+            }
+
+            // Update the header title
+            document.getElementById('editor-dashboard-name').textContent = `Edit: ${name}`;
+
+            showToast('Dashboard settings updated successfully', 'success');
+            closeModal('dashboardSettingsModal');
+        } else {
+            showToast(result.detail || 'Failed to update dashboard settings', 'error');
+        }
+    } catch (error) {
+        console.error('Error updating dashboard settings:', error);
+        showToast('Failed to update dashboard settings', 'error');
+    }
+}
+
 // ============= Dashboard Filter Management =============
 
 function renderDashboardFilters() {
@@ -1880,9 +2162,30 @@ function renderDashboardFilters() {
         `<option value="${field.name}" data-model="${field.model}">${field.model}.${field.name} (${field.type})</option>`
     ).join('');
 
+    // Generate tab checkboxes HTML
+    const generateTabCheckboxes = (filter, filterIndex) => {
+        const applyToTabs = filter.apply_to_tabs || [];
+
+        return editorState.tabs.map(tab => {
+            const isChecked = applyToTabs.length === 0 || applyToTabs.includes(tab.id);
+            return `
+                <label style="display: inline-flex; align-items: center; margin-right: 16px; cursor: pointer;">
+                    <input type="checkbox"
+                        ${isChecked ? 'checked' : ''}
+                        onchange="updateFilterTabs(${filterIndex}, '${tab.id}', this.checked)"
+                        style="margin-right: 6px; cursor: pointer;">
+                    <span style="font-size: 0.875rem;">${tab.name}</span>
+                </label>
+            `;
+        }).join('');
+    };
+
     container.innerHTML = editorState.currentFilters.map((filter, index) => {
         const selectedField = filter.field || '';
         const expression = filter.expression || '';
+        const applyToTabs = filter.apply_to_tabs || [];
+        const appliesTo = applyToTabs.length === 0 ? 'All tabs' : `${applyToTabs.length} tab(s)`;
+
         return `
             <div style="display: flex; gap: 12px; align-items: flex-start; padding: 12px; background: var(--color-bg-secondary); border-radius: 8px; margin-bottom: 8px;">
                 <div style="flex: 1;">
@@ -1896,9 +2199,18 @@ function renderDashboardFilters() {
                     </select>
                     <input type="text" placeholder="SQL Expression (optional, e.g. 'EXTRACT(YEAR FROM order_date)')" value="${expression}"
                         onchange="updateFilterExpression(${index}, this.value)"
-                        style="width: 100%; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; font-family: monospace; font-size: 0.85rem;">
-                    <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 4px;">
-                        Use SQL expression to transform the field before filtering
+                        style="width: 100%; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; font-family: monospace; font-size: 0.85rem; margin-bottom: 8px;">
+
+                    <div style="margin-top: 12px; padding: 8px; background: white; border-radius: 6px; border: 1px solid var(--color-border);">
+                        <div style="font-size: 0.75rem; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">
+                            Apply to tabs <span style="color: var(--color-primary); font-weight: 500; text-transform: none;">(${appliesTo})</span>
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                            ${generateTabCheckboxes(filter, index)}
+                        </div>
+                        <div style="font-size: 0.7rem; color: var(--text-tertiary); margin-top: 6px;">
+                            Uncheck all to apply to all tabs
+                        </div>
                     </div>
                 </div>
                 <button onclick="removeDashboardFilter(${index})"
@@ -1922,7 +2234,8 @@ function addDashboardFilter() {
     editorState.currentFilters.push({
         field: '',
         label: '',
-        expression: ''
+        expression: '',
+        apply_to_tabs: []  // Empty array means apply to all tabs
     });
     renderDashboardFilters();
 }
@@ -1945,6 +2258,43 @@ function updateFilterExpression(index, value) {
     if (editorState.currentFilters[index]) {
         editorState.currentFilters[index].expression = value;
     }
+}
+
+function updateFilterTabs(filterIndex, tabId, isChecked) {
+    if (!editorState.currentFilters[filterIndex]) return;
+
+    const filter = editorState.currentFilters[filterIndex];
+
+    // Initialize apply_to_tabs if it doesn't exist
+    if (!filter.apply_to_tabs) {
+        filter.apply_to_tabs = [];
+    }
+
+    if (isChecked) {
+        // Add tab if not already included
+        if (!filter.apply_to_tabs.includes(tabId)) {
+            filter.apply_to_tabs.push(tabId);
+        }
+
+        // If all tabs are now checked, clear the array (means apply to all)
+        if (filter.apply_to_tabs.length === editorState.tabs.length) {
+            filter.apply_to_tabs = [];
+        }
+    } else {
+        // Remove tab from the array
+        if (filter.apply_to_tabs.length === 0) {
+            // Was applying to all tabs, now need to explicitly list all except this one
+            filter.apply_to_tabs = editorState.tabs
+                .filter(tab => tab.id !== tabId)
+                .map(tab => tab.id);
+        } else {
+            // Remove the specific tab
+            filter.apply_to_tabs = filter.apply_to_tabs.filter(id => id !== tabId);
+        }
+    }
+
+    // Re-render to update the UI
+    renderDashboardFilters();
 }
 
 function removeDashboardFilter(index) {
@@ -1991,14 +2341,23 @@ async function loadDashboards() {
         const response = await fetch('/api/dashboards');
         const data = await response.json();
 
+        // Store all dashboards for search
+        allDashboardsData = data.dashboards;
+
+        // Apply search filter
+        let filteredDashboards = allDashboardsData;
+        if (currentDashboardsSearchTerm) {
+            filteredDashboards = filterListItems(currentDashboardsSearchTerm, allDashboardsData, ['name', 'description', 'created_by']);
+        }
+
         const dashboardsList = document.getElementById('dashboards-list');
 
-        if (data.dashboards.length === 0) {
+        if (filteredDashboards.length === 0) {
             dashboardsList.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon">📊</div>
-                    <h3>No dashboards configured</h3>
-                    <p>Create a new dashboard to organize your charts. You can also create standalone charts that aren't assigned to any dashboard.</p>
+                    <h3>${currentDashboardsSearchTerm ? 'No dashboards found' : 'No dashboards configured'}</h3>
+                    <p>${currentDashboardsSearchTerm ? 'No dashboards match your search criteria.' : 'Create a new dashboard to organize your charts. You can also create standalone charts that aren\'t assigned to any dashboard.'}</p>
                 </div>
             `;
             return;
@@ -2030,7 +2389,7 @@ async function loadDashboards() {
 
             const tbody = table.querySelector('tbody');
 
-            data.dashboards.forEach(dashboard => {
+            filteredDashboards.forEach(dashboard => {
                 // Format tags
                 const tags = dashboard.tags || [];
                 const tagsHTML = tags.length > 0
@@ -2079,7 +2438,7 @@ async function loadDashboards() {
             // Grid view - cards with expandable sections (original)
             dashboardsList.className = '';
 
-            data.dashboards.forEach(dashboard => {
+            filteredDashboards.forEach(dashboard => {
             // Create dashboard card
             const card = document.createElement('div');
             card.className = 'dashboard-card';
@@ -2801,22 +3160,35 @@ async function loadAllCharts() {
         const response = await fetch('/api/charts');
         const data = await response.json();
 
+        // Store all charts for search
+        allChartsData = data.charts || [];
+
         const chartsList = document.getElementById('all-charts-list');
 
-        if (!data.charts || data.charts.length === 0) {
+        if (allChartsData.length === 0) {
             chartsList.innerHTML = '<p style="color: #888;">No charts available</p>';
+            return;
+        }
+
+        // Use all charts from the API
+        let allCharts = allChartsData.map(chart => ({
+            ...chart,
+            dashboardName: 'Standalone',
+            dashboardId: null
+        }));
+
+        // Apply search filter
+        if (currentChartsSearchTerm) {
+            allCharts = filterListItems(currentChartsSearchTerm, allCharts, ['title', 'type', 'model', 'dashboardName']);
+        }
+
+        if (allCharts.length === 0) {
+            chartsList.innerHTML = `<p style="color: #888;">No charts match your search criteria.</p>`;
             return;
         }
 
         // Clear the list
         chartsList.innerHTML = '';
-
-        // Use all charts from the API
-        const allCharts = data.charts.map(chart => ({
-            ...chart,
-            dashboardName: 'Standalone',
-            dashboardId: null
-        }));
 
         // Display based on view mode
         if (chartsViewMode === 'table') {
@@ -3425,21 +3797,25 @@ async function loadTableColumns() {
 
         // Add columns to dropdowns
         data.columns.forEach(col => {
+            // Build column label with index indicator
+            const indexIndicator = col.index_type ? ` [${col.index_type === 'primary' ? '🔑' : col.index_type === 'unique' ? '⭐' : '📑'}]` : '';
+            const columnLabel = `${col.name} (${col.type})${indexIndicator}`;
+
             const optionX = document.createElement('option');
             optionX.value = col.name;
-            optionX.textContent = `${col.name} (${col.type})`;
+            optionX.textContent = columnLabel;
             xAxis.appendChild(optionX);
 
             const optionY = document.createElement('option');
             optionY.value = col.name;
-            optionY.textContent = `${col.name} (${col.type})`;
+            optionY.textContent = columnLabel;
             yAxis.appendChild(optionY);
 
             // Also populate category dropdown if it exists (for stacked charts)
             if (categoryAxis) {
                 const optionCategory = document.createElement('option');
                 optionCategory.value = col.name;
-                optionCategory.textContent = `${col.name} (${col.type})`;
+                optionCategory.textContent = columnLabel;
                 categoryAxis.appendChild(optionCategory);
             }
         });
@@ -3457,7 +3833,11 @@ async function loadTableColumns() {
                 fieldItem.draggable = true;
                 fieldItem.dataset.fieldName = col.name;
                 fieldItem.dataset.fieldType = col.type;
-                fieldItem.textContent = `${col.name}`;
+
+                // Add index indicator
+                const indexIndicator = col.index_type ? ` ${col.index_type === 'primary' ? '🔑' : col.index_type === 'unique' ? '⭐' : '📑'}` : '';
+                fieldItem.textContent = `${col.name}${indexIndicator}`;
+
                 fieldItem.style.cssText = `
                     padding: 0.5rem 0.75rem;
                     background: var(--color-bg-primary);
@@ -3467,7 +3847,10 @@ async function loadTableColumns() {
                     font-size: 0.85rem;
                     transition: all 0.2s;
                 `;
-                fieldItem.setAttribute('title', `${col.name} (${col.type})`);
+
+                // Update title to show index type
+                const indexText = col.index_type ? ` [${col.index_type}]` : '';
+                fieldItem.setAttribute('title', `${col.name} (${col.type})${indexText}`);
 
                 // Drag events
                 fieldItem.addEventListener('dragstart', (e) => {
@@ -3959,52 +4342,25 @@ async function loadDatabaseSchema(schema = 'public') {
         const data = await response.json();
         const tables = data.tables || data; // Handle both {tables: [...]} and [...]
 
+        // Store tables data for search - convert to objects if they're strings
+        allTablesData = tables.map(t => typeof t === 'string' ? { name: t, type: 'table' } : t);
+
         const browser = document.getElementById('schema-browser');
-        if (!tables || tables.length === 0) {
+        if (!allTablesData || allTablesData.length === 0) {
             browser.innerHTML = '<p style="color: #888; font-size: 0.85rem;">No tables found</p>';
+            allTablesData = [];
             return;
         }
 
-        let html = '<div style="font-size: 0.85rem;">';
-        for (const table of tables) {
-            const tableName = table.name || table;
-            const tableType = table.type || 'table';
-            const tableSize = table.size || '';
-            const icon = tableType === 'view' ? '👁️' : tableType === 'materialized_view' ? '💾' : '📋';
-
-            html += `
-                <div style="margin-bottom: 12px; background: #f8f9fa; border-radius: 6px; overflow: hidden;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px; cursor: pointer; transition: background 0.2s;"
-                         onclick="toggleTableDetails('${tableName}')"
-                         onmouseover="this.style.background='#e9ecef'"
-                         onmouseout="this.style.background='#f8f9fa'">
-                        <div style="flex: 1;">
-                            <div style="font-weight: 600; color: #495057; margin-bottom: 4px;">
-                                <span id="expand-icon-${tableName}" style="display: inline-block; width: 12px; transition: transform 0.2s;">▶</span>
-                                ${icon} ${tableName}
-                            </div>
-                            <div style="font-size: 0.75rem; color: #6c757d;">${tableType}${tableSize ? ' • ' + tableSize : ''}</div>
-                        </div>
-                        <div style="position: relative;">
-                            <button onclick="event.stopPropagation(); showTableMenu('${tableName}', event)"
-                                    style="background: none; border: none; color: #667eea; cursor: pointer; font-size: 1.2rem; padding: 4px 8px;">
-                                ⋮
-                            </button>
-                        </div>
-                    </div>
-                    <div id="table-details-${tableName}" style="display: none; padding: 0 8px 8px 8px; background: white; border-top: 1px solid #e9ecef;">
-                        <div style="font-size: 0.75rem; color: #888; margin: 8px 0 4px 0;">Loading columns...</div>
-                    </div>
-                </div>
-            `;
-        }
-        html += '</div>';
-        browser.innerHTML = html;
+        // Use the filter function to display tables (handles search)
+        filterTablesDisplay();
     } catch (error) {
         console.error('Error loading schema:', error);
         document.getElementById('schema-browser').innerHTML = '<p style="color: #f44; font-size: 0.85rem;">Error loading tables</p>';
+        allTablesData = [];
     }
 }
+
 
 async function toggleTableDetails(tableName) {
     const detailsDiv = document.getElementById(`table-details-${tableName}`);

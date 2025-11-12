@@ -1,4 +1,9 @@
-{{ config(materialized='table') }}
+{{ config(
+    materialized='table',
+    indexes=[
+        {"columns": ["warehouse_id"]},
+    ])
+}}
 
 -- Gold: Inventory Metrics Fact Table
 -- Warehouse and product inventory KPIs
