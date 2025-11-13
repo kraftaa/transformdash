@@ -13,6 +13,7 @@ import pandas as pd
 import logging
 import uuid
 import os
+import json
 from datetime import datetime
 
 # Load environment variables from .env file
@@ -2628,6 +2629,229 @@ async def get_schedule_runs(schedule_id: int, limit: int = 50):
     except Exception as e:
         import traceback
         logging.error(f"Error getting schedule runs: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+### Assets Management API ###
+
+@app.get("/api/assets")
+async def get_assets(asset_type: str = None, tags: str = None):
+    """Get all assets, optionally filtered by type and tags"""
+    try:
+        from connection_manager import connection_manager
+
+        with connection_manager.get_connection('transformdash') as pg:
+            # Build query with optional filters
+            query = "SELECT * FROM assets WHERE is_active = TRUE"
+            params = []
+
+            if asset_type:
+                query += " AND asset_type = %s"
+                params.append(asset_type)
+
+            if tags:
+                tag_list = [t.strip() for t in tags.split(',')]
+                query += " AND tags && %s"
+                params.append(tag_list)
+
+            query += " ORDER BY created_at DESC"
+
+            assets = pg.execute(query, tuple(params) if params else None, fetch=True)
+            return {"assets": assets}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error fetching assets: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/assets/{asset_id}")
+async def get_asset(asset_id: int):
+    """Get a single asset by ID"""
+    try:
+        from connection_manager import connection_manager
+
+        with connection_manager.get_connection('transformdash') as pg:
+            assets = pg.execute(
+                "SELECT * FROM assets WHERE id = %s AND is_active = TRUE",
+                (asset_id,),
+                fetch=True
+            )
+
+            if not assets:
+                raise HTTPException(status_code=404, detail="Asset not found")
+
+            return {"asset": assets[0]}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error fetching asset: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/assets/upload")
+async def upload_asset(
+    file: UploadFile = File(...),
+    name: str = Form(...),
+    description: str = Form(None),
+    asset_type: str = Form(...),
+    tags: str = Form(None),
+    created_by: str = Form(None)
+):
+    """Upload a new asset"""
+    try:
+        from connection_manager import connection_manager
+        import shutil
+
+        # Create assets directory if it doesn't exist
+        assets_dir = Path(__file__).parent.parent / "assets" / asset_type
+        assets_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate unique filename
+        file_extension = Path(file.filename).suffix
+        unique_filename = f"{uuid.uuid4().hex}{file_extension}"
+        file_path = assets_dir / unique_filename
+
+        # Save file
+        with open(file_path, 'wb') as f:
+            shutil.copyfileobj(file.file, f)
+
+        # Get file size
+        file_size = file_path.stat().st_size
+
+        # Get relative path
+        relative_path = f"{asset_type}/{unique_filename}"
+
+        # Parse tags
+        tags_array = [t.strip() for t in tags.split(',')] if tags else []
+
+        # Extract metadata based on file type
+        metadata = {}
+        if asset_type in ['csv', 'excel']:
+            try:
+                df = pd.read_csv(file_path) if asset_type == 'csv' else pd.read_excel(file_path)
+                metadata = {
+                    'columns': list(df.columns),
+                    'row_count': len(df),
+                    'column_types': {col: str(dtype) for col, dtype in df.dtypes.items()}
+                }
+            except:
+                pass
+
+        # Insert into database
+        with connection_manager.get_connection('transformdash') as pg:
+            result = pg.execute("""
+                INSERT INTO assets (name, description, asset_type, file_path, file_size,
+                                   mime_type, created_by, tags, metadata)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id, name, asset_type, file_path, created_at
+            """, (
+                name,
+                description,
+                asset_type,
+                relative_path,
+                file_size,
+                file.content_type,
+                created_by,
+                tags_array,
+                json.dumps(metadata) if metadata else None
+            ), fetch=True)
+
+            asset = result[0] if result else None
+
+            return {
+                "message": "Asset uploaded successfully",
+                "asset": asset
+            }
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error uploading asset: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/assets/{asset_id}")
+async def update_asset(asset_id: int, request: Request):
+    """Update asset metadata"""
+    try:
+        from connection_manager import connection_manager
+
+        body = await request.json()
+        name = body.get('name')
+        description = body.get('description')
+        tags = body.get('tags', [])
+
+        with connection_manager.get_connection('transformdash') as pg:
+            pg.execute("""
+                UPDATE assets
+                SET name = %s, description = %s, tags = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (name, description, tags, asset_id))
+
+            return {"message": "Asset updated successfully"}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error updating asset: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/assets/{asset_id}")
+async def delete_asset(asset_id: int):
+    """Soft delete an asset"""
+    try:
+        from connection_manager import connection_manager
+
+        with connection_manager.get_connection('transformdash') as pg:
+            pg.execute(
+                "UPDATE assets SET is_active = FALSE WHERE id = %s",
+                (asset_id,)
+            )
+
+            return {"message": "Asset deleted successfully"}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error deleting asset: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/assets/{asset_id}/download")
+async def download_asset(asset_id: int):
+    """Download an asset file"""
+    try:
+        from connection_manager import connection_manager
+        from fastapi.responses import FileResponse
+
+        with connection_manager.get_connection('transformdash') as pg:
+            assets = pg.execute(
+                "SELECT name, file_path, mime_type FROM assets WHERE id = %s AND is_active = TRUE",
+                (asset_id,),
+                fetch=True
+            )
+
+            if not assets:
+                raise HTTPException(status_code=404, detail="Asset not found")
+
+            asset = assets[0]
+            file_path = Path(__file__).parent.parent / "assets" / asset['file_path']
+
+            if not file_path.exists():
+                raise HTTPException(status_code=404, detail="File not found")
+
+            return FileResponse(
+                path=file_path,
+                filename=asset['name'],
+                media_type=asset['mime_type']
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error downloading asset: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

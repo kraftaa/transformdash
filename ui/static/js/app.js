@@ -4392,9 +4392,11 @@ async function toggleTableDetails(tableName) {
                                         col.type.includes('char') || col.type.includes('text') ? '#667eea' :
                                         col.type.includes('date') || col.type.includes('time') ? '#f59e0b' :
                                         '#6c757d';
+                        // Add index indicator
+                        const indexIndicator = col.index_type ? ` ${col.index_type === 'primary' ? '🔑' : col.index_type === 'unique' ? '⭐' : '📑'}` : '';
                         html += `
                             <div style="padding: 4px 8px; margin-bottom: 4px; background: #fafafa; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 0.75rem; color: #495057; font-family: 'Monaco', 'Menlo', monospace;">${col.name}</span>
+                                <span style="font-size: 0.75rem; color: #495057; font-family: 'Monaco', 'Menlo', monospace;">${col.name}${indexIndicator}</span>
                                 <span style="font-size: 0.7rem; color: ${typeColor}; font-weight: 600; padding: 2px 6px; background: white; border-radius: 3px;">${col.type}</span>
                             </div>
                         `;

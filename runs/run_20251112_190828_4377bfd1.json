@@ -1,0 +1,70 @@
+{
+  "run_id": "run_20251112_190828_4377bfd1",
+  "timestamp": "2025-11-12T19:08:28.005382",
+  "summary": {
+    "total_models": 5,
+    "successes": 5,
+    "failures": 0,
+    "total_execution_time": 0.180135,
+    "models": {
+      "stg_stock_levels": {
+        "execution_time": 0.039755,
+        "timestamp": "2025-11-12T19:08:27.864987",
+        "status": "success"
+      },
+      "stg_warehouses": {
+        "execution_time": 0.031029,
+        "timestamp": "2025-11-12T19:08:27.896059",
+        "status": "success"
+      },
+      "stg_products": {
+        "execution_time": 0.026179,
+        "timestamp": "2025-11-12T19:08:27.922309",
+        "status": "success"
+      },
+      "int_inventory_summary": {
+        "execution_time": 0.037375,
+        "timestamp": "2025-11-12T19:08:27.959748",
+        "status": "success"
+      },
+      "fct_inventory_metrics": {
+        "execution_time": 0.045432,
+        "timestamp": "2025-11-12T19:08:28.005254",
+        "status": "success"
+      }
+    },
+    "logs": [
+      "[2025-11-12 19:08:27.825] [INFO] Starting transformation pipeline",
+      "[2025-11-12 19:08:27.825] [INFO] Execution order: stg_stock_levels \u2192 stg_warehouses \u2192 stg_products \u2192 int_inventory_summary \u2192 fct_inventory_metrics",
+      "[2025-11-12 19:08:27.825] [INFO] Executing: stg_stock_levels [sql]",
+      "[2025-11-12 19:08:27.864] [SUCCESS] Completed: stg_stock_levels in 0.040s",
+      "[2025-11-12 19:08:27.865] [INFO] Executing: stg_warehouses [sql]",
+      "[2025-11-12 19:08:27.896] [SUCCESS] Completed: stg_warehouses in 0.031s",
+      "[2025-11-12 19:08:27.896] [INFO] Executing: stg_products [sql]",
+      "[2025-11-12 19:08:27.922] [SUCCESS] Completed: stg_products in 0.026s",
+      "[2025-11-12 19:08:27.922] [INFO] Executing: int_inventory_summary [sql]",
+      "[2025-11-12 19:08:27.959] [SUCCESS] Completed: int_inventory_summary in 0.037s",
+      "[2025-11-12 19:08:27.959] [INFO] Executing: fct_inventory_metrics [sql]",
+      "[2025-11-12 19:08:28.005] [SUCCESS] Completed: fct_inventory_metrics in 0.045s",
+      "[2025-11-12 19:08:28.005] [INFO] Pipeline completed in 0.180s"
+    ],
+    "run_type": "single_model",
+    "target_model": "fct_inventory_metrics",
+    "timestamp": "2025-11-12T19:08:28.005374"
+  },
+  "logs": [
+    "[2025-11-12 19:08:27.825] [INFO] Starting transformation pipeline",
+    "[2025-11-12 19:08:27.825] [INFO] Execution order: stg_stock_levels \u2192 stg_warehouses \u2192 stg_products \u2192 int_inventory_summary \u2192 fct_inventory_metrics",
+    "[2025-11-12 19:08:27.825] [INFO] Executing: stg_stock_levels [sql]",
+    "[2025-11-12 19:08:27.864] [SUCCESS] Completed: stg_stock_levels in 0.040s",
+    "[2025-11-12 19:08:27.865] [INFO] Executing: stg_warehouses [sql]",
+    "[2025-11-12 19:08:27.896] [SUCCESS] Completed: stg_warehouses in 0.031s",
+    "[2025-11-12 19:08:27.896] [INFO] Executing: stg_products [sql]",
+    "[2025-11-12 19:08:27.922] [SUCCESS] Completed: stg_products in 0.026s",
+    "[2025-11-12 19:08:27.922] [INFO] Executing: int_inventory_summary [sql]",
+    "[2025-11-12 19:08:27.959] [SUCCESS] Completed: int_inventory_summary in 0.037s",
+    "[2025-11-12 19:08:27.959] [INFO] Executing: fct_inventory_metrics [sql]",
+    "[2025-11-12 19:08:28.005] [SUCCESS] Completed: fct_inventory_metrics in 0.045s",
+    "[2025-11-12 19:08:28.005] [INFO] Pipeline completed in 0.180s"
+  ]
+}

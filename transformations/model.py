@@ -195,10 +195,27 @@ class TransformationModel:
             create_index_sql = f"CREATE {unique_str}INDEX IF NOT EXISTS {index_name} ON public.{self.name} ({columns_list})"
 
             try:
-                pg.execute(create_index_sql)
+                import logging
+                logging.info(f"Attempting to create index with SQL: {create_index_sql}")
+                pg.execute(create_index_sql, fetch=False)
+                # Explicitly commit to ensure index is persisted
+                pg.conn.commit()
+                logging.info(f"Successfully created and committed index {index_name}")
                 print(f"Created index {index_name} on {self.name}({columns_list})")
+
+                # Verify index was created
+                check_sql = f"SELECT indexname FROM pg_indexes WHERE tablename = '{self.name}' AND indexname = '{index_name}'"
+                result = pg.execute(check_sql, fetch=True)
+                if result:
+                    logging.info(f"Verified index exists: {result}")
+                else:
+                    logging.error(f"Index verification failed - index {index_name} not found in pg_indexes")
             except Exception as e:
                 print(f"Warning: Failed to create index {index_name}: {str(e)}")
+                import traceback
+                import logging
+                logging.error(f"Index creation error: {str(e)}")
+                traceback.print_exc()
 
     def _write_python_result_to_db(self) -> None:
         """
