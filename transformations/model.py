@@ -118,12 +118,93 @@ class TransformationModel:
             # Check if model already exists for incremental logic
             return False  # For now, always do full refresh
 
+        def asset(asset_name):
+            """
+            Load an asset by name and return a reference to it
+            For CSV/Excel files: creates a temp table and returns table name
+            For SQL files: returns the SQL content
+            For Python files: returns import-ready path
+            """
+            from connection_manager import connection_manager
+            import logging
+
+            try:
+                # Get asset from database
+                with connection_manager.get_connection('transformdash') as pg:
+                    result = pg.execute("""
+                        SELECT id, name, asset_type, file_path, metadata
+                        FROM assets
+                        WHERE name = %s AND is_active = TRUE
+                    """, (asset_name,), fetch=True)
+
+                    if not result:
+                        raise ValueError(f"Asset '{asset_name}' not found")
+
+                    asset_info = result[0]
+                    asset_type = asset_info['asset_type']
+                    file_path = Path(__file__).parent.parent / "assets" / asset_info['file_path']
+
+                    if not file_path.exists():
+                        raise ValueError(f"Asset file not found: {file_path}")
+
+                    # Handle different asset types
+                    if asset_type in ['csv', 'excel']:
+                        # Load CSV/Excel as a temp table
+                        import pandas as pd
+                        df = pd.read_csv(file_path) if asset_type == 'csv' else pd.read_excel(file_path)
+
+                        # Create temp table name
+                        temp_table = f"_asset_{asset_info['id']}_{asset_name.replace('.', '_').replace('-', '_')}"
+
+                        # Drop if exists and create temp table
+                        with PostgresConnector() as pg_conn:
+                            pg_conn.execute(f"DROP TABLE IF EXISTS {temp_table}")
+
+                            # Write dataframe to temp table
+                            from sqlalchemy import create_engine
+                            import os
+                            db_host = os.getenv("POSTGRES_HOST", "localhost")
+                            db_port = os.getenv("POSTGRES_PORT", "5432")
+                            db_name = os.getenv("POSTGRES_DB", "transformdash")
+                            db_user = os.getenv("POSTGRES_USER", "postgres")
+                            db_pass = os.getenv("POSTGRES_PASSWORD", "postgres")
+                            engine = create_engine(f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}")
+
+                            df.to_sql(temp_table, engine, if_exists='replace', index=False)
+                            engine.dispose()
+
+                            logging.info(f"Loaded asset '{asset_name}' as table '{temp_table}'")
+
+                        return temp_table
+
+                    elif asset_type == 'sql':
+                        # Return SQL content
+                        with open(file_path, 'r') as f:
+                            sql_content = f.read()
+                        logging.info(f"Loaded SQL asset '{asset_name}'")
+                        return sql_content
+
+                    elif asset_type in ['python', 'json', 'yaml']:
+                        # Return file path for import/loading
+                        logging.info(f"Loaded asset '{asset_name}' from {file_path}")
+                        return str(file_path)
+
+                    else:
+                        # For other types, return file path
+                        return str(file_path)
+
+            except Exception as e:
+                import logging
+                logging.error(f"Error loading asset '{asset_name}': {str(e)}")
+                raise ValueError(f"Failed to load asset '{asset_name}': {str(e)}")
+
         # Render the template
         rendered_sql = template.render(
             ref=ref,
             source=source,
             config=config,
             is_incremental=is_incremental,
+            asset=asset,
             this=f"public.{self.name}"  # {{ this }} refers to current model
         )
 

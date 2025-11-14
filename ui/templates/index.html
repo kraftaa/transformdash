@@ -91,6 +91,13 @@
                     </svg>
                     <span class="nav-text">Datasets</span>
                 </a>
+                <a href="#" class="nav-item" data-view="assets" onclick="event.preventDefault(); event.stopPropagation(); switchView('assets'); return false;">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                        <polyline points="13 2 13 9 20 9"/>
+                    </svg>
+                    <span class="nav-text">Assets</span>
+                </a>
                 <a href="#" class="nav-item" data-view="runs" onclick="event.preventDefault(); event.stopPropagation(); switchView('runs'); return false;">
                     <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
@@ -1015,6 +1022,53 @@
                 </div>
             </div>
 
+            <!-- Assets View -->
+            <div id="assets-view" class="view-content">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">Assets</h1>
+                        <p class="page-subtitle">Manage files, scripts, and resources</p>
+                    </div>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <input type="search" id="assets-search" placeholder="Search assets..."
+                               style="padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 6px; width: 250px;"
+                               oninput="searchAssets(this.value)">
+                        <select id="assets-type-filter" onchange="filterAssets()"
+                                style="padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 6px;">
+                            <option value="">All Types</option>
+                            <option value="csv">CSV</option>
+                            <option value="excel">Excel</option>
+                            <option value="sql">SQL</option>
+                            <option value="python">Python</option>
+                            <option value="json">JSON</option>
+                            <option value="yaml">YAML</option>
+                            <option value="markdown">Markdown</option>
+                            <option value="image">Image</option>
+                            <option value="pdf">PDF</option>
+                            <option value="other">Other</option>
+                        </select>
+                        <button class="btn-primary" onclick="showUploadAssetModal()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            Upload Asset
+                        </button>
+                    </div>
+                </div>
+
+                <div id="assets-list" style="padding: 24px;">
+                    <div style="text-align: center; padding: 60px 20px; color: #999;">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin: 0 auto 16px; opacity: 0.5;">
+                            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                            <polyline points="13 2 13 9 20 9"/>
+                        </svg>
+                        <p>Loading assets...</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Runs View -->
             <div id="runs-view" class="view-content">
                 <div class="page-header">
@@ -1412,6 +1466,67 @@
 
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-container"></div>
+
+    <!-- Upload Asset Modal -->
+    <div id="uploadAssetModal" class="modal">
+        <div class="modal-overlay" onclick="closeModal('uploadAssetModal')"></div>
+        <div class="modal-container" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>Upload Asset</h2>
+                <button class="modal-close" onclick="closeModal('uploadAssetModal')">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="uploadAssetForm" onsubmit="uploadAsset(event)">
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Asset Name*</label>
+                        <input type="text" id="assetName" required
+                               style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px;">
+                    </div>
+
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Description</label>
+                        <textarea id="assetDescription" rows="3"
+                                  style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px;"></textarea>
+                    </div>
+
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Asset Type*</label>
+                        <select id="assetType" required
+                                style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px;">
+                            <option value="">Select type...</option>
+                            <option value="csv">CSV</option>
+                            <option value="excel">Excel</option>
+                            <option value="sql">SQL Script</option>
+                            <option value="python">Python Script</option>
+                            <option value="json">JSON</option>
+                            <option value="yaml">YAML</option>
+                            <option value="markdown">Markdown</option>
+                            <option value="image">Image</option>
+                            <option value="pdf">PDF</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Tags (comma-separated)</label>
+                        <input type="text" id="assetTags" placeholder="data, reference, staging"
+                               style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px;">
+                    </div>
+
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">File*</label>
+                        <input type="file" id="assetFile" required
+                               style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px;">
+                    </div>
+
+                    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('uploadAssetModal')">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Upload</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <!-- Scripts -->
     <script src="/static/js/app.js?t={{ cache_bust }}"></script>

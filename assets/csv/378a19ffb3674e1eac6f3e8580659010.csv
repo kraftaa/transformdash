@@ -1,0 +1,9 @@
+region_code,region_name,tax_rate,currency
+US-CA,California,0.0725,USD
+US-NY,New York,0.0400,USD
+UK-LON,London,0.2000,GBP
+CA-ON,Ontario,0.1300,CAD
+DE-BE,Berlin,0.1900,EUR
+FR-IDF,Île-de-France,0.2000,EUR
+JP-13,Tokyo,0.1000,JPY
+AU-NSW,New South Wales,0.1000,AUD

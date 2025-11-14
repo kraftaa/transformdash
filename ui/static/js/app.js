@@ -203,6 +203,9 @@ function switchView(viewName) {
         case 'schedules':
             loadSchedules();
             break;
+        case 'assets':
+            loadAssets();
+            break;
         case 'settings':
             // Settings view is static
             break;
@@ -6534,12 +6537,36 @@ async function runTransformations() {
         if (response.ok) {
             // Show success
             statusDiv.className = 'execution-status success';
+
+            // Build failed models list if any
+            let failedModelsHtml = '';
+            if (data.summary.failures > 0 && data.summary.model_results) {
+                const failedModels = data.summary.model_results.filter(m => m.status === 'failed');
+                failedModelsHtml = `
+                    <div style="margin-top: 12px; padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px;">
+                        <strong style="color: #dc2626;">Failed Models:</strong>
+                        <ul style="margin: 8px 0 0 0; padding-left: 20px;">
+                            ${failedModels.map(m => `
+                                <li style="margin: 4px 0;">
+                                    <a href="#" onclick="scrollToModel('${m.name}'); return false;"
+                                       style="color: #dc2626; text-decoration: underline; cursor: pointer;">
+                                        ${m.name}
+                                    </a>
+                                    ${m.error ? `<br><span style="font-size: 0.85em; color: #991b1b;">Error: ${m.error}</span>` : ''}
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
             statusDiv.innerHTML = `
                 <strong>✅ Transformations completed successfully!</strong><br>
                 <p>Total Models: ${data.summary.total_models}</p>
                 <p>✓ Successes: ${data.summary.successes}</p>
                 <p>✗ Failures: ${data.summary.failures}</p>
                 <p>⏱️ Total Time: ${data.summary.total_execution_time.toFixed(3)}s</p>
+                ${failedModelsHtml}
             `;
 
             // Refresh models to show updated status
@@ -7577,3 +7604,183 @@ async function deleteSchedule(scheduleId, scheduleName) {
 
 // Load models on page load
 loadModels();
+
+// === Assets Management ===
+
+let assetsData = [];
+let filteredAssets = [];
+
+async function loadAssets() {
+    try {
+        const response = await fetch('/api/assets');
+        const data = await response.json();
+        assetsData = data.assets || [];
+        filteredAssets = [...assetsData];
+        renderAssets();
+    } catch (error) {
+        console.error('Error loading assets:', error);
+        document.getElementById('assets-list').innerHTML = '<div style="text-align: center; padding: 60px 20px; color: #f44;">Error loading assets</div>';
+    }
+}
+
+function renderAssets() {
+    const container = document.getElementById('assets-list');
+    
+    if (filteredAssets.length === 0) {
+        container.innerHTML = '<div style="text-align: center; padding: 60px 20px; color: #999;"><p>No assets found</p></div>';
+        return;
+    }
+    
+    const html = filteredAssets.map(asset => {
+        const typeIcons = {
+            csv: '📊', excel: '📗', sql: '🗄️', python: '🐍',
+            json: '📋', yaml: '⚙️', markdown: '📝', image: '🖼️', pdf: '📄', other: '📁'
+        };
+        const icon = typeIcons[asset.asset_type] || '📁';
+        const date = new Date(asset.created_at).toLocaleDateString();
+        const size = asset.file_size ? (asset.file_size / 1024).toFixed(1) + ' KB' : '—';
+        
+        return '<div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 12px;">' +
+            '<div style="display: flex; justify-content: space-between; align-items: start;">' +
+            '<div style="flex: 1;">' +
+            '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">' +
+            '<span style="font-size: 24px;">' + icon + '</span>' +
+            '<h3 style="margin: 0; font-size: 1rem; font-weight: 600;">' + asset.name + '</h3>' +
+            '<span style="font-size: 0.75rem; padding: 2px 8px; background: #e0e7ff; color: #4338ca; border-radius: 12px;">' + asset.asset_type + '</span>' +
+            '</div>' +
+            (asset.description ? '<p style="margin: 8px 0; color: #6b7280; font-size: 0.875rem;">' + asset.description + '</p>' : '') +
+            '<div style="display: flex; gap: 16px; margin-top: 8px; font-size: 0.75rem; color: #9ca3af;">' +
+            '<span>📅 ' + date + '</span>' +
+            '<span>💾 ' + size + '</span>' +
+            (asset.tags && asset.tags.length > 0 ? '<span>🏷️ ' + asset.tags.join(', ') + '</span>' : '') +
+            '</div>' +
+            '</div>' +
+            '<div style="display: flex; gap: 8px;">' +
+            '<button onclick="downloadAsset(' + asset.id + ')" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.875rem;">Download</button>' +
+            '<button onclick="deleteAsset(' + asset.id + ')" class="btn" style="padding: 6px 12px; font-size: 0.875rem; color: #dc2626;">Delete</button>' +
+            '</div>' +
+            '</div>' +
+            '</div>';
+    }).join('');
+    
+    container.innerHTML = html;
+}
+
+function showUploadAssetModal() {
+    document.getElementById('uploadAssetModal').style.display = 'block';
+    document.getElementById('uploadAssetForm').reset();
+}
+
+async function uploadAsset(event) {
+    event.preventDefault();
+    
+    const formData = new FormData();
+    formData.append('file', document.getElementById('assetFile').files[0]);
+    formData.append('name', document.getElementById('assetName').value);
+    formData.append('description', document.getElementById('assetDescription').value);
+    formData.append('asset_type', document.getElementById('assetType').value);
+    formData.append('tags', document.getElementById('assetTags').value);
+    formData.append('created_by', 'admin');
+    
+    try {
+        const response = await fetch('/api/assets/upload', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            showToast('Asset uploaded successfully', 'success');
+            closeModal('uploadAssetModal');
+            loadAssets();
+        } else {
+            const error = await response.json();
+            showToast('Upload failed: ' + error.detail, 'error');
+        }
+    } catch (error) {
+        console.error('Error uploading asset:', error);
+        showToast('Upload failed', 'error');
+    }
+}
+
+function downloadAsset(assetId) {
+    window.open('/api/assets/' + assetId + '/download', '_blank');
+}
+
+async function deleteAsset(assetId) {
+    if (!confirm('Are you sure you want to delete this asset?')) return;
+    
+    try {
+        const response = await fetch('/api/assets/' + assetId, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            showToast('Asset deleted successfully', 'success');
+            loadAssets();
+        } else {
+            showToast('Delete failed', 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting asset:', error);
+        showToast('Delete failed', 'error');
+    }
+}
+
+function searchAssets(query) {
+    const term = query.toLowerCase().trim();
+    if (!term) {
+        filteredAssets = [...assetsData];
+    } else {
+        filteredAssets = assetsData.filter(function(asset) {
+            return asset.name.toLowerCase().includes(term) ||
+                (asset.description && asset.description.toLowerCase().includes(term)) ||
+                asset.asset_type.toLowerCase().includes(term) ||
+                (asset.tags && asset.tags.some(function(tag) { return tag.toLowerCase().includes(term); }));
+        });
+    }
+    renderAssets();
+}
+
+function filterAssets() {
+    const typeFilter = document.getElementById('assets-type-filter').value;
+    if (!typeFilter) {
+        filteredAssets = [...assetsData];
+    } else {
+        filteredAssets = assetsData.filter(function(asset) { return asset.asset_type === typeFilter; });
+    }
+    renderAssets();
+}
+
+// Scroll to a specific model in the models list
+function scrollToModel(modelName) {
+    // Find the model card
+    const modelCards = document.querySelectorAll('.model-card');
+    let targetCard = null;
+    
+    for (const card of modelCards) {
+        const nameElement = card.querySelector('.model-name, .model-title, h3');
+        if (nameElement && nameElement.textContent.trim() === modelName) {
+            targetCard = card;
+            break;
+        }
+    }
+    
+    if (targetCard) {
+        // Scroll to the card
+        targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Highlight the card temporarily
+        const originalBg = targetCard.style.background;
+        targetCard.style.background = '#fef2f2';
+        targetCard.style.border = '2px solid #dc2626';
+        targetCard.style.transition = 'all 0.3s';
+        
+        setTimeout(() => {
+            targetCard.style.background = originalBg;
+            targetCard.style.border = '';
+        }, 3000);
+    } else {
+        console.warn('Model not found:', modelName);
+        showToast(`Model ${modelName} not found in current view`, 'error');
+    }
+}

@@ -1,0 +1,330 @@
+{
+  "run_id": "run_20251114_114557",
+  "timestamp": "2025-11-14T11:45:58.427168",
+  "summary": {
+    "total_models": 34,
+    "successes": 32,
+    "failures": 2,
+    "total_execution_time": 0.690686,
+    "models": {
+      "stg_products": {
+        "execution_time": 0.052194,
+        "timestamp": "2025-11-14T11:45:57.788706",
+        "status": "success"
+      },
+      "stg_customers": {
+        "execution_time": 0.026063,
+        "timestamp": "2025-11-14T11:45:57.814824",
+        "status": "success"
+      },
+      "stg_stock_levels": {
+        "execution_time": 0.027351,
+        "timestamp": "2025-11-14T11:45:57.842231",
+        "status": "success"
+      },
+      "stg_shipments": {
+        "execution_time": 0.017724,
+        "timestamp": "2025-11-14T11:45:57.860012",
+        "status": "success"
+      },
+      "stg_returns": {
+        "execution_time": 0.01704,
+        "timestamp": "2025-11-14T11:45:57.877102",
+        "status": "success"
+      },
+      "stg_suppliers": {
+        "execution_time": 0.019878,
+        "timestamp": "2025-11-14T11:45:57.897037",
+        "status": "success"
+      },
+      "stg_orders": {
+        "execution_time": 0.014592,
+        "timestamp": "2025-11-14T11:45:57.911700",
+        "status": "success"
+      },
+      "stg_promotions": {
+        "execution_time": 0.01464,
+        "timestamp": "2025-11-14T11:45:57.926400",
+        "status": "success"
+      },
+      "stg_commissions": {
+        "execution_time": 0.015494,
+        "timestamp": "2025-11-14T11:45:57.941945",
+        "status": "success"
+      },
+      "stg_order_items": {
+        "execution_time": 0.01376,
+        "timestamp": "2025-11-14T11:45:57.955737",
+        "status": "success"
+      },
+      "stg_purchase_orders": {
+        "execution_time": 0.007239,
+        "timestamp": "2025-11-14T11:45:57.963010",
+        "status": "success"
+      },
+      "stg_warehouses": {
+        "execution_time": 0.011539,
+        "timestamp": "2025-11-14T11:45:57.974583",
+        "status": "success"
+      },
+      "stg_employees": {
+        "execution_time": 0.018227,
+        "timestamp": "2025-11-14T11:45:57.992844",
+        "status": "success"
+      },
+      "stg_campaigns": {
+        "execution_time": 0.008919,
+        "timestamp": "2025-11-14T11:45:58.001798",
+        "status": "success"
+      },
+      "stg_payment_transactions": {
+        "execution_time": 0.013934,
+        "timestamp": "2025-11-14T11:45:58.015765",
+        "status": "success"
+      },
+      "stg_carriers": {
+        "execution_time": 0.008056,
+        "timestamp": "2025-11-14T11:45:58.023860",
+        "status": "success"
+      },
+      "int_products_enriched": {
+        "execution_time": 0.099516,
+        "timestamp": "2025-11-14T11:45:58.123409",
+        "status": "success"
+      },
+      "int_return_analysis": {
+        "execution_time": 0.02219,
+        "timestamp": "2025-11-14T11:45:58.145642",
+        "status": "success"
+      },
+      "int_customer_orders": {
+        "execution_time": 0.011728,
+        "timestamp": "2025-11-14T11:45:58.157404",
+        "status": "failed",
+        "error": "syntax error at or near \"1\"\nLINE 2: 1\n        ^\n"
+      },
+      "int_promo_utilization": {
+        "execution_time": 0.013437,
+        "timestamp": "2025-11-14T11:45:58.170890",
+        "status": "success"
+      },
+      "int_order_details": {
+        "execution_time": 0.022238,
+        "timestamp": "2025-11-14T11:45:58.193162",
+        "status": "success"
+      },
+      "int_supplier_orders": {
+        "execution_time": 0.013479,
+        "timestamp": "2025-11-14T11:45:58.206676",
+        "status": "success"
+      },
+      "int_inventory_summary": {
+        "execution_time": 0.016741,
+        "timestamp": "2025-11-14T11:45:58.223461",
+        "status": "success"
+      },
+      "int_sales_commissions": {
+        "execution_time": 0.019391,
+        "timestamp": "2025-11-14T11:45:58.242894",
+        "status": "success"
+      },
+      "int_employee_performance": {
+        "execution_time": 0.014012,
+        "timestamp": "2025-11-14T11:45:58.256947",
+        "status": "success"
+      },
+      "int_campaign_performance": {
+        "execution_time": 0.017047,
+        "timestamp": "2025-11-14T11:45:58.274035",
+        "status": "success"
+      },
+      "int_payment_reconciliation": {
+        "execution_time": 0.017588,
+        "timestamp": "2025-11-14T11:45:58.291668",
+        "status": "success"
+      },
+      "int_shipment_tracking": {
+        "execution_time": 0.017837,
+        "timestamp": "2025-11-14T11:45:58.309555",
+        "status": "success"
+      },
+      "fct_customer_returns": {
+        "execution_time": 0.020036,
+        "timestamp": "2025-11-14T11:45:58.329647",
+        "status": "success"
+      },
+      "fct_orders": {
+        "execution_time": 0.012815,
+        "timestamp": "2025-11-14T11:45:58.342516",
+        "status": "failed",
+        "error": "relation \"public.int_customer_orders\" does not exist\nLINE 23:     from public.int_customer_orders\n                  ^\n"
+      },
+      "fct_sales_performance": {
+        "execution_time": 0.018979,
+        "timestamp": "2025-11-14T11:45:58.361556",
+        "status": "success"
+      },
+      "fct_inventory_metrics": {
+        "execution_time": 0.025078,
+        "timestamp": "2025-11-14T11:45:58.386700",
+        "status": "success"
+      },
+      "fct_marketing_roi": {
+        "execution_time": 0.023148,
+        "timestamp": "2025-11-14T11:45:58.409905",
+        "status": "success"
+      },
+      "fct_shipping_logistics": {
+        "execution_time": 0.01711,
+        "timestamp": "2025-11-14T11:45:58.427078",
+        "status": "success"
+      }
+    },
+    "logs": [
+      "[2025-11-14 11:45:57.736] [INFO] Starting transformation pipeline",
+      "[2025-11-14 11:45:57.736] [INFO] Execution order: stg_products \u2192 stg_customers \u2192 stg_stock_levels \u2192 stg_shipments \u2192 stg_returns \u2192 stg_suppliers \u2192 stg_orders \u2192 stg_promotions \u2192 stg_commissions \u2192 stg_order_items \u2192 stg_purchase_orders \u2192 stg_warehouses \u2192 stg_employees \u2192 stg_campaigns \u2192 stg_payment_transactions \u2192 stg_carriers \u2192 int_products_enriched \u2192 int_return_analysis \u2192 int_customer_orders \u2192 int_promo_utilization \u2192 int_order_details \u2192 int_supplier_orders \u2192 int_inventory_summary \u2192 int_sales_commissions \u2192 int_employee_performance \u2192 int_campaign_performance \u2192 int_payment_reconciliation \u2192 int_shipment_tracking \u2192 fct_customer_returns \u2192 fct_orders \u2192 fct_sales_performance \u2192 fct_inventory_metrics \u2192 fct_marketing_roi \u2192 fct_shipping_logistics",
+      "[2025-11-14 11:45:57.736] [INFO] Executing: stg_products [sql]",
+      "[2025-11-14 11:45:57.788] [SUCCESS] Completed: stg_products in 0.052s",
+      "[2025-11-14 11:45:57.788] [INFO] Executing: stg_customers [sql]",
+      "[2025-11-14 11:45:57.814] [SUCCESS] Completed: stg_customers in 0.026s",
+      "[2025-11-14 11:45:57.814] [INFO] Executing: stg_stock_levels [sql]",
+      "[2025-11-14 11:45:57.842] [SUCCESS] Completed: stg_stock_levels in 0.027s",
+      "[2025-11-14 11:45:57.842] [INFO] Executing: stg_shipments [sql]",
+      "[2025-11-14 11:45:57.860] [SUCCESS] Completed: stg_shipments in 0.018s",
+      "[2025-11-14 11:45:57.860] [INFO] Executing: stg_returns [sql]",
+      "[2025-11-14 11:45:57.877] [SUCCESS] Completed: stg_returns in 0.017s",
+      "[2025-11-14 11:45:57.877] [INFO] Executing: stg_suppliers [sql]",
+      "[2025-11-14 11:45:57.897] [SUCCESS] Completed: stg_suppliers in 0.020s",
+      "[2025-11-14 11:45:57.897] [INFO] Executing: stg_orders [sql]",
+      "[2025-11-14 11:45:57.911] [SUCCESS] Completed: stg_orders in 0.015s",
+      "[2025-11-14 11:45:57.911] [INFO] Executing: stg_promotions [sql]",
+      "[2025-11-14 11:45:57.926] [SUCCESS] Completed: stg_promotions in 0.015s",
+      "[2025-11-14 11:45:57.926] [INFO] Executing: stg_commissions [sql]",
+      "[2025-11-14 11:45:57.941] [SUCCESS] Completed: stg_commissions in 0.015s",
+      "[2025-11-14 11:45:57.941] [INFO] Executing: stg_order_items [sql]",
+      "[2025-11-14 11:45:57.955] [SUCCESS] Completed: stg_order_items in 0.014s",
+      "[2025-11-14 11:45:57.955] [INFO] Executing: stg_purchase_orders [sql]",
+      "[2025-11-14 11:45:57.963] [SUCCESS] Completed: stg_purchase_orders in 0.007s",
+      "[2025-11-14 11:45:57.963] [INFO] Executing: stg_warehouses [sql]",
+      "[2025-11-14 11:45:57.974] [SUCCESS] Completed: stg_warehouses in 0.012s",
+      "[2025-11-14 11:45:57.974] [INFO] Executing: stg_employees [sql]",
+      "[2025-11-14 11:45:57.992] [SUCCESS] Completed: stg_employees in 0.018s",
+      "[2025-11-14 11:45:57.992] [INFO] Executing: stg_campaigns [sql]",
+      "[2025-11-14 11:45:58.001] [SUCCESS] Completed: stg_campaigns in 0.009s",
+      "[2025-11-14 11:45:58.001] [INFO] Executing: stg_payment_transactions [sql]",
+      "[2025-11-14 11:45:58.015] [SUCCESS] Completed: stg_payment_transactions in 0.014s",
+      "[2025-11-14 11:45:58.015] [INFO] Executing: stg_carriers [sql]",
+      "[2025-11-14 11:45:58.023] [SUCCESS] Completed: stg_carriers in 0.008s",
+      "[2025-11-14 11:45:58.023] [INFO] Executing: int_products_enriched [python]",
+      "[2025-11-14 11:45:58.123] [SUCCESS] Completed: int_products_enriched in 0.100s",
+      "[2025-11-14 11:45:58.123] [INFO] Executing: int_return_analysis [sql]",
+      "[2025-11-14 11:45:58.145] [SUCCESS] Completed: int_return_analysis in 0.022s",
+      "[2025-11-14 11:45:58.145] [INFO] Executing: int_customer_orders [sql]",
+      "[2025-11-14 11:45:58.157] [ERROR] Failed: int_customer_orders - syntax error at or near \"1\"\nLINE 2: 1\n        ^\n",
+      "[2025-11-14 11:45:58.157] [INFO] Executing: int_promo_utilization [sql]",
+      "[2025-11-14 11:45:58.170] [SUCCESS] Completed: int_promo_utilization in 0.013s",
+      "[2025-11-14 11:45:58.170] [INFO] Executing: int_order_details [sql]",
+      "[2025-11-14 11:45:58.193] [SUCCESS] Completed: int_order_details in 0.022s",
+      "[2025-11-14 11:45:58.193] [INFO] Executing: int_supplier_orders [sql]",
+      "[2025-11-14 11:45:58.206] [SUCCESS] Completed: int_supplier_orders in 0.013s",
+      "[2025-11-14 11:45:58.206] [INFO] Executing: int_inventory_summary [sql]",
+      "[2025-11-14 11:45:58.223] [SUCCESS] Completed: int_inventory_summary in 0.017s",
+      "[2025-11-14 11:45:58.223] [INFO] Executing: int_sales_commissions [sql]",
+      "[2025-11-14 11:45:58.242] [SUCCESS] Completed: int_sales_commissions in 0.019s",
+      "[2025-11-14 11:45:58.242] [INFO] Executing: int_employee_performance [sql]",
+      "[2025-11-14 11:45:58.256] [SUCCESS] Completed: int_employee_performance in 0.014s",
+      "[2025-11-14 11:45:58.256] [INFO] Executing: int_campaign_performance [sql]",
+      "[2025-11-14 11:45:58.274] [SUCCESS] Completed: int_campaign_performance in 0.017s",
+      "[2025-11-14 11:45:58.274] [INFO] Executing: int_payment_reconciliation [sql]",
+      "[2025-11-14 11:45:58.291] [SUCCESS] Completed: int_payment_reconciliation in 0.018s",
+      "[2025-11-14 11:45:58.291] [INFO] Executing: int_shipment_tracking [sql]",
+      "[2025-11-14 11:45:58.309] [SUCCESS] Completed: int_shipment_tracking in 0.018s",
+      "[2025-11-14 11:45:58.309] [INFO] Executing: fct_customer_returns [sql]",
+      "[2025-11-14 11:45:58.329] [SUCCESS] Completed: fct_customer_returns in 0.020s",
+      "[2025-11-14 11:45:58.329] [INFO] Executing: fct_orders [sql]",
+      "[2025-11-14 11:45:58.342] [ERROR] Failed: fct_orders - relation \"public.int_customer_orders\" does not exist\nLINE 23:     from public.int_customer_orders\n                  ^\n",
+      "[2025-11-14 11:45:58.342] [INFO] Executing: fct_sales_performance [sql]",
+      "[2025-11-14 11:45:58.361] [SUCCESS] Completed: fct_sales_performance in 0.019s",
+      "[2025-11-14 11:45:58.361] [INFO] Executing: fct_inventory_metrics [sql]",
+      "[2025-11-14 11:45:58.386] [SUCCESS] Completed: fct_inventory_metrics in 0.025s",
+      "[2025-11-14 11:45:58.386] [INFO] Executing: fct_marketing_roi [sql]",
+      "[2025-11-14 11:45:58.409] [SUCCESS] Completed: fct_marketing_roi in 0.023s",
+      "[2025-11-14 11:45:58.409] [INFO] Executing: fct_shipping_logistics [sql]",
+      "[2025-11-14 11:45:58.427] [SUCCESS] Completed: fct_shipping_logistics in 0.017s",
+      "[2025-11-14 11:45:58.427] [INFO] Pipeline completed in 0.691s"
+    ]
+  },
+  "logs": [
+    "[2025-11-14 11:45:57.736] [INFO] Starting transformation pipeline",
+    "[2025-11-14 11:45:57.736] [INFO] Execution order: stg_products \u2192 stg_customers \u2192 stg_stock_levels \u2192 stg_shipments \u2192 stg_returns \u2192 stg_suppliers \u2192 stg_orders \u2192 stg_promotions \u2192 stg_commissions \u2192 stg_order_items \u2192 stg_purchase_orders \u2192 stg_warehouses \u2192 stg_employees \u2192 stg_campaigns \u2192 stg_payment_transactions \u2192 stg_carriers \u2192 int_products_enriched \u2192 int_return_analysis \u2192 int_customer_orders \u2192 int_promo_utilization \u2192 int_order_details \u2192 int_supplier_orders \u2192 int_inventory_summary \u2192 int_sales_commissions \u2192 int_employee_performance \u2192 int_campaign_performance \u2192 int_payment_reconciliation \u2192 int_shipment_tracking \u2192 fct_customer_returns \u2192 fct_orders \u2192 fct_sales_performance \u2192 fct_inventory_metrics \u2192 fct_marketing_roi \u2192 fct_shipping_logistics",
+    "[2025-11-14 11:45:57.736] [INFO] Executing: stg_products [sql]",
+    "[2025-11-14 11:45:57.788] [SUCCESS] Completed: stg_products in 0.052s",
+    "[2025-11-14 11:45:57.788] [INFO] Executing: stg_customers [sql]",
+    "[2025-11-14 11:45:57.814] [SUCCESS] Completed: stg_customers in 0.026s",
+    "[2025-11-14 11:45:57.814] [INFO] Executing: stg_stock_levels [sql]",
+    "[2025-11-14 11:45:57.842] [SUCCESS] Completed: stg_stock_levels in 0.027s",
+    "[2025-11-14 11:45:57.842] [INFO] Executing: stg_shipments [sql]",
+    "[2025-11-14 11:45:57.860] [SUCCESS] Completed: stg_shipments in 0.018s",
+    "[2025-11-14 11:45:57.860] [INFO] Executing: stg_returns [sql]",
+    "[2025-11-14 11:45:57.877] [SUCCESS] Completed: stg_returns in 0.017s",
+    "[2025-11-14 11:45:57.877] [INFO] Executing: stg_suppliers [sql]",
+    "[2025-11-14 11:45:57.897] [SUCCESS] Completed: stg_suppliers in 0.020s",
+    "[2025-11-14 11:45:57.897] [INFO] Executing: stg_orders [sql]",
+    "[2025-11-14 11:45:57.911] [SUCCESS] Completed: stg_orders in 0.015s",
+    "[2025-11-14 11:45:57.911] [INFO] Executing: stg_promotions [sql]",
+    "[2025-11-14 11:45:57.926] [SUCCESS] Completed: stg_promotions in 0.015s",
+    "[2025-11-14 11:45:57.926] [INFO] Executing: stg_commissions [sql]",
+    "[2025-11-14 11:45:57.941] [SUCCESS] Completed: stg_commissions in 0.015s",
+    "[2025-11-14 11:45:57.941] [INFO] Executing: stg_order_items [sql]",
+    "[2025-11-14 11:45:57.955] [SUCCESS] Completed: stg_order_items in 0.014s",
+    "[2025-11-14 11:45:57.955] [INFO] Executing: stg_purchase_orders [sql]",
+    "[2025-11-14 11:45:57.963] [SUCCESS] Completed: stg_purchase_orders in 0.007s",
+    "[2025-11-14 11:45:57.963] [INFO] Executing: stg_warehouses [sql]",
+    "[2025-11-14 11:45:57.974] [SUCCESS] Completed: stg_warehouses in 0.012s",
+    "[2025-11-14 11:45:57.974] [INFO] Executing: stg_employees [sql]",
+    "[2025-11-14 11:45:57.992] [SUCCESS] Completed: stg_employees in 0.018s",
+    "[2025-11-14 11:45:57.992] [INFO] Executing: stg_campaigns [sql]",
+    "[2025-11-14 11:45:58.001] [SUCCESS] Completed: stg_campaigns in 0.009s",
+    "[2025-11-14 11:45:58.001] [INFO] Executing: stg_payment_transactions [sql]",
+    "[2025-11-14 11:45:58.015] [SUCCESS] Completed: stg_payment_transactions in 0.014s",
+    "[2025-11-14 11:45:58.015] [INFO] Executing: stg_carriers [sql]",
+    "[2025-11-14 11:45:58.023] [SUCCESS] Completed: stg_carriers in 0.008s",
+    "[2025-11-14 11:45:58.023] [INFO] Executing: int_products_enriched [python]",
+    "[2025-11-14 11:45:58.123] [SUCCESS] Completed: int_products_enriched in 0.100s",
+    "[2025-11-14 11:45:58.123] [INFO] Executing: int_return_analysis [sql]",
+    "[2025-11-14 11:45:58.145] [SUCCESS] Completed: int_return_analysis in 0.022s",
+    "[2025-11-14 11:45:58.145] [INFO] Executing: int_customer_orders [sql]",
+    "[2025-11-14 11:45:58.157] [ERROR] Failed: int_customer_orders - syntax error at or near \"1\"\nLINE 2: 1\n        ^\n",
+    "[2025-11-14 11:45:58.157] [INFO] Executing: int_promo_utilization [sql]",
+    "[2025-11-14 11:45:58.170] [SUCCESS] Completed: int_promo_utilization in 0.013s",
+    "[2025-11-14 11:45:58.170] [INFO] Executing: int_order_details [sql]",
+    "[2025-11-14 11:45:58.193] [SUCCESS] Completed: int_order_details in 0.022s",
+    "[2025-11-14 11:45:58.193] [INFO] Executing: int_supplier_orders [sql]",
+    "[2025-11-14 11:45:58.206] [SUCCESS] Completed: int_supplier_orders in 0.013s",
+    "[2025-11-14 11:45:58.206] [INFO] Executing: int_inventory_summary [sql]",
+    "[2025-11-14 11:45:58.223] [SUCCESS] Completed: int_inventory_summary in 0.017s",
+    "[2025-11-14 11:45:58.223] [INFO] Executing: int_sales_commissions [sql]",
+    "[2025-11-14 11:45:58.242] [SUCCESS] Completed: int_sales_commissions in 0.019s",
+    "[2025-11-14 11:45:58.242] [INFO] Executing: int_employee_performance [sql]",
+    "[2025-11-14 11:45:58.256] [SUCCESS] Completed: int_employee_performance in 0.014s",
+    "[2025-11-14 11:45:58.256] [INFO] Executing: int_campaign_performance [sql]",
+    "[2025-11-14 11:45:58.274] [SUCCESS] Completed: int_campaign_performance in 0.017s",
+    "[2025-11-14 11:45:58.274] [INFO] Executing: int_payment_reconciliation [sql]",
+    "[2025-11-14 11:45:58.291] [SUCCESS] Completed: int_payment_reconciliation in 0.018s",
+    "[2025-11-14 11:45:58.291] [INFO] Executing: int_shipment_tracking [sql]",
+    "[2025-11-14 11:45:58.309] [SUCCESS] Completed: int_shipment_tracking in 0.018s",
+    "[2025-11-14 11:45:58.309] [INFO] Executing: fct_customer_returns [sql]",
+    "[2025-11-14 11:45:58.329] [SUCCESS] Completed: fct_customer_returns in 0.020s",
+    "[2025-11-14 11:45:58.329] [INFO] Executing: fct_orders [sql]",
+    "[2025-11-14 11:45:58.342] [ERROR] Failed: fct_orders - relation \"public.int_customer_orders\" does not exist\nLINE 23:     from public.int_customer_orders\n                  ^\n",
+    "[2025-11-14 11:45:58.342] [INFO] Executing: fct_sales_performance [sql]",
+    "[2025-11-14 11:45:58.361] [SUCCESS] Completed: fct_sales_performance in 0.019s",
+    "[2025-11-14 11:45:58.361] [INFO] Executing: fct_inventory_metrics [sql]",
+    "[2025-11-14 11:45:58.386] [SUCCESS] Completed: fct_inventory_metrics in 0.025s",
+    "[2025-11-14 11:45:58.386] [INFO] Executing: fct_marketing_roi [sql]",
+    "[2025-11-14 11:45:58.409] [SUCCESS] Completed: fct_marketing_roi in 0.023s",
+    "[2025-11-14 11:45:58.409] [INFO] Executing: fct_shipping_logistics [sql]",
+    "[2025-11-14 11:45:58.427] [SUCCESS] Completed: fct_shipping_logistics in 0.017s",
+    "[2025-11-14 11:45:58.427] [INFO] Pipeline completed in 0.691s"
+  ]
+}

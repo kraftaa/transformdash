@@ -167,6 +167,19 @@ async def execute_transformations():
         # Save run history
         run_history.save_run(run_id, summary, context.logs)
 
+        # Build model results array with error messages
+        model_results = []
+        for name, meta in summary["models"].items():
+            model_results.append({
+                "name": name,
+                "status": meta["status"],
+                "execution_time": meta["execution_time"],
+                "error": meta.get("error", None)
+            })
+
+        # Add model_results to summary for frontend
+        summary["model_results"] = model_results
+
         return {
             "status": "completed",
             "run_id": run_id,
@@ -2378,7 +2391,7 @@ async def get_schedule(schedule_id: int):
             schedule = pg.execute("""
                 SELECT * FROM v_schedule_status
                 WHERE id = %s
-            """, params=(schedule_id), fetch=True)
+            """, params=(schedule_id,), fetch=True)
 
             if not schedule:
                 raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
@@ -2397,7 +2410,7 @@ async def get_schedule(schedule_id: int):
                 WHERE schedule_id = %s
                 ORDER BY started_at DESC
                 LIMIT 50
-            """, params=(schedule_id), fetch=True)
+            """, params=(schedule_id,), fetch=True)
 
         schedule_data = schedule[0]
         schedule_data['models'] = [m['model_name'] for m in models]
@@ -2463,7 +2476,7 @@ async def update_schedule(schedule_id: int, update: ScheduleUpdate):
                     WHERE id = %s
                     RETURNING id, schedule_name, cron_expression, timezone, is_active
                 """
-                result = pg.execute(query, params)
+                result = pg.execute(query, params, fetch=True)
 
                 if not result:
                     raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
