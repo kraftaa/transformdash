@@ -483,7 +483,9 @@ async def get_dashboards():
                         c.category,
                         c.config,
                         dc.tab_id,
-                        dc.position
+                        dc.position,
+                        dc.custom_width,
+                        dc.custom_height
                     FROM charts c
                     INNER JOIN dashboard_charts dc ON c.id = dc.chart_id
                     WHERE dc.dashboard_id = %s
@@ -491,13 +493,24 @@ async def get_dashboards():
                 """
                 charts = pg.execute(charts_query, (dashboard_id,), fetch=True)
 
+                # Map charts with camelCase for custom dimensions
+                formatted_charts = []
+                for chart in charts:
+                    chart_dict = dict(chart)
+                    # Add camelCase versions of custom dimensions
+                    if 'custom_width' in chart_dict:
+                        chart_dict['customWidth'] = chart_dict['custom_width']
+                    if 'custom_height' in chart_dict:
+                        chart_dict['customHeight'] = chart_dict['custom_height']
+                    formatted_charts.append(chart_dict)
+
                 result.append({
                     'id': dashboard['id'],
                     'name': dashboard['name'],
                     'description': dashboard['description'],
                     'tabs': [{'id': t['id'], 'name': t['name']} for t in tabs],
                     'filters': [dict(f) for f in filters],
-                    'charts': [dict(chart) for chart in charts]
+                    'charts': formatted_charts
                 })
 
             return {"dashboards": result}
@@ -935,7 +948,7 @@ async def get_dashboard(dashboard_id: str):
                 SELECT
                     c.id, c.title, c.type, c.model, c.x_axis, c.y_axis,
                     c.aggregation, c.columns, c.category, c.config,
-                    dc.tab_id, dc.position, dc.size
+                    dc.tab_id, dc.position, dc.size, dc.custom_width, dc.custom_height
                 FROM charts c
                 JOIN dashboard_charts dc ON c.id = dc.chart_id
                 WHERE dc.dashboard_id = %s
@@ -960,7 +973,9 @@ async def get_dashboard(dashboard_id: str):
                         'columns': chart['columns'],
                         'category': chart['category'],
                         'config': chart['config'],
-                        'size': chart.get('size', 'medium')
+                        'size': chart.get('size', 'medium'),
+                        'customWidth': chart.get('custom_width'),
+                        'customHeight': chart.get('custom_height')
                     }
                     for chart in assigned_charts
                     if chart['tab_id'] == tab['id']
@@ -986,7 +1001,9 @@ async def get_dashboard(dashboard_id: str):
                     'columns': chart['columns'],
                     'category': chart['category'],
                     'config': chart['config'],
-                    'size': chart.get('size', 'medium')
+                    'size': chart.get('size', 'medium'),
+                    'customWidth': chart.get('custom_width'),
+                    'customHeight': chart.get('custom_height')
                 }
                 for chart in assigned_charts
                 if chart['tab_id'] is None
@@ -1239,6 +1256,49 @@ async def update_dashboard_metadata(dashboard_id: str, request: Request):
     except Exception as e:
         import traceback
         logging.error(f"Error updating dashboard metadata: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.patch("/api/dashboards/{dashboard_id}/charts/{chart_id}/dimensions")
+async def update_chart_dimensions(dashboard_id: str, chart_id: str, request: Request):
+    """Update custom dimensions (width/height) for a chart in a dashboard"""
+    try:
+        body = await request.json()
+        custom_width = body.get('customWidth')
+        custom_height = body.get('customHeight')
+
+        logging.info(f"Updating chart {chart_id} dimensions in dashboard {dashboard_id}: {custom_width}x{custom_height}")
+
+        with connection_manager.get_connection() as pg:
+            # Check if the dashboard_chart relationship exists
+            check_query = """
+                SELECT id FROM dashboard_charts
+                WHERE dashboard_id = %s AND chart_id = %s
+            """
+            existing = pg.execute(check_query, (dashboard_id, chart_id), fetch=True)
+
+            if not existing or len(existing) == 0:
+                raise HTTPException(status_code=404, detail=f"Chart {chart_id} not found in dashboard {dashboard_id}")
+
+            # Update the custom dimensions in dashboard_charts table
+            update_query = """
+                UPDATE dashboard_charts
+                SET custom_width = %s, custom_height = %s
+                WHERE dashboard_id = %s AND chart_id = %s
+            """
+            pg.execute(update_query, (custom_width, custom_height, dashboard_id, chart_id))
+
+            logging.info(f"Chart {chart_id} dimensions updated successfully")
+            return {
+                "success": True,
+                "message": "Chart dimensions updated successfully"
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error updating chart dimensions: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

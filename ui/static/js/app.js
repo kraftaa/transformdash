@@ -46,6 +46,19 @@ function toggleDashboardsView(mode) {
 // UTILITY FUNCTIONS
 // ============================================
 
+// General purpose debounce utility
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
 // Generic search/filter function for lists
 function filterListItems(searchTerm, items, searchFields) {
     const term = searchTerm.toLowerCase().trim();
@@ -2087,6 +2100,29 @@ function updateChartSize(index, size) {
     showToast(`Updated "${chart.title || chart.id}" to ${sizeLabels[size]}`, 'success');
 }
 
+// Save custom chart dimensions to database
+async function saveChartDimensions(chartId, dashboardId, width, height) {
+    try {
+        const response = await fetch(`/api/dashboards/${dashboardId}/charts/${chartId}/dimensions`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                customWidth: width,
+                customHeight: height
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to save chart dimensions');
+        }
+
+        console.log(`Saved dimensions for chart ${chartId}: ${width}x${height}`);
+    } catch (error) {
+        console.error('Error saving chart dimensions:', error);
+        // Don't show error toast to avoid annoying users during resize
+    }
+}
+
 // Drag and Drop handlers
 function handleDragStart(e) {
     editorState.draggedIndex = parseInt(e.target.dataset.index);
@@ -2872,10 +2908,23 @@ async function renderDashboardChart(chartConfig, container, filters = {}, filter
         };
 
         const chartWrapper = document.createElement('div');
-        chartWrapper.style.cssText = `background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); ${sizeStyles[size]} display: inline-block; vertical-align: top; margin: 7.5px; position: relative; resize: both; overflow: auto;`;
+        // Apply custom width/height if saved, otherwise use size presets
+        let widthStyle = sizeStyles[size];
+        let heightStyle = '';
+
+        if (chartConfig.customWidth) {
+            widthStyle = `width: ${chartConfig.customWidth}px;`;
+        }
+        if (chartConfig.customHeight) {
+            heightStyle = `height: ${chartConfig.customHeight}px;`;
+        }
+
+        chartWrapper.style.cssText = `background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); ${widthStyle} ${heightStyle} display: inline-block; vertical-align: top; margin: 7.5px; position: relative; resize: both; overflow: auto;`;
         chartWrapper.style.minWidth = '250px';
         chartWrapper.style.maxWidth = '100%';
         chartWrapper.style.minHeight = '200px';
+        chartWrapper.dataset.chartId = chartConfig.id;
+        chartWrapper.dataset.dashboardId = chartConfig.dashboard_id;
 
         // Add resize handle indicators (right edge and bottom edge)
         const resizeHandleRight = document.createElement('div');
@@ -2955,6 +3004,27 @@ async function renderDashboardChart(chartConfig, container, filters = {}, filter
             tableContainer.style.cssText = `max-height: ${heightStyles[size]}; overflow: auto;`;
             chartWrapper.appendChild(tableContainer);
             container.appendChild(chartWrapper);
+
+            // Add ResizeObserver for table charts too
+            const resizeObserver = new ResizeObserver(debounce((entries) => {
+                for (const entry of entries) {
+                    const wrapper = entry.target;
+                    const newWidth = Math.round(entry.contentRect.width);
+                    const newHeight = Math.round(entry.contentRect.height);
+
+                    // Only save if dimensions actually changed
+                    if (chartConfig.customWidth !== newWidth || chartConfig.customHeight !== newHeight) {
+                        chartConfig.customWidth = newWidth;
+                        chartConfig.customHeight = newHeight;
+
+                        // Save to database
+                        saveChartDimensions(chartConfig.id, chartConfig.dashboard_id, newWidth, newHeight);
+                    }
+                }
+            }, 500));
+
+            resizeObserver.observe(chartWrapper);
+
             await renderTableChart(tableContainer, chartConfig, filters, filterExpressions);
             return;
         }
@@ -2967,6 +3037,26 @@ async function renderDashboardChart(chartConfig, container, filters = {}, filter
 
         // Add to container first
         container.appendChild(chartWrapper);
+
+        // Add ResizeObserver to save custom dimensions when user resizes
+        const resizeObserver = new ResizeObserver(debounce((entries) => {
+            for (const entry of entries) {
+                const wrapper = entry.target;
+                const newWidth = Math.round(entry.contentRect.width);
+                const newHeight = Math.round(entry.contentRect.height);
+
+                // Only save if dimensions actually changed
+                if (chartConfig.customWidth !== newWidth || chartConfig.customHeight !== newHeight) {
+                    chartConfig.customWidth = newWidth;
+                    chartConfig.customHeight = newHeight;
+
+                    // Save to database
+                    saveChartDimensions(chartConfig.id, chartConfig.dashboard_id, newWidth, newHeight);
+                }
+            }
+        }, 500)); // Debounce to avoid too many saves during resize
+
+        resizeObserver.observe(chartWrapper);
 
         // Handle metric type
         if (chartConfig.type === 'metric') {
