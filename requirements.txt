@@ -35,6 +35,13 @@ beautifulsoup4>=4.12.0          # HTML parsing
 # Scheduling and orchestration
 apscheduler>=3.10.4             # Background job scheduling with cron support
 
+# System monitoring
+psutil>=5.9.0                   # Cross-platform system and process utilities
+
+# CLI tools
+requests>=2.32.0                # HTTP library for CLI
+tabulate>=0.9.0                 # Pretty-print tabular data
+
 # Optional: Orchestration (uncomment if needed)
 # celery>=5.3.1                # Task queue for scheduling
 # prefect>=2.7.9               # Workflow orchestration

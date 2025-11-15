@@ -28,6 +28,10 @@ from transformations import DAG
 from orchestration.history import RunHistory
 import datasets_api
 
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = FastAPI(title="TransformDash", description="Hybrid Data Transformation Platform")
 
 # Mount static files
@@ -2112,6 +2116,151 @@ async def create_view(request: Request):
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "service": "transformdash"}
+
+
+@app.get("/api/status")
+async def server_status():
+    """Get comprehensive server status including scheduler and jobs"""
+    import psutil
+    import os
+    from datetime import datetime
+
+    try:
+        # Get process info
+        process = psutil.Process(os.getpid())
+
+        # Get scheduler status
+        scheduler = get_scheduler()
+        active_jobs = scheduler.get_active_schedules() if scheduler else []
+
+        # Get database connection status
+        try:
+            conn_status = {
+                "transformdash": "connected" if connection_manager.get_connection('transformdash') else "disconnected",
+                "app": "connected" if connection_manager.get_connection('app') else "disconnected"
+            }
+        except Exception:
+            conn_status = {"error": "Unable to check connections"}
+
+        return {
+            "status": "healthy",
+            "service": "transformdash",
+            "timestamp": datetime.now().isoformat(),
+            "process": {
+                "pid": process.pid,
+                "uptime_seconds": (datetime.now() - datetime.fromtimestamp(process.create_time())).total_seconds(),
+                "memory_mb": round(process.memory_info().rss / (1024 * 1024), 2),
+                "cpu_percent": process.cpu_percent(interval=0.1),
+                "threads": process.num_threads()
+            },
+            "scheduler": {
+                "active": scheduler is not None,
+                "jobs_count": len(active_jobs),
+                "jobs": active_jobs
+            },
+            "database": conn_status
+        }
+    except Exception as e:
+        logger.error(f"Error getting server status: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@app.get("/api/jobs")
+async def get_jobs():
+    """Get all scheduled jobs and their status"""
+    try:
+        scheduler = get_scheduler()
+        if not scheduler:
+            return {"jobs": [], "message": "Scheduler not initialized"}
+
+        jobs = scheduler.get_active_schedules()
+
+        return {
+            "jobs": jobs,
+            "jobs_count": len(jobs)
+        }
+    except Exception as e:
+        logger.error(f"Error getting jobs: {e}")
+        return {"error": str(e), "jobs": []}
+
+
+@app.get("/api/jobs/{job_id}")
+async def get_job_details(job_id: str):
+    """Get details of a specific job"""
+    try:
+        scheduler = get_scheduler()
+        if not scheduler:
+            raise HTTPException(status_code=503, detail="Scheduler not available")
+
+        # Get job from scheduler
+        job = scheduler.scheduler.get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+        return {
+            "id": job.id,
+            "name": job.name,
+            "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
+            "trigger": str(job.trigger),
+            "args": job.args,
+            "kwargs": job.kwargs
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/jobs/{job_id}/pause")
+async def pause_job(job_id: str):
+    """Pause a scheduled job"""
+    try:
+        scheduler = get_scheduler()
+        if not scheduler:
+            raise HTTPException(status_code=503, detail="Scheduler not available")
+
+        # Extract schedule_id from job_id (format: "schedule_{id}")
+        if job_id.startswith("schedule_"):
+            schedule_id = int(job_id.replace("schedule_", ""))
+            success = scheduler.pause_schedule(schedule_id)
+
+            if success:
+                return {"status": "paused", "job_id": job_id}
+            else:
+                raise HTTPException(status_code=500, detail="Failed to pause job")
+        else:
+            raise HTTPException(status_code=400, detail="Invalid job ID format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/jobs/{job_id}/resume")
+async def resume_job(job_id: str):
+    """Resume a paused job"""
+    try:
+        scheduler = get_scheduler()
+        if not scheduler:
+            raise HTTPException(status_code=503, detail="Scheduler not available")
+
+        if job_id.startswith("schedule_"):
+            schedule_id = int(job_id.replace("schedule_", ""))
+            success = scheduler.resume_schedule(schedule_id)
+
+            if success:
+                return {"status": "resumed", "job_id": job_id}
+            else:
+                raise HTTPException(status_code=500, detail="Failed to resume job")
+        else:
+            raise HTTPException(status_code=400, detail="Invalid job ID format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/dashboard/{dashboard_id}/export")

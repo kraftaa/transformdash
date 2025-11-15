@@ -203,6 +203,9 @@ function switchView(viewName) {
         case 'schedules':
             loadSchedules();
             break;
+        case 'monitor':
+            loadSystemStatus();
+            break;
         case 'assets':
             loadAssets();
             break;
@@ -7958,13 +7961,13 @@ function scrollToModel(modelName) {
     if (targetCard) {
         // Scroll to the card
         targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
+
         // Highlight the card temporarily
         const originalBg = targetCard.style.background;
         targetCard.style.background = '#fef2f2';
         targetCard.style.border = '2px solid #dc2626';
         targetCard.style.transition = 'all 0.3s';
-        
+
         setTimeout(() => {
             targetCard.style.background = originalBg;
             targetCard.style.border = '';
@@ -7972,5 +7975,178 @@ function scrollToModel(modelName) {
     } else {
         console.warn('Model not found:', modelName);
         showToast(`Model ${modelName} not found in current view`, 'error');
+    }
+}
+
+// =============================================================================
+// System Monitor Functions
+// =============================================================================
+
+async function loadSystemStatus() {
+    try {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+
+        if (data.status === 'healthy') {
+            // Update status cards
+            document.getElementById('server-status').textContent = '● HEALTHY';
+            const uptimeMinutes = Math.floor(data.process.uptime_seconds / 60);
+            const uptimeHours = Math.floor(uptimeMinutes / 60);
+            const uptimeDays = Math.floor(uptimeHours / 24);
+            let uptimeText = '';
+            if (uptimeDays > 0) {
+                uptimeText = `${uptimeDays}d ${uptimeHours % 24}h uptime`;
+            } else if (uptimeHours > 0) {
+                uptimeText = `${uptimeHours}h ${uptimeMinutes % 60}m uptime`;
+            } else {
+                uptimeText = `${uptimeMinutes}m uptime`;
+            }
+            document.getElementById('server-uptime').textContent = uptimeText;
+
+            document.getElementById('memory-usage').textContent = data.process.memory_mb.toFixed(1);
+            document.getElementById('cpu-usage').textContent = data.process.cpu_percent.toFixed(1) + '%';
+            document.getElementById('active-jobs-count').textContent = data.scheduler.jobs_count;
+
+            // Update process info
+            document.getElementById('process-pid').textContent = data.process.pid;
+            document.getElementById('process-threads').textContent = data.process.threads;
+
+            // Database status
+            const dbStatus = data.database.error ? '⚠️ Check Needed' : '✅ Connected';
+            document.getElementById('db-status').textContent = dbStatus;
+
+            // Scheduler status
+            const schedulerStatus = data.scheduler.active ? '✅ Active' : '❌ Inactive';
+            document.getElementById('scheduler-status').textContent = schedulerStatus;
+
+            // Render jobs table
+            renderJobsTable(data.scheduler.jobs);
+
+        } else {
+            document.getElementById('server-status').textContent = '❌ ERROR';
+            document.getElementById('server-uptime').textContent = data.error || 'Unknown error';
+        }
+    } catch (error) {
+        console.error('Error loading system status:', error);
+        document.getElementById('server-status').textContent = '❌ OFFLINE';
+        document.getElementById('server-uptime').textContent = 'Cannot connect to server';
+        showToast('Failed to load system status', 'error');
+    }
+}
+
+function renderJobsTable(jobs) {
+    const container = document.getElementById('jobs-table-container');
+
+    if (!jobs || jobs.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: #9ca3af;">
+                <div style="font-size: 3rem; margin-bottom: 16px;">📭</div>
+                <div style="font-size: 1.125rem; margin-bottom: 8px;">No scheduled jobs</div>
+                <div style="font-size: 0.875rem;">Create a schedule in the Schedules tab</div>
+            </div>
+        `;
+        return;
+    }
+
+    const table = document.createElement('table');
+    table.style.cssText = 'width: 100%; border-collapse: separate; border-spacing: 0;';
+    table.innerHTML = `
+        <thead>
+            <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb;">
+                <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Job ID</th>
+                <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Name</th>
+                <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Schedule</th>
+                <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Next Run</th>
+                <th style="padding: 12px; text-align: center; font-weight: 600; color: #374151;">Actions</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    `;
+
+    const tbody = table.querySelector('tbody');
+
+    jobs.forEach((job, index) => {
+        const row = document.createElement('tr');
+        row.style.cssText = 'border-bottom: 1px solid #e5e7eb; transition: background 0.2s;';
+        row.onmouseover = () => row.style.background = '#f9fafb';
+        row.onmouseout = () => row.style.background = 'transparent';
+
+        // Format next run time
+        let nextRunDisplay = 'Not scheduled';
+        if (job.next_run_time) {
+            const nextRun = new Date(job.next_run_time);
+            const now = new Date();
+            const diffMs = nextRun - now;
+            const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+            const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+            if (diffHours > 24) {
+                const diffDays = Math.floor(diffHours / 24);
+                nextRunDisplay = `in ${diffDays}d ${diffHours % 24}h`;
+            } else if (diffHours > 0) {
+                nextRunDisplay = `in ${diffHours}h ${diffMinutes}m`;
+            } else if (diffMinutes > 0) {
+                nextRunDisplay = `in ${diffMinutes}m`;
+            } else {
+                nextRunDisplay = 'Soon';
+            }
+            nextRunDisplay += `<br><span style="font-size: 0.75rem; color: #9ca3af;">${nextRun.toLocaleString()}</span>`;
+        }
+
+        row.innerHTML = `
+            <td style="padding: 12px; font-family: monospace; font-size: 0.875rem; color: #6b7280;">${job.id}</td>
+            <td style="padding: 12px; color: #111827;">${job.name}</td>
+            <td style="padding: 12px; font-family: monospace; font-size: 0.875rem; color: #6b7280;">${job.trigger}</td>
+            <td style="padding: 12px;">${nextRunDisplay}</td>
+            <td style="padding: 12px; text-align: center;">
+                <button onclick="pauseJob('${job.id}')" class="btn-small" style="background: #fbbf24; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; margin-right: 4px; font-size: 0.875rem;" title="Pause job">
+                    ⏸
+                </button>
+                <button onclick="resumeJob('${job.id}')" class="btn-small" style="background: #10b981; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.875rem;" title="Resume job">
+                    ▶️
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(row);
+    });
+
+    container.innerHTML = '';
+    container.appendChild(table);
+}
+
+async function pauseJob(jobId) {
+    if (!confirm(`Pause job ${jobId}?`)) return;
+
+    try {
+        const response = await fetch(`/api/jobs/${jobId}/pause`, { method: 'POST' });
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(`Job ${jobId} paused`, 'success');
+            loadSystemStatus();
+        } else {
+            showToast(`Failed to pause job: ${data.detail || 'Unknown error'}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error pausing job:', error);
+        showToast('Failed to pause job', 'error');
+    }
+}
+
+async function resumeJob(jobId) {
+    try {
+        const response = await fetch(`/api/jobs/${jobId}/resume`, { method: 'POST' });
+        const data = await response.json();
+
+        if (response.ok) {
+            showToast(`Job ${jobId} resumed`, 'success');
+            loadSystemStatus();
+        } else {
+            showToast(`Failed to resume job: ${data.detail || 'Unknown error'}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error resuming job:', error);
+        showToast('Failed to resume job', 'error');
     }
 }
