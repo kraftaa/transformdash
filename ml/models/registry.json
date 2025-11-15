@@ -1,0 +1,72 @@
+{
+  "models": {
+    "customer_churn": [
+      {
+        "model_name": "customer_churn",
+        "model_id": "customer_churn_v20251114_174640",
+        "version": "20251114_174640",
+        "model_type": "classification",
+        "model_path": "ml/models/customer_churn_v20251114_174640.pkl",
+        "registered_at": "2025-11-14T17:46:40.405072",
+        "metrics": {
+          "accuracy": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1_score": 1.0
+        },
+        "feature_columns": [
+          "customer_id",
+          "recency",
+          "frequency",
+          "monetary",
+          "avg_order_value",
+          "days_since_signup",
+          "avg_spend_per_order",
+          "engagement_score"
+        ],
+        "target_column": "churned",
+        "description": "Predicts customer churn probability using Random Forest",
+        "tags": [
+          "customer",
+          "churn",
+          "classification",
+          "rf"
+        ],
+        "status": "active"
+      },
+      {
+        "model_name": "customer_churn",
+        "model_id": "customer_churn_v20251114_175149",
+        "version": "20251114_175149",
+        "model_type": "classification",
+        "model_path": "ml/models/customer_churn_v20251114_175149.pkl",
+        "registered_at": "2025-11-14T17:51:49.573456",
+        "metrics": {
+          "accuracy": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1_score": 1.0
+        },
+        "feature_columns": [
+          "customer_id",
+          "recency",
+          "frequency",
+          "monetary",
+          "avg_order_value",
+          "days_since_signup",
+          "avg_spend_per_order",
+          "engagement_score"
+        ],
+        "target_column": "churned",
+        "description": "Predicts customer churn probability using Random Forest",
+        "tags": [
+          "customer",
+          "churn",
+          "classification",
+          "rf"
+        ],
+        "status": "active"
+      }
+    ]
+  }
+}

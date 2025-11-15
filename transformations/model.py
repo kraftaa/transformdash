@@ -198,6 +198,9 @@ class TransformationModel:
                 logging.error(f"Error loading asset '{asset_name}': {str(e)}")
                 raise ValueError(f"Failed to load asset '{asset_name}': {str(e)}")
 
+        # Import ML functions
+        from ml.jinja_functions import ML_JINJA_FUNCTIONS
+
         # Render the template
         rendered_sql = template.render(
             ref=ref,
@@ -205,7 +208,8 @@ class TransformationModel:
             config=config,
             is_incremental=is_incremental,
             asset=asset,
-            this=f"public.{self.name}"  # {{ this }} refers to current model
+            this=f"public.{self.name}",  # {{ this }} refers to current model
+            **ML_JINJA_FUNCTIONS  # Add all ML functions
         )
 
         # Step 3: Clean up the SQL (remove config lines, extra whitespace)

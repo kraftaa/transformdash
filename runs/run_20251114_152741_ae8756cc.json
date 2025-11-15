@@ -1,0 +1,34 @@
+{
+  "run_id": "run_20251114_152741_ae8756cc",
+  "timestamp": "2025-11-14T15:27:41.521914",
+  "summary": {
+    "total_models": 1,
+    "successes": 1,
+    "failures": 0,
+    "total_execution_time": 0.034372,
+    "models": {
+      "stg_products": {
+        "execution_time": 0.034236,
+        "timestamp": "2025-11-14T15:27:41.521841",
+        "status": "success"
+      }
+    },
+    "logs": [
+      "[2025-11-14 15:27:41.487] [INFO] Starting transformation pipeline",
+      "[2025-11-14 15:27:41.487] [INFO] Execution order: stg_products",
+      "[2025-11-14 15:27:41.487] [INFO] Executing: stg_products [sql]",
+      "[2025-11-14 15:27:41.521] [SUCCESS] Completed: stg_products in 0.034s",
+      "[2025-11-14 15:27:41.521] [INFO] Pipeline completed in 0.034s"
+    ],
+    "run_type": "single_model",
+    "target_model": "stg_products",
+    "timestamp": "2025-11-14T15:27:41.521911"
+  },
+  "logs": [
+    "[2025-11-14 15:27:41.487] [INFO] Starting transformation pipeline",
+    "[2025-11-14 15:27:41.487] [INFO] Execution order: stg_products",
+    "[2025-11-14 15:27:41.487] [INFO] Executing: stg_products [sql]",
+    "[2025-11-14 15:27:41.521] [SUCCESS] Completed: stg_products in 0.034s",
+    "[2025-11-14 15:27:41.521] [INFO] Pipeline completed in 0.034s"
+  ]
+}

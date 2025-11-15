@@ -1,0 +1,49 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: transformdash-ingress
+  namespace: transformdash
+  labels:
+    app: transformdash
+  annotations:
+    # Nginx ingress controller annotations
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Cert-manager annotation for automatic TLS certificate
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # Increase timeouts for long-running queries
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+spec:
+  ingressClassName: nginx  # Change based on your ingress controller
+  tls:
+  - hosts:
+    - transformdash.example.com  # CHANGE THIS TO YOUR DOMAIN
+    secretName: transformdash-tls
+  rules:
+  - host: transformdash.example.com  # CHANGE THIS TO YOUR DOMAIN
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: transformdash-service
+            port:
+              number: 8000
+---
+# Alternative: Simple NodePort service for local development
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: transformdash-nodeport
+#   namespace: transformdash
+# spec:
+#   type: NodePort
+#   ports:
+#   - port: 8000
+#     targetPort: 8000
+#     nodePort: 30800  # Access via <node-ip>:30800
+#   selector:
+#     app: transformdash
+#     component: application

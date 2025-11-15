@@ -58,11 +58,11 @@ class PostgresConnector:
 
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(query, params)
-            if fetch:
-                return cur.fetchall()
-            else:
+            result = cur.fetchall() if fetch else None
+            # Always commit for INSERT/UPDATE/DELETE queries
+            if not query.strip().upper().startswith('SELECT'):
                 self.conn.commit()
-                return None
+            return result
 
     def query_to_dataframe(self, query: str, params: Optional[tuple] = None) -> pd.DataFrame:
         """

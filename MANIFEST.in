@@ -1,0 +1,63 @@
+# Include documentation
+include README.md
+include LICENSE
+include requirements.txt
+include .env.example
+
+# Include configuration files
+include pyproject.toml
+include setup.py
+
+# Include all SQL models
+recursive-include models *.sql
+recursive-include models *.yml
+recursive-include models *.yaml
+
+# Include UI assets
+recursive-include ui/templates *.html
+recursive-include ui/static *.css
+recursive-include ui/static *.js
+recursive-include ui/static *.png
+recursive-include ui/static *.jpg
+recursive-include ui/static *.svg
+recursive-include ui/static *.ico
+
+# Include ML registry metadata
+include ml/models/registry.json
+
+# Include Docker and Kubernetes configs
+include Dockerfile
+include docker-compose.yml
+include .dockerignore
+recursive-include k8s *.yaml
+recursive-include k8s *.yml
+recursive-include k8s *.md
+
+# Exclude development and build artifacts
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude *.so
+global-exclude .DS_Store
+global-exclude *.swp
+global-exclude *.swo
+global-exclude *~
+
+# Exclude test and development files
+prune tests
+prune docs/_build
+prune .git
+prune .github
+prune venv
+prune env
+prune .idea
+prune .vscode
+prune .claude
+
+# Exclude data files
+prune data/*.csv
+prune data/*.parquet
+
+# Exclude logs
+exclude nohup.out
+prune logs
+global-exclude *.log

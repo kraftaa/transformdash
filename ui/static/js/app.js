@@ -729,9 +729,14 @@ async function displayModels(models, filterLayer = null) {
                                     <span class="expand-icon" id="expand-model-${model.name}">▶</span>
                                     <h4 class="model-name">${model.name}</h4>
                                 </div>
-                                <button class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.875rem;" onclick="event.stopPropagation(); runSingleModel('${model.name}')">
-                                    ▶ Run
-                                </button>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.875rem;" onclick="event.stopPropagation(); toggleModelHistory('${model.name}')">
+                                        📊 History
+                                    </button>
+                                    <button class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.875rem;" onclick="event.stopPropagation(); runSingleModel('${model.name}')">
+                                        ▶ Run
+                                    </button>
+                                </div>
                             </div>
                             <div class="model-badges" onclick="toggleModelCode('${model.name}')" style="cursor: pointer;">
                                 <span class="badge badge-${layer}">${layer.toUpperCase()}</span>
@@ -755,6 +760,9 @@ async function displayModels(models, filterLayer = null) {
                         <div class="model-code-content" id="content-${model.name}">
                             <div class="loading">Loading code...</div>
                         </div>
+                    </div>
+                    <div class="model-history-section" id="history-${model.name}" style="display: none; padding: 1rem; background: #f8f9fa; border-top: 1px solid #e0e0e0;">
+                        <div class="loading">Loading history...</div>
                     </div>
                 </div>
             `;
@@ -1236,6 +1244,85 @@ async function toggleModelCode(modelName) {
     }
 }
 
+async function toggleModelHistory(modelName) {
+    const historySection = document.getElementById(`history-${modelName}`);
+
+    if (historySection.style.display === 'block') {
+        // Collapse
+        historySection.style.display = 'none';
+    } else {
+        // Expand
+        historySection.style.display = 'block';
+
+        // Load history if not already loaded
+        if (historySection.innerHTML.includes('Loading history')) {
+            await loadModelHistory(modelName);
+        }
+    }
+}
+
+async function loadModelHistory(modelName) {
+    const historySection = document.getElementById(`history-${modelName}`);
+
+    try {
+        const response = await fetch(`/api/models/${modelName}/runs?limit=10`);
+        const data = await response.json();
+
+        if (!data.runs || data.runs.length === 0) {
+            historySection.innerHTML = '<p style="color: #888; font-style: italic;">No run history available</p>';
+            return;
+        }
+
+        // Build history table
+        let html = `
+            <h5 style="margin-top: 0; margin-bottom: 0.75rem; color: #333;">Run History</h5>
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+                    <thead>
+                        <tr style="background: #e9ecef; border-bottom: 2px solid #dee2e6;">
+                            <th style="padding: 0.5rem; text-align: left;">Timestamp</th>
+                            <th style="padding: 0.5rem; text-align: left;">Status</th>
+                            <th style="padding: 0.5rem; text-align: right;">Execution Time</th>
+                            <th style="padding: 0.5rem; text-align: left;">Error</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        data.runs.forEach(run => {
+            const timestamp = new Date(run.timestamp).toLocaleString();
+            const statusBadge = run.status === 'success'
+                ? '<span style="color: #22c55e; font-weight: 600;">✓ Success</span>'
+                : '<span style="color: #ef4444; font-weight: 600;">✗ Failed</span>';
+            const execTime = run.execution_time.toFixed(3) + 's';
+            const errorMsg = run.error
+                ? `<span style="color: #ef4444; font-size: 0.8rem;">${run.error.substring(0, 100)}${run.error.length > 100 ? '...' : ''}</span>`
+                : '-';
+
+            html += `
+                <tr style="border-bottom: 1px solid #e9ecef;">
+                    <td style="padding: 0.5rem;">${timestamp}</td>
+                    <td style="padding: 0.5rem;">${statusBadge}</td>
+                    <td style="padding: 0.5rem; text-align: right;">${execTime}</td>
+                    <td style="padding: 0.5rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${errorMsg}</td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        historySection.innerHTML = html;
+
+    } catch (error) {
+        console.error('Error loading model history:', error);
+        historySection.innerHTML = '<p style="color: #ef4444;">Failed to load history</p>';
+    }
+}
+
 async function runSingleModel(modelName) {
     try {
         // Show loading toast
@@ -1707,7 +1794,7 @@ function renderEditorCharts() {
                     </svg>
                 </button>
             </div>
-            <div class="editor-chart-preview" style="height: 200px; background: var(--color-bg-secondary); border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center;">
+            <div class="editor-chart-preview-wrapper" style="height: 200px; background: var(--color-bg-secondary); border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; position: relative; resize: both; overflow: auto; min-height: 150px; min-width: 200px;">
                 <canvas id="${canvasId}" style="max-height: 180px;"></canvas>
             </div>
             <div class="editor-chart-info">Model: ${chart.model}</div>
@@ -1725,6 +1812,38 @@ function renderEditorCharts() {
             </div>
             <span class="editor-chart-type">${chart.type}</span>
         `;
+
+        // Add resize handles to the chart preview wrapper
+        const previewWrapper = chartCard.querySelector('.editor-chart-preview-wrapper');
+        if (previewWrapper) {
+            // Create resize handles
+            const resizeHandleRight = document.createElement('div');
+            resizeHandleRight.style.cssText = 'position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1)); opacity: 0; transition: opacity 0.2s; pointer-events: none;';
+            resizeHandleRight.title = 'Drag to resize';
+
+            const resizeHandleBottom = document.createElement('div');
+            resizeHandleBottom.style.cssText = 'position: absolute; left: 0; right: 0; bottom: 0; height: 8px; cursor: ns-resize; background: linear-gradient(180deg, transparent, rgba(102, 126, 234, 0.1)); opacity: 0; transition: opacity 0.2s; pointer-events: none;';
+            resizeHandleBottom.title = 'Drag to resize';
+
+            const resizeHandleCorner = document.createElement('div');
+            resizeHandleCorner.style.cssText = 'position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, rgba(102, 126, 234, 0.2) 50%); opacity: 0; transition: opacity 0.2s; pointer-events: none;';
+            resizeHandleCorner.title = 'Drag to resize';
+
+            previewWrapper.onmouseenter = () => {
+                resizeHandleRight.style.opacity = '1';
+                resizeHandleBottom.style.opacity = '1';
+                resizeHandleCorner.style.opacity = '1';
+            };
+            previewWrapper.onmouseleave = () => {
+                resizeHandleRight.style.opacity = '0';
+                resizeHandleBottom.style.opacity = '0';
+                resizeHandleCorner.style.opacity = '0';
+            };
+
+            previewWrapper.appendChild(resizeHandleRight);
+            previewWrapper.appendChild(resizeHandleBottom);
+            previewWrapper.appendChild(resizeHandleCorner);
+        }
 
         // Add drag event listeners
         chartCard.addEventListener('dragstart', handleDragStart);
@@ -2039,9 +2158,21 @@ async function saveDashboardEdit() {
 
         if (response.ok) {
             showToast('Dashboard saved successfully', 'success');
+
+            // Clear any cached dashboard data to force reload
+            const dashboardCard = document.getElementById('dashboard-' + editorState.dashboardId);
+            if (dashboardCard) {
+                const chartsContainer = dashboardCard.querySelector('.dashboard-details');
+                if (chartsContainer) {
+                    chartsContainer.innerHTML = '';  // Clear cached charts
+                }
+            }
+
             // Return to dashboards view
             setTimeout(() => {
                 cancelDashboardEdit();
+                // Reload dashboards to show updated sizes
+                loadDashboards();
             }, 800);
         } else {
             showToast(result.message || 'Failed to save dashboard', 'error');
@@ -2376,15 +2507,17 @@ async function loadDashboards() {
 
             const table = document.createElement('table');
             table.className = 'view-table';
+            table.style.borderCollapse = 'separate';
+            table.style.borderSpacing = '0';
             table.innerHTML = `
                 <thead>
                     <tr>
-                        <th style="width: 28%;">Dashboard Name</th>
-                        <th style="width: 32%;">Description</th>
-                        <th style="width: 8%; text-align: center;">Charts</th>
-                        <th style="width: 12%;">Created By</th>
-                        <th style="width: 12%;">Tags</th>
-                        <th style="width: 8%; text-align: right;">Actions</th>
+                        <th style="width: 28%; padding: 12px 16px; text-align: left;">Dashboard Name</th>
+                        <th style="width: 32%; padding: 12px 16px; text-align: left;">Description</th>
+                        <th style="width: 8%; padding: 12px 16px; text-align: center;">Charts</th>
+                        <th style="width: 12%; padding: 12px 16px; text-align: left;">Created By</th>
+                        <th style="width: 12%; padding: 12px 16px; text-align: left;">Tags</th>
+                        <th style="width: 8%; padding: 12px 16px; text-align: right;">Actions</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -2400,37 +2533,45 @@ async function loadDashboards() {
                     : '<span style="color: #9ca3af; font-size: 0.75rem;">None</span>';
 
                 const row = document.createElement('tr');
+                row.style.borderBottom = '1px solid #e5e7eb';
                 row.innerHTML = `
-                    <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    <td style="padding: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle;">
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <span style="font-size: 1.1rem; flex-shrink: 0;">📊</span>
                             <strong style="color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${dashboard.name}</strong>
                         </div>
                     </td>
-                    <td style="max-width: 300px;">
-                        <div style="color: #6b7280; font-size: 0.875rem; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
-                            ${dashboard.description || '<span style="color: #9ca3af;">No description</span>'}
+                    <td style="padding: 16px; max-width: 300px; vertical-align: middle;">
+                        <div style="color: #6b7280; font-size: 0.875rem; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
+                            ${dashboard.description || '<span style="color: #9ca3af; font-style: italic;">No description</span>'}
                         </div>
                     </td>
-                    <td style="text-align: center; white-space: nowrap;">
+                    <td style="padding: 16px; text-align: center; white-space: nowrap; vertical-align: middle;">
                         <span class="chart-count-badge">${getDashboardCharts(dashboard)?.length || 0}</span>
                     </td>
-                    <td style="white-space: nowrap;">
+                    <td style="padding: 16px; white-space: nowrap; vertical-align: middle;">
                         <div style="display: flex; align-items: center; gap: 6px;">
                             <span style="font-size: 0.9rem; flex-shrink: 0;">👤</span>
                             <span style="color: #6b7280; font-size: 0.875rem; overflow: hidden; text-overflow: ellipsis;">${dashboard.owner || dashboard.created_by || 'System'}</span>
                         </div>
                     </td>
-                    <td style="white-space: nowrap;">
-                        ${tagsHTML}
+                    <td style="padding: 16px; white-space: nowrap; vertical-align: middle;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                            ${tagsHTML}
+                        </div>
                     </td>
-                    <td style="text-align: right; white-space: nowrap;">
-                        <button class="icon-btn-small" onclick="event.stopPropagation(); openDashboardEditor('${dashboard.id}', '${dashboard.name}')" title="Edit Dashboard">✏️</button>
-                        <button class="icon-btn-small" onclick="event.stopPropagation(); openDashboardInTab('${dashboard.id}')" title="Open in new tab">🔗</button>
+                    <td style="padding: 16px; text-align: right; white-space: nowrap; vertical-align: middle;">
+                        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                            <button class="icon-btn-small" onclick="event.stopPropagation(); openDashboardEditor('${dashboard.id}', '${dashboard.name}')" title="Edit Dashboard">✏️</button>
+                            <button class="icon-btn-small" onclick="event.stopPropagation(); openDashboardInTab('${dashboard.id}')" title="Open in new tab">🔗</button>
+                        </div>
                     </td>
                 `;
 
                 row.style.cursor = 'pointer';
+                row.style.transition = 'background-color 0.2s';
+                row.onmouseover = () => row.style.backgroundColor = '#f9fafb';
+                row.onmouseout = () => row.style.backgroundColor = 'transparent';
                 row.onclick = () => openDashboardInTab(dashboard.id);
 
                 tbody.appendChild(row);
@@ -2574,7 +2715,8 @@ async function toggleDashboard(dashboardId) {
             }
 
             // Show charts container and add active class
-            chartsContainer.style.display = 'grid';
+            chartsContainer.style.display = 'block';
+            chartsContainer.style.textAlign = 'left';
             chartsContainer.classList.add('active');
 
             // Load charts if not already loaded
@@ -2710,9 +2852,55 @@ async function renderDashboardChart(chartConfig, container, filters = {}, filter
             return;
         }
 
-        // Create chart wrapper
+        // Create chart wrapper with size-based styling
+        const size = chartConfig.size || 'medium';
+        const sizeStyles = {
+            small: 'width: calc(25% - 15px); min-width: 250px;',
+            medium: 'width: calc(50% - 15px); min-width: 350px;',
+            large: 'width: calc(75% - 15px); min-width: 450px;',
+            full: 'width: 100%;'
+        };
+
+        const heightStyles = {
+            small: '250px',
+            medium: '300px',
+            large: '400px',
+            full: '450px'
+        };
+
         const chartWrapper = document.createElement('div');
-        chartWrapper.style.cssText = 'background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);';
+        chartWrapper.style.cssText = `background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); ${sizeStyles[size]} display: inline-block; vertical-align: top; margin: 7.5px; position: relative; resize: both; overflow: auto;`;
+        chartWrapper.style.minWidth = '250px';
+        chartWrapper.style.maxWidth = '100%';
+        chartWrapper.style.minHeight = '200px';
+
+        // Add resize handle indicators (right edge and bottom edge)
+        const resizeHandleRight = document.createElement('div');
+        resizeHandleRight.style.cssText = 'position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1)); opacity: 0; transition: opacity 0.2s; pointer-events: none;';
+        resizeHandleRight.title = 'Drag to resize';
+
+        const resizeHandleBottom = document.createElement('div');
+        resizeHandleBottom.style.cssText = 'position: absolute; left: 0; right: 0; bottom: 0; height: 8px; cursor: ns-resize; background: linear-gradient(180deg, transparent, rgba(102, 126, 234, 0.1)); opacity: 0; transition: opacity 0.2s; pointer-events: none;';
+        resizeHandleBottom.title = 'Drag to resize';
+
+        const resizeHandleCorner = document.createElement('div');
+        resizeHandleCorner.style.cssText = 'position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, rgba(102, 126, 234, 0.2) 50%); opacity: 0; transition: opacity 0.2s; pointer-events: none;';
+        resizeHandleCorner.title = 'Drag to resize';
+
+        chartWrapper.onmouseenter = () => {
+            resizeHandleRight.style.opacity = '1';
+            resizeHandleBottom.style.opacity = '1';
+            resizeHandleCorner.style.opacity = '1';
+        };
+        chartWrapper.onmouseleave = () => {
+            resizeHandleRight.style.opacity = '0';
+            resizeHandleBottom.style.opacity = '0';
+            resizeHandleCorner.style.opacity = '0';
+        };
+
+        chartWrapper.appendChild(resizeHandleRight);
+        chartWrapper.appendChild(resizeHandleBottom);
+        chartWrapper.appendChild(resizeHandleCorner);
 
         // Chart title with edit button
         const titleContainer = document.createElement('div');
@@ -2761,7 +2949,7 @@ async function renderDashboardChart(chartConfig, container, filters = {}, filter
         // Handle table type differently - no canvas needed
         if (chartConfig.type === 'table') {
             const tableContainer = document.createElement('div');
-            tableContainer.style.cssText = 'max-height: 400px; overflow: auto;';
+            tableContainer.style.cssText = `max-height: ${heightStyles[size]}; overflow: auto;`;
             chartWrapper.appendChild(tableContainer);
             container.appendChild(chartWrapper);
             await renderTableChart(tableContainer, chartConfig, filters, filterExpressions);
@@ -2771,7 +2959,7 @@ async function renderDashboardChart(chartConfig, container, filters = {}, filter
         // Canvas for chart
         const canvas = document.createElement('canvas');
         canvas.id = 'chart-' + chartConfig.id;
-        canvas.style.maxHeight = '300px';
+        canvas.style.maxHeight = heightStyles[size];
         chartWrapper.appendChild(canvas);
 
         // Add to container first
@@ -7044,7 +7232,8 @@ function enterFullscreenMode(dashboardId) {
     // Create fullscreen view
     const dashboardClone = dashboardCard.cloneNode(true);
     dashboardClone.classList.add('expanded', 'fullscreen-dashboard');
-    dashboardClone.querySelector('.dashboard-details').style.display = 'grid';
+    dashboardClone.querySelector('.dashboard-details').style.display = 'block';
+    dashboardClone.querySelector('.dashboard-details').style.textAlign = 'left';
 
     // Add back arrow at the start of the header
     const headerLeft = dashboardClone.querySelector('.dashboard-header > div:first-child');
@@ -7185,7 +7374,8 @@ async function exportDashboardPDF(dashboardId) {
         // Clone the dashboard
         const clone = dashboardCard.cloneNode(true);
         clone.classList.add('expanded');
-        clone.querySelector('.dashboard-details').style.display = 'grid';
+        clone.querySelector('.dashboard-details').style.display = 'block';
+        clone.querySelector('.dashboard-details').style.textAlign = 'left';
 
         // Remove action buttons
         const headerRight = clone.querySelector('.dashboard-header > div:last-child');

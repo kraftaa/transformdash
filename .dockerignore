@@ -1,0 +1,87 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+DASHBOARDS_CREATED.md
+FUTURE_ENHANCEMENTS.md
+INCREMENTAL_IMPROVEMENTS.md
+MODERN_UI_IMPLEMENTATION.md
+SESSION_SUMMARY.md
+UI_REFACTORING.md
+ASSETS_USAGE.md
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Logs
+*.log
+logs/
+nohup.out
+/tmp/
+
+# Data directories (exclude sample data, include structure)
+data/*.csv
+data/*.parquet
+!data/.gitkeep
+
+# ML models (include registry metadata, but models can be large)
+ml/models/*.pkl
+!ml/models/registry.json
+
+# DBT
+target/
+dbt_packages/
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Claude
+.claude/

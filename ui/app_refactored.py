@@ -307,6 +307,107 @@ async def get_run_details(run_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/models/{model_name}/runs")
+async def get_model_runs(model_name: str, limit: int = 10):
+    """Get execution history for a specific model"""
+    try:
+        all_runs = run_history.get_all_runs(limit=100)  # Get more runs to filter from
+        model_runs = []
+
+        for run in all_runs:
+            # Check if this model was in this run
+            if 'summary' in run and 'models' in run['summary']:
+                if model_name in run['summary']['models']:
+                    model_info = run['summary']['models'][model_name]
+                    model_runs.append({
+                        'run_id': run['run_id'],
+                        'timestamp': run['timestamp'],
+                        'status': model_info['status'],
+                        'execution_time': model_info['execution_time'],
+                        'error': model_info.get('error', None)
+                    })
+
+                    if len(model_runs) >= limit:
+                        break
+
+        return {"runs": model_runs}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# ML MODEL ENDPOINTS
+# =============================================================================
+
+@app.get("/api/ml/models")
+async def get_ml_models():
+    """Get all registered ML models"""
+    try:
+        from ml.registry.model_registry import model_registry
+        models = model_registry.list_models()
+        return {"models": models}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ml/models/{model_name}")
+async def get_ml_model_info(model_name: str, version: str = None):
+    """Get detailed information about a specific ML model"""
+    try:
+        from ml.registry.model_registry import model_registry
+        info = model_registry.get_model_info(model_name, version)
+        return info
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ml/models/{model_name}/versions")
+async def get_ml_model_versions(model_name: str):
+    """Get all versions of a specific ML model"""
+    try:
+        from ml.registry.model_registry import model_registry
+        versions = model_registry.list_model_versions(model_name)
+        return {"model_name": model_name, "versions": versions}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ml/predict")
+async def ml_predict(request: Request):
+    """Make predictions using a registered ML model"""
+    try:
+        from ml.inference.predictor import ml_predictor
+        body = await request.json()
+
+        model_name = body.get('model_name')
+        features = body.get('features')
+        version = body.get('version')
+        return_proba = body.get('return_proba', False)
+
+        if not model_name or not features:
+            raise HTTPException(status_code=400, detail="model_name and features are required")
+
+        prediction = ml_predictor.predict(
+            model_name=model_name,
+            features=features,
+            version=version,
+            return_proba=return_proba
+        )
+
+        return {
+            "model_name": model_name,
+            "prediction": prediction
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/exposures")
 async def get_exposures():
     """Get dashboards/exposures that depend on models"""

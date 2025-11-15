@@ -1,71 +1,103 @@
 version: '3.8'
 
 services:
-  transformdash:
-    build: .
-    container_name: transformdash
-    ports:
-      - "8000:8000"
-    environment:
-      - POSTGRES_HOST=${POSTGRES_HOST:-localhost}
-      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
-      - POSTGRES_DB=${POSTGRES_DB:-postgres}
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - MONGO_URI=${MONGO_URI:-mongodb://localhost:27017}
-      - MONGO_DB=${MONGO_DB:-testdb}
-      - REDIS_HOST=${REDIS_HOST:-localhost}
-      - REDIS_PORT=${REDIS_PORT:-6379}
-    volumes:
-      - ./models:/app/models
-      - ./.env:/app/.env
-    depends_on:
-      - postgres
-    restart: unless-stopped
-    networks:
-      - transformdash-network
-
+  # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     container_name: transformdash-postgres
     environment:
-      - POSTGRES_DB=${POSTGRES_DB:-postgres}
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-transformdash}
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+      - ./data/init:/docker-entrypoint-initdb.d
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
-      - transformdash-network
+      - transformdash
 
-  # Optional: Add if you need MongoDB
-  # mongodb:
-  #   image: mongo:7
-  #   container_name: transformdash-mongo
-  #   ports:
-  #     - "27017:27017"
-  #   volumes:
-  #     - mongo-data:/data/db
-  #   networks:
-  #     - transformdash-network
+  # TransformDash Application
+  transformdash:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: transformdash-app
+    environment:
+      # TransformDash Database (metadata, charts, dashboards)
+      TRANSFORMDASH_HOST: postgres
+      TRANSFORMDASH_PORT: 5432
+      TRANSFORMDASH_DB: ${TRANSFORMDASH_DB:-transformdash}
+      TRANSFORMDASH_USER: ${TRANSFORMDASH_USER:-postgres}
+      TRANSFORMDASH_PASSWORD: ${TRANSFORMDASH_PASSWORD:-postgres}
 
-  # Optional: Add if you need Redis
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: transformdash-redis
-  #   ports:
-  #     - "6379:6379"
-  #   volumes:
-  #     - redis-data:/data
-  #   networks:
-  #     - transformdash-network
+      # App Production Database (data sources)
+      APP_HOST: postgres
+      APP_PORT: 5432
+      APP_DB: ${APP_DB:-production}
+      APP_USER: ${APP_USER:-postgres}
+      APP_PASSWORD: ${APP_PASSWORD:-postgres}
+
+      # Postgres Database (admin)
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-transformdash}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+
+      # App Settings
+      PYTHONUNBUFFERED: 1
+      PYTHONDONTWRITEBYTECODE: 1
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+      - ./ml/models:/app/ml/models
+      - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - transformdash
+    restart: unless-stopped
+
+  # Optional: pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: transformdash-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@transformdash.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - transformdash
+    restart: unless-stopped
+    profiles:
+      - tools
 
 volumes:
-  postgres-data:
-  # mongo-data:
-  # redis-data:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
 
 networks:
-  transformdash-network:
+  transformdash:
     driver: bridge

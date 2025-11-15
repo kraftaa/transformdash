@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p /app/models/bronze /app/models/silver /app/models/gold
+RUN mkdir -p /app/models/bronze /app/models/silver /app/models/gold /app/ml/models /app/data
 
 # Expose port for web UI
 EXPOSE 8000
@@ -28,7 +28,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/api/health')"
+    CMD python -c "import requests; requests.get('http://localhost:8000/')"
 
 # Run the application
-CMD ["python", "ui/app.py"]
+CMD ["python", "ui/app_refactored.py"]

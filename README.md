@@ -64,32 +64,25 @@ A modern, dbt-inspired data transformation platform that combines the power of S
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.11+
-- PostgreSQL (or your preferred database)
+- Python 3.9+
+- PostgreSQL 15+ (or your preferred database)
 - Git
 
 ### Installation
 
-**Option 1: Install via pip (Recommended)**
+**Option 1: Docker Compose (Fastest - Recommended)**
 ```bash
-pip install transformdash
+# Clone the repository
+git clone https://github.com/kraftaa/transformdash.git
+cd transformdash
 
-# Run the web UI
-transformdash
-
-# Or import as a library
-python -c "from transformations import TransformationModel"
-```
-
-**Option 2: Docker (Production)**
-```bash
-# Using Docker Compose (includes PostgreSQL)
+# Start all services (includes PostgreSQL)
 docker-compose up -d
 
 # Access at http://localhost:8000
 ```
 
-**Option 3: From Source (Development)**
+**Option 2: Install via pip (From Source)**
 ```bash
 # Clone the repository
 git clone https://github.com/kraftaa/transformdash.git
@@ -99,9 +92,32 @@ cd transformdash
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install in editable mode
-pip install -e .
+# Install with ML support
+pip install -e ".[ml]"
+
+# Run the web UI
+python ui/app_refactored.py
+# Or use the command
+transformdash
 ```
+
+**Option 3: Docker Only**
+```bash
+# Build and run with your own PostgreSQL
+docker build -t transformdash:latest .
+docker run -d -p 8000:8000 \
+  -e TRANSFORMDASH_HOST=your-postgres-host \
+  -e TRANSFORMDASH_PASSWORD=your-password \
+  transformdash:latest
+```
+
+**Option 4: Kubernetes (Production)**
+```bash
+# See DEPLOYMENT.md for full instructions
+kubectl apply -f k8s/
+```
+
+📘 **For detailed deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md)**
 
 ### Configuration
 
@@ -111,10 +127,25 @@ cp .env.example .env
 # Edit .env with your database credentials
 ```
 
-2. **Configure your data sources**:
+Example `.env`:
+```env
+TRANSFORMDASH_HOST=localhost
+TRANSFORMDASH_PORT=5432
+TRANSFORMDASH_DB=transformdash
+TRANSFORMDASH_USER=postgres
+TRANSFORMDASH_PASSWORD=your_password
+
+APP_HOST=localhost
+APP_PORT=5432
+APP_DB=production
+APP_USER=postgres
+APP_PASSWORD=your_password
+```
+
+2. **Initialize databases** (if not using Docker Compose):
 ```bash
-cp models/sources.example.yml models/sources.yml
-# Edit models/sources.yml to point to your tables
+createdb transformdash
+createdb production
 ```
 
 ### Run Your First Transformation
@@ -122,27 +153,43 @@ cp models/sources.example.yml models/sources.yml
 **Method 1: Web UI (Recommended)**
 ```bash
 # Start the web interface
-python ui/app.py
+python ui/app_refactored.py
 # Visit http://localhost:8000
 
-# Then click the "▶️ Run Transformations" button
+# Navigate to Models and click "▶️ Run Models"
 ```
 
-**Method 2: Python Script**
+**Method 2: Create Charts and Dashboards**
 ```bash
-# Run from command line
-python demo_real_dbt_style.py
+# Access the UI at http://localhost:8000
+# 1. Go to "Chart Builder" to create visualizations
+# 2. Go to "Dashboards" to build interactive dashboards
+# 3. Use filters and drill-downs for analysis
 ```
 
-**Method 3: API**
+**Method 3: Train ML Models**
 ```bash
-# Execute via API
-curl -X POST http://localhost:8000/api/execute
+# Train an example model
+python ml/examples/train_example_model.py
+
+# View registered models
+python ml/registry/model_registry.py
+
+# Use models in SQL transformations (see ml/README.md)
 ```
 
-**Test Database Connection**
+**Method 4: API Access**
 ```bash
-python postgres.py
+# View API documentation
+open http://localhost:8000/docs
+
+# Execute transformations via API
+curl -X POST http://localhost:8000/api/models/execute
+
+# Query data
+curl -X POST http://localhost:8000/api/query \
+  -H "Content-Type: application/json" \
+  -d '{"table": "my_model", "limit": 100}'
 ```
 
 ---
