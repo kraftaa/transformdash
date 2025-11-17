@@ -14,6 +14,10 @@ fastapi>=0.95.2                # API framework for web UI
 uvicorn>=0.23.1                # ASGI server for FastAPI
 python-multipart>=0.0.20       # File upload support for FastAPI
 
+# Authentication and security
+bcrypt>=4.0.1                  # Password hashing
+python-jose[cryptography]>=3.3.0  # JWT token generation and validation
+
 # Templating and YAML
 jinja2>=3.1.0                  # Template engine for SQL models
 pyyaml>=6.0                    # YAML parser for config files

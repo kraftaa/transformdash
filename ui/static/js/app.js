@@ -8443,3 +8443,25 @@ async function resumeJob(jobId) {
         showToast('Failed to resume job', 'error');
     }
 }
+
+// =============================================================================
+// Authentication Functions
+// =============================================================================
+
+async function logout() {
+    if (!confirm('Are you sure you want to log out?')) {
+        return;
+    }
+
+    try {
+        await fetch('/api/auth/logout', {
+            method: 'POST'
+        });
+
+        // Redirect to login page
+        window.location.href = '/login';
+    } catch (error) {
+        console.error('Logout error:', error);
+        showToast('Failed to logout', 'error');
+    }
+}

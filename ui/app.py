@@ -1,2079 +1,113 @@
 """
-TransformDash Web UI - FastAPI Application
-Interactive lineage graphs and dashboard
+TransformDash Web UI - FastAPI Application (Refactored)
+Interactive lineage graphs and dashboard with separated concerns
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from starlette.requests import Request
 from pathlib import Path
 import sys
+import pandas as pd
+import logging
+import uuid
+import os
+import json
+from datetime import datetime
+
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
 from transformations.dbt_loader import DBTModelLoader
 from transformations import DAG
+from orchestration.history import RunHistory
+import datasets_api
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="TransformDash", description="Hybrid Data Transformation Platform")
+
+# Mount static files
+app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
+
+# Setup templates
+templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 # Global state
 models_dir = Path(__file__).parent.parent / "models"
 loader = DBTModelLoader(models_dir=str(models_dir))
-
-# Initialize run history
-sys.path.append(str(Path(__file__).parent.parent))
-from orchestration.history import RunHistory
 run_history = RunHistory()
 
 
-@app.get("/")
-async def root():
-    """Serve the main dashboard HTML"""
-    html_content = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>✨ TransformDash</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>">
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <style>
-        :root {
-            /* Semantic Color System */
-            --color-primary: #667eea;
-            --color-primary-dark: #5568d3;
-            --color-secondary: #764ba2;
-            --color-success: #10b981;
-            --color-success-light: #d1fae5;
-            --color-success-dark: #059669;
-            --color-error: #ef4444;
-            --color-error-light: #fee2e2;
-            --color-error-dark: #dc2626;
-            --color-warning: #f59e0b;
-            --color-warning-light: #fef3c7;
-            --color-info: #3b82f6;
-            --color-info-light: #dbeafe;
-
-            /* Neutral Colors */
-            --color-gray-50: #f9fafb;
-            --color-gray-100: #f3f4f6;
-            --color-gray-200: #e5e7eb;
-            --color-gray-300: #d1d5db;
-            --color-gray-400: #9ca3af;
-            --color-gray-500: #6b7280;
-            --color-gray-600: #4b5563;
-            --color-gray-700: #374151;
-            --color-gray-800: #1f2937;
-            --color-gray-900: #111827;
-
-            /* Layer Colors */
-            --color-bronze: #cd7f32;
-            --color-bronze-dark: #b06727;
-            --color-silver: #c0c0c0;
-            --color-silver-dark: #a8a8a8;
-            --color-gold: #ffd700;
-            --color-gold-dark: #e6c200;
-
-            /* Spacing & Elevation */
-            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-
-            /* Background */
-            --bg-page: #f5f7fa;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: var(--bg-page);
-            min-height: 100vh;
-            padding: 20px;
-            transition: background-color 0.3s ease;
-        }
-
-        /* Dark Mode Support */
-        body.dark-mode {
-            --bg-page: #0f172a;
-            --color-gray-50: #1e293b;
-            --color-gray-100: #334155;
-            --color-gray-900: #f1f5f9;
-            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        header {
-            background: white;
-            border-radius: 10px;
-            padding: 24px 32px;
-            margin-bottom: 20px;
-            box-shadow: var(--shadow-md);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .header-left {
-            flex: 1;
-        }
-
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-
-        h1 {
-            color: var(--color-primary);
-            font-size: 2em;
-            margin-bottom: 6px;
-            font-weight: 700;
-        }
-
-        .subtitle {
-            color: var(--color-gray-600);
-            font-size: 0.95em;
-            margin-bottom: 8px;
-        }
-
-        .status-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.85em;
-            color: var(--color-gray-500);
-            background: var(--color-gray-50);
-            padding: 4px 12px;
-            border-radius: 12px;
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--color-success);
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        .dark-mode-toggle {
-            background: var(--color-gray-100);
-            border: none;
-            border-radius: 20px;
-            padding: 8px 16px;
-            cursor: pointer;
-            font-size: 1.2em;
-            transition: all 0.3s ease;
-        }
-
-        .dark-mode-toggle:hover {
-            background: var(--color-gray-200);
-            transform: scale(1.05);
-        }
-
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 16px;
-            margin-bottom: 20px;
-        }
-
-        .stat-card {
-            background: white;
-            border-radius: 10px;
-            padding: 20px 24px;
-            box-shadow: var(--shadow-sm);
-            border: 1px solid var(--color-gray-200);
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .stat-card:hover {
-            box-shadow: var(--shadow-md);
-            border-color: var(--color-primary);
-            transform: translateY(-2px);
-        }
-
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 4px;
-            height: 100%;
-            background: var(--color-primary);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        .stat-card:hover::before {
-            opacity: 1;
-        }
-
-        .stat-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-
-        .stat-icon {
-            font-size: 1.5em;
-            opacity: 0.8;
-        }
-
-        .stat-label {
-            color: var(--color-gray-600);
-            font-size: 0.8em;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            font-weight: 600;
-        }
-
-        .stat-value {
-            color: var(--color-gray-900);
-            font-size: 2.2em;
-            font-weight: 700;
-            margin-top: 4px;
-            margin-bottom: 8px;
-        }
-
-        .stat-delta {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 0.85em;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-weight: 500;
-        }
-
-        .stat-delta.positive {
-            background: var(--color-success-light);
-            color: var(--color-success-dark);
-        }
-
-        .stat-delta.neutral {
-            background: var(--color-gray-100);
-            color: var(--color-gray-600);
-        }
-
-        .stat-sparkline {
-            margin-top: 12px;
-            height: 30px;
-            opacity: 0.6;
-        }
-
-        .main-content {
-            display: block;
-        }
-
-        .panel {
-            background: white;
-            border-radius: 10px;
-            padding: 28px;
-            box-shadow: var(--shadow-sm);
-            border: 1px solid var(--color-gray-200);
-        }
-
-        h2 {
-            color: var(--color-primary);
-            margin-bottom: 20px;
-            font-size: 1.5em;
-            border-bottom: 2px solid var(--color-primary);
-            padding-bottom: 10px;
-        }
-
-        .model-item {
-            padding: 14px 16px;
-            border-left: 4px solid var(--color-primary);
-            background: var(--color-gray-50);
-            margin-bottom: 10px;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            border: 1px solid var(--color-gray-200);
-            border-left-width: 4px;
-        }
-
-        .model-item:hover {
-            background: white;
-            transform: translateX(4px);
-            box-shadow: var(--shadow-md);
-            border-color: var(--color-primary);
-        }
-
-        .model-name {
-            font-weight: 700;
-            color: var(--color-gray-900);
-            margin-bottom: 6px;
-            font-size: 0.95em;
-        }
-
-        .model-meta {
-            font-size: 0.85em;
-            color: var(--color-gray-600);
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 0.75em;
-            font-weight: 700;
-            margin-right: 6px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .badge-bronze {
-            background: var(--color-bronze);
-            color: white;
-        }
-
-        .badge-silver {
-            background: var(--color-silver);
-            color: var(--color-gray-800);
-        }
-
-        .badge-gold {
-            background: var(--color-gold);
-            color: var(--color-gray-800);
-        }
-
-        .badge-sql {
-            background: var(--color-info);
-            color: white;
-        }
-
-        #lineage-graph {
-            min-height: 600px;
-            border: 1px solid var(--color-gray-200);
-            border-radius: 10px;
-            background: var(--color-gray-50);
-        }
-
-        .node {
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .node:hover rect {
-            filter: brightness(1.1);
-        }
-
-        .node rect {
-            fill: var(--color-primary);
-            stroke: var(--color-primary-dark);
-            stroke-width: 2px;
-            rx: 8px;
-            transition: all 0.2s ease;
-        }
-
-        .node.bronze rect {
-            fill: var(--color-bronze);
-            stroke: var(--color-bronze-dark);
-        }
-
-        .node.silver rect {
-            fill: var(--color-silver);
-            stroke: var(--color-silver-dark);
-        }
-
-        .node.gold rect {
-            fill: var(--color-gold);
-            stroke: var(--color-gold-dark);
-        }
-
-        .node text {
-            fill: white;
-            font-size: 12px;
-            font-weight: 700;
-            text-anchor: middle;
-            pointer-events: none;
-        }
-
-        .node.gold text, .node.silver text {
-            fill: var(--color-gray-900);
-        }
-
-        .link {
-            fill: none;
-            stroke: var(--color-gray-400);
-            stroke-width: 2px;
-            marker-end: url(#arrowhead);
-            transition: all 0.2s ease;
-        }
-
-        .link:hover {
-            stroke: var(--color-primary);
-            stroke-width: 3px;
-        }
-
-        .refresh-btn {
-            background: white;
-            color: var(--color-primary);
-            border: 2px solid var(--color-primary);
-            padding: 8px 16px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.9em;
-            font-weight: 600;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .refresh-btn:hover {
-            background: var(--color-primary);
-            color: white;
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-md);
-        }
-
-        .run-btn {
-            background: var(--color-success);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.95em;
-            font-weight: 700;
-            transition: all 0.2s ease;
-            margin-left: 10px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .run-btn:hover {
-            background: var(--color-success-dark);
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
-        }
-
-        .run-btn:disabled {
-            background: var(--color-gray-400);
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        .btn-group {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-
-        /* Empty States */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--color-gray-500);
-        }
-
-        .empty-state-icon {
-            font-size: 4em;
-            margin-bottom: 16px;
-            opacity: 0.5;
-        }
-
-        .empty-state h3 {
-            color: var(--color-gray-700);
-            font-size: 1.3em;
-            margin-bottom: 12px;
-            font-weight: 600;
-        }
-
-        .empty-state p {
-            color: var(--color-gray-500);
-            font-size: 0.95em;
-            line-height: 1.6;
-            max-width: 500px;
-            margin: 0 auto;
-        }
-
-        .empty-state-action {
-            margin-top: 24px;
-        }
-
-        .empty-state-btn {
-            background: var(--color-primary);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 0.95em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .empty-state-btn:hover {
-            background: var(--color-primary-dark);
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
-        }
-
-        .execution-status {
-            margin-top: 20px;
-            padding: 16px 20px;
-            border-radius: 8px;
-            display: none;
-            border-left: 4px solid transparent;
-            animation: slideIn 0.3s ease;
-        }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .execution-status.success {
-            background: var(--color-success-light);
-            border-left-color: var(--color-success);
-            display: block;
-        }
-
-        .execution-status.error {
-            background: var(--color-error-light);
-            border-left-color: var(--color-error);
-            display: block;
-        }
-
-        .execution-status.running {
-            background: var(--color-info-light);
-            border-left-color: var(--color-info);
-            display: block;
-        }
-
-        .execution-status strong {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 1.05em;
-        }
-
-        /* Modal styles */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(4px);
-            animation: fadeIn 0.2s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        .modal-content {
-            background-color: white;
-            margin: 50px auto;
-            padding: 0;
-            border-radius: 12px;
-            width: 90%;
-            max-width: 900px;
-            max-height: 80vh;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            box-shadow: var(--shadow-xl);
-            animation: slideDown 0.3s ease;
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .modal-header {
-            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
-            color: white;
-            padding: 24px 32px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .modal-header h2 {
-            margin: 0;
-            color: white;
-            border: none;
-            padding: 0;
-            font-size: 1.4em;
-        }
-
-        .close {
-            color: white;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            line-height: 1;
-            transition: all 0.2s ease;
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 6px;
-        }
-
-        .close:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: rotate(90deg);
-        }
-
-        .modal-body {
-            padding: 32px;
-            overflow-y: auto;
-            flex: 1;
-        }
-
-        .code-block {
-            background: #1e293b;
-            color: #e2e8f0;
-            padding: 20px;
-            border-radius: 8px;
-            overflow-x: auto;
-            font-family: 'Monaco', 'Menlo', 'Consolas', 'SF Mono', monospace;
-            font-size: 13px;
-            line-height: 1.7;
-            border: 1px solid #334155;
-        }
-
-        .model-meta-info {
-            background: var(--color-gray-50);
-            padding: 16px 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border: 1px solid var(--color-gray-200);
-        }
-
-        .model-meta-info p {
-            margin-bottom: 8px;
-            color: var(--color-gray-700);
-        }
-
-        .model-meta-info p:last-child {
-            margin-bottom: 0;
-        }
-
-        .model-meta-info strong {
-            color: var(--color-primary);
-            font-weight: 600;
-        }
-
-        /* Tabs */
-        .tabs {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 24px;
-            border-bottom: 2px solid var(--color-gray-200);
-            overflow-x: auto;
-        }
-
-        .tab {
-            padding: 12px 20px;
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 0.95em;
-            font-weight: 600;
-            color: var(--color-gray-600);
-            border-bottom: 3px solid transparent;
-            transition: all 0.2s ease;
-            white-space: nowrap;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .tab:hover {
-            color: var(--color-primary);
-            background: var(--color-gray-50);
-            border-radius: 8px 8px 0 0;
-        }
-
-        .tab.active {
-            color: var(--color-primary);
-            border-bottom-color: var(--color-primary);
-            background: linear-gradient(to bottom, rgba(102, 126, 234, 0.05), transparent);
-        }
-
-        .tab-badge {
-            background: var(--color-gray-200);
-            color: var(--color-gray-700);
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 0.8em;
-            font-weight: 700;
-        }
-
-        .tab.active .tab-badge {
-            background: var(--color-primary);
-            color: white;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        .run-item {
-            padding: 16px 20px;
-            border: 1px solid var(--color-gray-200);
-            border-left: 4px solid var(--color-gray-300);
-            border-radius: 8px;
-            margin-bottom: 12px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            background: white;
-        }
-
-        .run-item:hover {
-            border-color: var(--color-primary);
-            box-shadow: var(--shadow-md);
-            transform: translateX(4px);
-        }
-
-        .run-item.success {
-            border-left-color: var(--color-success);
-        }
-
-        .run-item.failed {
-            border-left-color: var(--color-error);
-        }
-
-        .run-item.partial {
-            border-left-color: var(--color-warning);
-        }
-
-        .run-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-
-        .run-id {
-            font-weight: 700;
-            color: var(--color-gray-900);
-            font-size: 0.95em;
-            font-family: 'Monaco', 'Menlo', monospace;
-        }
-
-        .run-status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 0.8em;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .run-status-badge.success {
-            background: var(--color-success-light);
-            color: var(--color-success-dark);
-        }
-
-        .run-status-badge.failed {
-            background: var(--color-error-light);
-            color: var(--color-error-dark);
-        }
-
-        .run-status-badge.partial {
-            background: var(--color-warning-light);
-            color: #92400e;
-        }
-
-        .run-time {
-            color: var(--color-gray-500);
-            font-size: 0.85em;
-        }
-
-        .run-stats {
-            display: flex;
-            gap: 20px;
-            font-size: 0.9em;
-            flex-wrap: wrap;
-        }
-
-        .run-stat-item {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .stat-success {
-            color: var(--color-success);
-            font-weight: 600;
-        }
-
-        .stat-failure {
-            color: var(--color-error);
-            font-weight: 600;
-        }
-
-        .stat-neutral {
-            color: var(--color-gray-600);
-        }
-
-        .runs-filter {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 16px;
-            flex-wrap: wrap;
-        }
-
-        .filter-btn {
-            padding: 6px 14px;
-            border: 1px solid var(--color-gray-300);
-            background: white;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 0.85em;
-            font-weight: 500;
-            color: var(--color-gray-700);
-            transition: all 0.2s ease;
-        }
-
-        .filter-btn:hover {
-            border-color: var(--color-primary);
-            color: var(--color-primary);
-        }
-
-        .filter-btn.active {
-            background: var(--color-primary);
-            color: white;
-            border-color: var(--color-primary);
-        }
-
-        .log-viewer {
-            background: #1e1e1e;
-            color: #d4d4d4;
-            padding: 20px;
-            border-radius: 8px;
-            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-            font-size: 13px;
-            line-height: 1.6;
-            max-height: 500px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-        }
-
-        .log-entry {
-            margin-bottom: 4px;
-        }
-
-        .log-level-INFO {
-            color: #4fc3f7;
-        }
-
-        .log-level-SUCCESS {
-            color: #66bb6a;
-        }
-
-        .log-level-ERROR {
-            color: #ef5350;
-        }
-
-        .log-level-WARNING {
-            color: #ffa726;
-        }
-
-        .dashboard-card {
-            background: white;
-            border: 2px solid var(--color-gray-200);
-            border-radius: 10px;
-            padding: 18px 20px;
-            margin-bottom: 12px;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            max-height: 85px;
-            overflow: hidden;
-        }
-
-        .dashboard-card.expanded {
-            max-height: none;
-            overflow: visible;
-        }
-
-        .dashboard-card:hover {
-            border-color: var(--color-primary);
-            box-shadow: var(--shadow-md);
-            transform: translateY(-2px);
-        }
-
-        .dashboard-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-
-        .dashboard-left {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex: 1;
-        }
-
-        .dashboard-name {
-            font-size: 1.1em;
-            font-weight: bold;
-            color: #333;
-        }
-
-        .dashboard-id {
-            background: #f3f4f6;
-            color: #6b7280;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.75em;
-            font-family: monospace;
-        }
-
-        .dashboard-type {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.85em;
-            font-weight: bold;
-        }
-
-        .type-dashboard {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .type-report {
-            background: #dcfce7;
-            color: #15803d;
-        }
-
-        .dashboard-summary {
-            color: #666;
-            font-size: 0.9em;
-            margin-bottom: 10px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .dashboard-details {
-            display: none;
-            padding-top: 10px;
-            border-top: 1px solid #e5e7eb;
-            margin-top: 10px;
-        }
-
-        .dashboard-card.expanded .dashboard-details {
-            display: block;
-        }
-
-        .dashboard-card.expanded .dashboard-summary {
-            white-space: normal;
-        }
-
-        .dashboard-description {
-            color: #666;
-            margin-bottom: 15px;
-            line-height: 1.6;
-        }
-
-        .dashboard-models {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 10px;
-        }
-
-        .model-tag {
-            background: var(--color-gray-100);
-            border: 1px solid var(--color-gray-300);
-            padding: 5px 12px;
-            border-radius: 6px;
-            font-size: 0.85em;
-            color: var(--color-gray-700);
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-weight: 500;
-        }
-
-        .model-tag:hover {
-            background: var(--color-primary);
-            color: white;
-            border-color: var(--color-primary);
-            transform: translateY(-1px);
-        }
-
-        .dashboard-owner {
-            color: var(--color-gray-500);
-            font-size: 0.9em;
-        }
-
-        .expand-indicator {
-            font-size: 0.8em;
-            color: var(--color-gray-400);
-            transition: transform 0.3s ease;
-        }
-
-        .dashboard-card.expanded .expand-indicator {
-            transform: rotate(180deg);
-        }
-
-        /* Responsive Design */
-        @media (max-width: 768px) {
-            body {
-                padding: 12px;
-            }
-
-            header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 16px;
-            }
-
-            .header-right {
-                width: 100%;
-                justify-content: space-between;
-            }
-
-            h1 {
-                font-size: 1.6em;
-            }
-
-            .stats {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .panel {
-                padding: 20px;
-            }
-
-            .tabs {
-                gap: 4px;
-            }
-
-            .tab {
-                padding: 10px 14px;
-                font-size: 0.85em;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .stats {
-                grid-template-columns: 1fr;
-            }
-
-            .run-header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 8px;
-            }
-
-            .run-stats {
-                flex-direction: column;
-                gap: 8px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <header>
-            <div class="header-left">
-                <h1>✨ TransformDash</h1>
-                <p class="subtitle">Hybrid Data Transformation & Dashboard Platform</p>
-                <div class="status-indicator">
-                    <span class="status-dot"></span>
-                    <span id="last-sync">Last synced: <span id="sync-time">Never</span></span>
-                </div>
-            </div>
-            <div class="header-right">
-                <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Toggle Dark Mode">
-                    <span id="theme-icon">🌙</span>
-                </button>
-            </div>
-        </header>
-
-        <div class="stats" id="stats">
-            <div class="stat-card">
-                <div class="stat-header">
-                    <div class="stat-label">Total Models</div>
-                    <div class="stat-icon">📦</div>
-                </div>
-                <div class="stat-value" id="total-models">-</div>
-                <div class="stat-delta neutral" id="total-delta">
-                    <span>—</span>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-header">
-                    <div class="stat-label">Bronze Layer</div>
-                    <div class="stat-icon">🥉</div>
-                </div>
-                <div class="stat-value" id="bronze-count">-</div>
-                <div class="stat-delta neutral">
-                    <span>Staging</span>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-header">
-                    <div class="stat-label">Silver Layer</div>
-                    <div class="stat-icon">🥈</div>
-                </div>
-                <div class="stat-value" id="silver-count">-</div>
-                <div class="stat-delta neutral">
-                    <span>Intermediate</span>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-header">
-                    <div class="stat-label">Gold Layer</div>
-                    <div class="stat-icon">🥇</div>
-                </div>
-                <div class="stat-value" id="gold-count">-</div>
-                <div class="stat-delta neutral">
-                    <span>Analytics</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel" style="grid-column: 1 / -1;">
-            <div class="tabs">
-                <button class="tab active" onclick="switchTab('models')">📋 Models</button>
-                <button class="tab" onclick="switchTab('runs')">📊 Runs</button>
-                <button class="tab" onclick="switchTab('lineage')">🔗 Lineage</button>
-                <button class="tab" onclick="switchTab('dashboards')">✨ Dashboards</button>
-                <button class="tab" onclick="switchTab('charts')">📈 Charts</button>
-            </div>
-
-            <!-- Models Tab -->
-            <div id="models-tab" class="tab-content active">
-                <div class="btn-group">
-                    <button class="refresh-btn" onclick="loadModels()">🔄 Refresh</button>
-                    <button class="run-btn" id="runBtn" onclick="runTransformations()">▶️ Run Transformations</button>
-                </div>
-                <div id="execution-status" class="execution-status"></div>
-                <div id="models-list" style="margin-top: 20px;"></div>
-            </div>
-
-            <!-- Runs Tab -->
-            <div id="runs-tab" class="tab-content">
-                <div class="btn-group">
-                    <button class="refresh-btn" onclick="loadRuns()">🔄 Refresh</button>
-                </div>
-                <div class="runs-filter">
-                    <button class="filter-btn active" onclick="filterRuns('all')">All Runs</button>
-                    <button class="filter-btn" onclick="filterRuns('success')">✅ Success</button>
-                    <button class="filter-btn" onclick="filterRuns('failed')">❌ Failed</button>
-                    <button class="filter-btn" onclick="filterRuns('partial')">⚠️ Partial</button>
-                </div>
-                <div id="runs-list" style="margin-top: 20px;"></div>
-            </div>
-
-            <!-- Lineage Tab -->
-            <div id="lineage-tab" class="tab-content">
-                <div id="lineage-graph" style="min-height: 600px;"></div>
-            </div>
-
-            <!-- Dashboards Tab -->
-            <div id="dashboards-tab" class="tab-content">
-                <div id="dashboards-list"></div>
-            </div>
-
-            <!-- Charts Tab -->
-            <div id="charts-tab" class="tab-content">
-                <div style="display: grid; grid-template-columns: 350px 1fr; gap: 20px; height: 600px;">
-                    <!-- Chart Builder Panel -->
-                    <div style="background: white; padding: 20px; border-radius: 12px; overflow-y: auto;">
-                        <h3 style="margin-bottom: 15px;">📈 Chart Builder</h3>
-
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">Chart Title</label>
-                            <input type="text" id="chartTitle" placeholder="My Chart"
-                                   style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
-                        </div>
-
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">Data Source</label>
-                            <select id="chartTable" onchange="loadTableColumns()"
-                                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
-                                <option value="">Select table...</option>
-                                <option value="fct_orders">fct_orders (Gold Layer)</option>
-                                <option value="int_customer_orders">int_customer_orders (Silver)</option>
-                                <option value="stg_customers">stg_customers (Bronze)</option>
-                                <option value="stg_orders">stg_orders (Bronze)</option>
-                            </select>
-                        </div>
-
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">Chart Type</label>
-                            <select id="chartType"
-                                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
-                                <option value="bar">📊 Bar Chart</option>
-                                <option value="line">📈 Line Chart</option>
-                                <option value="pie">🥧 Pie Chart</option>
-                                <option value="doughnut">🍩 Doughnut Chart</option>
-                            </select>
-                        </div>
-
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">X-Axis (Labels)</label>
-                            <select id="chartXAxis"
-                                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
-                                <option value="">Select column...</option>
-                            </select>
-                        </div>
-
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">Y-Axis (Values)</label>
-                            <select id="chartYAxis"
-                                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
-                                <option value="">Select column...</option>
-                            </select>
-                        </div>
-
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">Aggregation</label>
-                            <select id="chartAggregation"
-                                    style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
-                                <option value="sum">SUM</option>
-                                <option value="avg">AVG</option>
-                                <option value="count">COUNT</option>
-                                <option value="min">MIN</option>
-                                <option value="max">MAX</option>
-                            </select>
-                        </div>
-
-                        <button onclick="createChart()"
-                                style="width: 100%; padding: 12px; background: #667eea; color: white; border: none; border-radius: 8px; font-size: 1em; cursor: pointer; font-weight: bold;">
-                            ✨ Create Chart
-                        </button>
-
-                        <div id="chartError" style="margin-top: 15px; padding: 10px; background: #fee; border-radius: 6px; color: #c00; display: none;"></div>
-                    </div>
-
-                    <!-- Chart Preview Panel -->
-                    <div style="background: white; padding: 20px; border-radius: 12px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                            <h3>Preview</h3>
-                            <button onclick="saveChart()" id="saveChartBtn" disabled
-                                    style="padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer;">
-                                💾 Save Chart
-                            </button>
-                        </div>
-                        <canvas id="chartCanvas" style="max-height: 500px;"></canvas>
-                        <div id="chartPlaceholder" style="display: flex; align-items: center; justify-content: center; height: 400px; color: #999;">
-                            Select options and click "Create Chart" to see preview
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Code Viewer Modal -->
-    <div id="codeModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="modalTitle">Model Code</h2>
-                <span class="close" onclick="closeModal('codeModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div id="modalBody"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Logs Viewer Modal -->
-    <div id="logsModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="logsModalTitle">Run Logs</h2>
-                <span class="close" onclick="closeModal('logsModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div id="logsModalBody"></div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        let modelsData = [];
-        let allRuns = [];
-        let currentFilter = 'all';
-
-        // Dark Mode Toggle
-        function toggleDarkMode() {
-            document.body.classList.toggle('dark-mode');
-            const isDark = document.body.classList.contains('dark-mode');
-            document.getElementById('theme-icon').textContent = isDark ? '☀️' : '🌙';
-            localStorage.setItem('darkMode', isDark);
-        }
-
-        // Load dark mode preference
-        if (localStorage.getItem('darkMode') === 'true') {
-            document.body.classList.add('dark-mode');
-            document.getElementById('theme-icon').textContent = '☀️';
-        }
-
-        async function loadModels() {
-            try {
-                const response = await fetch('/api/models');
-                modelsData = await response.json();
-
-                // Update sync time
-                const now = new Date();
-                document.getElementById('sync-time').textContent = now.toLocaleTimeString();
-
-                // Update stats
-                document.getElementById('total-models').textContent = modelsData.length;
-                document.getElementById('bronze-count').textContent =
-                    modelsData.filter(m => m.name.startsWith('stg_')).length;
-                document.getElementById('silver-count').textContent =
-                    modelsData.filter(m => m.name.startsWith('int_')).length;
-                document.getElementById('gold-count').textContent =
-                    modelsData.filter(m => m.name.startsWith('fct_') || m.name.startsWith('dim_')).length;
-
-                // Display models list
-                const modelsList = document.getElementById('models-list');
-
-                if (modelsData.length === 0) {
-                    modelsList.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-state-icon">📦</div>
-                            <h3>No Models Found</h3>
-                            <p>Add SQL or Python transformation models to the models/ directory to get started.</p>
-                        </div>
-                    `;
-                } else {
-                    modelsList.innerHTML = modelsData.map(model => {
-                        const layer = getModelLayer(model.name);
-                        const badge = `<span class="badge badge-${layer}">${layer.toUpperCase()}</span>`;
-                        const typeBadge = `<span class="badge badge-sql">${model.type.toUpperCase()}</span>`;
-
-                        return `
-                            <div class="model-item" onclick="highlightModel('${model.name}')">
-                                <div class="model-name">${model.name}</div>
-                                <div class="model-meta">
-                                    ${badge}
-                                    ${typeBadge}
-                                    ${model.depends_on.length > 0 ?
-                                        `<br>Depends on: ${model.depends_on.join(', ')}` :
-                                        '<br>No dependencies'}
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-                }
-
-                // Draw lineage graph
-                drawLineage(modelsData);
-
-            } catch (error) {
-                console.error('Error loading models:', error);
-                const modelsList = document.getElementById('models-list');
-                modelsList.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">❌</div>
-                        <h3>Failed to Load Models</h3>
-                        <p>There was an error loading the transformation models. Please check the console for details.</p>
-                    </div>
-                `;
-            }
-        }
-
-        function getModelLayer(name) {
-            if (name.startsWith('stg_')) return 'bronze';
-            if (name.startsWith('int_')) return 'silver';
-            if (name.startsWith('fct_') || name.startsWith('dim_')) return 'gold';
-            return 'unknown';
-        }
-
-        function drawLineage(models) {
-            const container = document.getElementById('lineage-graph');
-            container.innerHTML = '';
-
-            const width = container.clientWidth;
-            const height = 600;
-
-            const svg = d3.select('#lineage-graph')
-                .append('svg')
-                .attr('width', width)
-                .attr('height', height);
-
-            // Define arrowhead marker
-            svg.append('defs').append('marker')
-                .attr('id', 'arrowhead')
-                .attr('markerWidth', 10)
-                .attr('markerHeight', 10)
-                .attr('refX', 9)
-                .attr('refY', 3)
-                .attr('orient', 'auto')
-                .append('polygon')
-                .attr('points', '0 0, 10 3, 0 6')
-                .attr('fill', '#999');
-
-            // Create nodes and links
-            const nodes = models.map(m => ({
-                id: m.name,
-                layer: getModelLayer(m.name),
-                type: m.type
-            }));
-
-            const links = [];
-            models.forEach(model => {
-                model.depends_on.forEach(dep => {
-                    links.push({
-                        source: dep,
-                        target: model.name
-                    });
-                });
-            });
-
-            // Layout nodes by layer
-            const layers = { bronze: [], silver: [], gold: [] };
-            nodes.forEach(node => {
-                if (layers[node.layer]) {
-                    layers[node.layer].push(node);
-                }
-            });
-
-            const layerX = { bronze: width * 0.2, silver: width * 0.5, gold: width * 0.8 };
-
-            Object.keys(layers).forEach(layer => {
-                const layerNodes = layers[layer];
-                const spacing = height / (layerNodes.length + 1);
-                layerNodes.forEach((node, i) => {
-                    node.x = layerX[layer];
-                    node.y = spacing * (i + 1);
-                });
-            });
-
-            // Draw links
-            svg.selectAll('.link')
-                .data(links)
-                .enter()
-                .append('path')
-                .attr('class', 'link')
-                .attr('d', d => {
-                    const source = nodes.find(n => n.id === d.source);
-                    const target = nodes.find(n => n.id === d.target);
-                    if (!source || !target) return '';
-
-                    return `M ${source.x + 60} ${source.y}
-                            C ${(source.x + target.x) / 2} ${source.y},
-                              ${(source.x + target.x) / 2} ${target.y},
-                              ${target.x - 60} ${target.y}`;
-                });
-
-            // Draw nodes
-            const nodeGroups = svg.selectAll('.node')
-                .data(nodes)
-                .enter()
-                .append('g')
-                .attr('class', d => `node ${d.layer}`)
-                .attr('transform', d => `translate(${d.x - 60}, ${d.y - 20})`);
-
-            nodeGroups.append('rect')
-                .attr('width', 120)
-                .attr('height', 40);
-
-            nodeGroups.append('text')
-                .attr('x', 60)
-                .attr('y', 25)
-                .text(d => d.id.length > 12 ? d.id.substring(0, 10) + '...' : d.id)
-                .append('title')
-                .text(d => d.id);
-        }
-
-        async function highlightModel(modelName) {
-            try {
-                const response = await fetch(`/api/models/${modelName}/code`);
-                const data = await response.json();
-
-                document.getElementById('modalTitle').textContent = data.name;
-
-                const metaInfo = `
-                    <div class="model-meta-info">
-                        <p><strong>Type:</strong> ${data.config.materialized || 'view'}</p>
-                        <p><strong>Depends on:</strong> ${data.depends_on.length > 0 ? data.depends_on.join(', ') : 'None'}</p>
-                        <p><strong>File:</strong> ${data.file_path}</p>
-                    </div>
-                `;
-
-                const code = `
-                    <h3>SQL Code:</h3>
-                    <pre class="code-block"><code>${escapeHtml(data.code)}</code></pre>
-                `;
-
-                document.getElementById('modalBody').innerHTML = metaInfo + code;
-                document.getElementById('codeModal').style.display = 'block';
-
-            } catch (error) {
-                console.error('Error loading model code:', error);
-                alert('Failed to load model code');
-            }
-        }
-
-        function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
-        }
-
-        function switchTab(tabName) {
-            // Update tab buttons
-            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
-
-            // Update tab content
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            document.getElementById(`${tabName}-tab`).classList.add('active');
-
-            // Load data if needed
-            if (tabName === 'runs') {
-                loadRuns();
-            } else if (tabName === 'lineage') {
-                drawLineage(modelsData);
-            } else if (tabName === 'dashboards') {
-                loadDashboards();
-            }
-        }
-
-        async function loadDashboards() {
-            try {
-                const response = await fetch('/api/exposures');
-                const data = await response.json();
-
-                const dashboardsList = document.getElementById('dashboards-list');
-
-                if (data.exposures.length === 0) {
-                    dashboardsList.innerHTML = `
-                        <div style="padding: 40px; text-align: center; color: #888;">
-                            <h3>No dashboards defined yet</h3>
-                            <p>Create an <code>exposures.yml</code> file to document which dashboards use which models.</p>
-                        </div>
-                    `;
-                    return;
-                }
-
-                // Clear the list first
-                dashboardsList.innerHTML = '';
-
-                data.exposures.forEach(exposure => {
-                    const typeClass = exposure.type === 'dashboard' ? 'type-dashboard' : 'type-report';
-                    const icon = exposure.type === 'dashboard' ? '📊' : '📄';
-
-                    // Extract model names from depends_on (remove ref() wrapper)
-                    const models = exposure.depends_on.map(dep => {
-                        const match = dep.match(/ref\(['"]([^'"]+)['"]\)/);
-                        return match ? match[1] : dep;
-                    });
-
-                    // Safely get description
-                    const description = (exposure.description || 'No description provided').trim();
-                    const descriptionLines = description.split('\\n').filter(l => l.trim());
-                    const shortDescription = descriptionLines[0] || 'No description provided';
-
-                    // Create card element
-                    const card = document.createElement('div');
-                    card.className = 'dashboard-card';
-                    card.id = 'card-' + exposure.slug;
-                    card.onclick = (e) => toggleExpand(e, exposure.slug);
-
-                    // Build header
-                    const header = document.createElement('div');
-                    header.className = 'dashboard-header';
-                    header.innerHTML = `
-                        <div class="dashboard-left">
-                            <span>${icon}</span>
-                            <span class="dashboard-name">${exposure.name}</span>
-                            <span class="dashboard-id">#${exposure.id}</span>
-                        </div>
-                        <div>
-                            <span class="dashboard-type ${typeClass}">${exposure.type.toUpperCase()}</span>
-                            <span class="expand-indicator">▼</span>
-                        </div>
-                    `;
-
-                    // Build summary
-                    const summary = document.createElement('div');
-                    summary.className = 'dashboard-summary';
-                    summary.textContent = shortDescription;
-
-                    // Build details section
-                    const details = document.createElement('div');
-                    details.className = 'dashboard-details';
-
-                    // Description
-                    const descDiv = document.createElement('div');
-                    descDiv.className = 'dashboard-description';
-                    descDiv.innerHTML = description.replace(/\\n/g, '<br>');
-                    details.appendChild(descDiv);
-
-                    // Models section
-                    const modelsTitle = document.createElement('strong');
-                    modelsTitle.style.color = '#667eea';
-                    modelsTitle.textContent = '📋 Uses These Models:';
-                    details.appendChild(modelsTitle);
-
-                    const modelsDiv = document.createElement('div');
-                    modelsDiv.className = 'dashboard-models';
-                    models.forEach(model => {
-                        const tag = document.createElement('span');
-                        tag.className = 'model-tag';
-                        tag.textContent = model;
-                        tag.onclick = (e) => {
-                            e.stopPropagation();
-                            switchTab('lineage');
-                            setTimeout(() => highlightModel(model), 100);
-                        };
-                        modelsDiv.appendChild(tag);
-                    });
-                    details.appendChild(modelsDiv);
-
-                    // Owner info
-                    if (exposure.owner) {
-                        const ownerDiv = document.createElement('div');
-                        ownerDiv.className = 'dashboard-owner';
-                        ownerDiv.textContent = `👤 Owner: ${exposure.owner.name} (${exposure.owner.email})`;
-                        details.appendChild(ownerDiv);
-                    }
-
-                    // View button
-                    const btnDiv = document.createElement('div');
-                    btnDiv.style.marginTop = '10px';
-                    const btn = document.createElement('button');
-                    btn.textContent = '🔗 View Dashboard Details';
-                    btn.style.cssText = 'background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9em;';
-                    btn.onclick = (e) => {
-                        e.stopPropagation();
-                        viewDashboard(exposure.slug);
-                    };
-                    btnDiv.appendChild(btn);
-                    details.appendChild(btnDiv);
-
-                    // Assemble card
-                    card.appendChild(header);
-                    card.appendChild(summary);
-                    card.appendChild(details);
-                    dashboardsList.appendChild(card);
-                });
-
-            } catch (error) {
-                console.error('Error loading dashboards:', error);
-                document.getElementById('dashboards-list').innerHTML = '<p style="color: #ef4444;">Failed to load dashboards</p>';
-            }
-        }
-
-        function toggleExpand(event, slug) {
-            event.stopPropagation();
-            const card = document.getElementById(`card-${slug}`);
-            card.classList.toggle('expanded');
-        }
-
-        function viewDashboard(slug) {
-            // In a real implementation, this would navigate to a detail page
-            // For now, we'll show an alert
-            alert(`Navigating to dashboard: /dashboards/${slug}\n\nIn a full implementation, this would show detailed dashboard analytics, usage metrics, and lineage visualization.`);
-        }
-
-        // Chart Builder Functions
-        let currentChart = null;
-
-        async function loadTableColumns() {
-            const table = document.getElementById('chartTable').value;
-            if (!table) return;
-
-            try {
-                const response = await fetch(`/api/tables/${table}/columns`);
-                const data = await response.json();
-
-                const xAxis = document.getElementById('chartXAxis');
-                const yAxis = document.getElementById('chartYAxis');
-
-                // Clear existing options
-                xAxis.innerHTML = '<option value="">Select column...</option>';
-                yAxis.innerHTML = '<option value="">Select column...</option>';
-
-                // Add columns
-                data.columns.forEach(col => {
-                    const optionX = document.createElement('option');
-                    optionX.value = col.name;
-                    optionX.textContent = `${col.name} (${col.type})`;
-                    xAxis.appendChild(optionX);
-
-                    const optionY = document.createElement('option');
-                    optionY.value = col.name;
-                    optionY.textContent = `${col.name} (${col.type})`;
-                    yAxis.appendChild(optionY);
-                });
-            } catch (error) {
-                console.error('Error loading columns:', error);
-            }
-        }
-
-        async function createChart() {
-            const title = document.getElementById('chartTitle').value || 'Chart';
-            const table = document.getElementById('chartTable').value;
-            const chartType = document.getElementById('chartType').value;
-            const xAxis = document.getElementById('chartXAxis').value;
-            const yAxis = document.getElementById('chartYAxis').value;
-            const aggregation = document.getElementById('chartAggregation').value;
-
-            // Validation
-            if (!table || !xAxis || !yAxis) {
-                document.getElementById('chartError').style.display = 'block';
-                document.getElementById('chartError').textContent = 'Please select table, X-axis, and Y-axis';
-                return;
-            }
-
-            document.getElementById('chartError').style.display = 'none';
-
-            try {
-                // Query data
-                const response = await fetch('/api/query', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ table, x_axis: xAxis, y_axis: yAxis, aggregation })
-                });
-
-                const data = await response.json();
-
-                // Hide placeholder, show canvas
-                document.getElementById('chartPlaceholder').style.display = 'none';
-                document.getElementById('chartCanvas').style.display = 'block';
-
-                // Destroy existing chart if any
-                if (currentChart) {
-                    currentChart.destroy();
-                }
-
-                // Create new chart
-                const ctx = document.getElementById('chartCanvas').getContext('2d');
-                currentChart = new Chart(ctx, {
-                    type: chartType,
-                    data: {
-                        labels: data.labels,
-                        datasets: [{
-                            label: `${aggregation.toUpperCase()}(${yAxis})`,
-                            data: data.values,
-                            backgroundColor: [
-                                'rgba(102, 126, 234, 0.8)',
-                                'rgba(16, 185, 129, 0.8)',
-                                'rgba(245, 158, 11, 0.8)',
-                                'rgba(239, 68, 68, 0.8)',
-                                'rgba(139, 92, 246, 0.8)',
-                                'rgba(236, 72, 153, 0.8)',
-                            ],
-                            borderColor: 'rgba(102, 126, 234, 1)',
-                            borderWidth: 2
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            title: {
-                                display: true,
-                                text: title,
-                                font: { size: 18, weight: 'bold' }
-                            },
-                            legend: {
-                                display: chartType === 'pie' || chartType === 'doughnut'
-                            }
-                        },
-                        scales: chartType !== 'pie' && chartType !== 'doughnut' ? {
-                            y: { beginAtZero: true }
-                        } : {}
-                    }
-                });
-
-                // Enable save button
-                document.getElementById('saveChartBtn').disabled = false;
-
-            } catch (error) {
-                console.error('Error creating chart:', error);
-                document.getElementById('chartError').style.display = 'block';
-                document.getElementById('chartError').textContent = 'Error creating chart: ' + error.message;
-            }
-        }
-
-        function saveChart() {
-            const title = document.getElementById('chartTitle').value || 'Chart';
-            alert(`Chart "${title}" saved!\n\nIn a full implementation, this would save to a charts.yml file that can be loaded into dashboards.`);
-        }
-
-        async function loadRuns() {
-            try {
-                const response = await fetch('/api/runs');
-                const data = await response.json();
-                allRuns = data.runs;
-
-                displayRuns();
-
-            } catch (error) {
-                console.error('Error loading runs:', error);
-                const runsList = document.getElementById('runs-list');
-                runsList.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">❌</div>
-                        <h3>Failed to Load Runs</h3>
-                        <p>There was an error loading the run history. Please try refreshing.</p>
-                    </div>
-                `;
-            }
-        }
-
-        function displayRuns() {
-            const runsList = document.getElementById('runs-list');
-
-            if (allRuns.length === 0) {
-                runsList.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">📊</div>
-                        <h3>No Runs Yet</h3>
-                        <p>Click "Run Transformations" in the Models tab to execute your first pipeline.</p>
-                        <div class="empty-state-action">
-                            <button class="empty-state-btn" onclick="switchTab('models'); setTimeout(() => document.getElementById('runBtn').focus(), 100)">
-                                ▶️ Run Your First Transformation
-                            </button>
-                        </div>
-                    </div>
-                `;
-                return;
-            }
-
-            // Filter runs based on current filter
-            let filteredRuns = allRuns;
-            if (currentFilter !== 'all') {
-                filteredRuns = allRuns.filter(run => {
-                    const status = getRunStatus(run);
-                    return status === currentFilter;
-                });
-            }
-
-            if (filteredRuns.length === 0) {
-                runsList.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">🔍</div>
-                        <h3>No Matching Runs</h3>
-                        <p>No runs match the current filter. Try selecting a different filter.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            runsList.innerHTML = filteredRuns.map(run => {
-                const timestamp = new Date(run.timestamp).toLocaleString();
-                const successRate = run.summary.total_models > 0
-                    ? ((run.summary.successes / run.summary.total_models) * 100).toFixed(0)
-                    : 0;
-
-                const status = getRunStatus(run);
-                const statusBadge = getStatusBadge(status);
-
-                return `
-                    <div class="run-item ${status}" onclick="viewRunLogs('${run.run_id}')">
-                        <div class="run-header">
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <span class="run-id">${run.run_id}</span>
-                                ${statusBadge}
-                            </div>
-                            <span class="run-time">${timestamp}</span>
-                        </div>
-                        <div class="run-stats">
-                            <span class="run-stat-item stat-success">✓ ${run.summary.successes}</span>
-                            <span class="run-stat-item stat-failure">✗ ${run.summary.failures}</span>
-                            <span class="run-stat-item stat-neutral">⏱️ ${run.summary.total_execution_time.toFixed(2)}s</span>
-                            <span class="run-stat-item stat-neutral">📊 ${successRate}% success</span>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function getRunStatus(run) {
-            if (run.summary.failures === 0) return 'success';
-            if (run.summary.successes === 0) return 'failed';
-            return 'partial';
-        }
-
-        function getStatusBadge(status) {
-            const badges = {
-                'success': '<span class="run-status-badge success">✓ Success</span>',
-                'failed': '<span class="run-status-badge failed">✗ Failed</span>',
-                'partial': '<span class="run-status-badge partial">⚠️ Partial</span>'
-            };
-            return badges[status] || '';
-        }
-
-        function filterRuns(filter) {
-            currentFilter = filter;
-
-            // Update active filter button
-            document.querySelectorAll('.filter-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
-
-            // Re-display runs with filter
-            displayRuns();
-        }
-
-        async function viewRunLogs(runId) {
-            try {
-                const response = await fetch(`/api/runs/${runId}`);
-                const data = await response.json();
-
-                document.getElementById('logsModalTitle').textContent = `Run Logs - ${data.run_id}`;
-
-                const summary = `
-                    <div class="model-meta-info">
-                        <p><strong>Timestamp:</strong> ${new Date(data.timestamp).toLocaleString()}</p>
-                        <p><strong>Total Models:</strong> ${data.summary.total_models}</p>
-                        <p><strong>Successes:</strong> ${data.summary.successes}</p>
-                        <p><strong>Failures:</strong> ${data.summary.failures}</p>
-                        <p><strong>Total Time:</strong> ${data.summary.total_execution_time.toFixed(3)}s</p>
-                    </div>
-                `;
-
-                const logs = data.logs.map(log => {
-                    // Extract log level for coloring
-                    const levelMatch = log.match(/\[(INFO|SUCCESS|ERROR|WARNING)\]/);
-                    const level = levelMatch ? levelMatch[1] : 'INFO';
-
-                    return `<div class="log-entry log-level-${level}">${escapeHtml(log)}</div>`;
-                }).join('');
-
-                const logsViewer = `
-                    <h3>Execution Logs:</h3>
-                    <div class="log-viewer">${logs}</div>
-                `;
-
-                document.getElementById('logsModalBody').innerHTML = summary + logsViewer;
-                document.getElementById('logsModal').style.display = 'block';
-
-            } catch (error) {
-                console.error('Error loading run logs:', error);
-                alert('Failed to load run logs');
-            }
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        async function runTransformations() {
-            const statusDiv = document.getElementById('execution-status');
-            const runBtn = document.getElementById('runBtn');
-
-            try {
-                // Disable button and show running status
-                runBtn.disabled = true;
-                statusDiv.className = 'execution-status running';
-                statusDiv.innerHTML = '<strong>⏳ Running transformations...</strong><br>Executing models in DAG order';
-
-                // Execute transformations
-                const response = await fetch('/api/execute', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    // Show success
-                    statusDiv.className = 'execution-status success';
-                    statusDiv.innerHTML = `
-                        <strong>✅ Transformations completed successfully!</strong><br>
-                        <p>Total Models: ${data.summary.total_models}</p>
-                        <p>✓ Successes: ${data.summary.successes}</p>
-                        <p>✗ Failures: ${data.summary.failures}</p>
-                        <p>⏱️ Total Time: ${data.summary.total_execution_time.toFixed(3)}s</p>
-                    `;
-
-                    // Refresh models to show updated status
-                    await loadModels();
-                } else {
-                    throw new Error(data.detail || 'Execution failed');
-                }
-
-            } catch (error) {
-                console.error('Error executing transformations:', error);
-                statusDiv.className = 'execution-status error';
-                statusDiv.innerHTML = `
-                    <strong>❌ Execution failed</strong><br>
-                    <p>${error.message}</p>
-                `;
-            } finally {
-                runBtn.disabled = false;
-            }
-        }
-
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            if (event.target.classList.contains('modal')) {
-                closeModal(event.target.id);
-            }
-        }
-
-        // Load on page load
-        loadModels();
-    </script>
-</body>
-</html>
-    """
-    return HTMLResponse(content=html_content)
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """Serve the login page"""
+    import time
+    response = templates.TemplateResponse("login.html", {
+        "request": request,
+        "cache_bust": int(time.time() * 1000)
+    })
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
+
+
+@app.get("/", response_class=HTMLResponse)
+async def root(request: Request):
+    """Serve the main dashboard HTML (requires authentication)"""
+    import yaml
+    import time
+    import sys
+    from pathlib import Path
+    from fastapi.responses import RedirectResponse
+    sys.path.append(str(Path(__file__).parent.parent))
+    from auth import get_optional_user
+
+    # Check if user is authenticated
+    user = await get_optional_user(request)
+    if not user:
+        # Redirect to login page
+        return RedirectResponse(url="/login", status_code=302)
+
+    # Load dashboards for the dropdown
+    dashboards = []
+    dashboards_file = models_dir / "dashboards.yml"
+    if dashboards_file.exists():
+        try:
+            with open(dashboards_file, 'r') as f:
+                data = yaml.safe_load(f)
+                dashboards = data.get('dashboards', [])
+        except Exception:
+            pass
+
+    response = templates.TemplateResponse("index.html", {
+        "request": request,
+        "dashboards": dashboards,
+        "cache_bust": int(time.time() * 1000),
+        "user": user
+    })
+
+    # Add cache control headers to prevent caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+
+    return response
+
+
+@app.get("/dashboard/{dashboard_id}", response_class=HTMLResponse)
+async def dashboard_view(request: Request, dashboard_id: str):
+    """Serve an individual dashboard in full-page view"""
+    return templates.TemplateResponse("dashboard_view.html", {
+        "request": request,
+        "dashboard_id": dashboard_id
+    })
 
 
 @app.get("/api/models")
@@ -2111,7 +145,7 @@ async def get_lineage():
 
 @app.get("/api/models/{model_name}/code")
 async def get_model_code(model_name: str):
-    """Get the SQL code for a specific model"""
+    """Get the code for a specific model (SQL or Python)"""
     try:
         models = loader.load_all_models()
         model = next((m for m in models if m.name == model_name), None)
@@ -2119,9 +153,20 @@ async def get_model_code(model_name: str):
         if not model:
             raise HTTPException(status_code=404, detail=f"Model {model_name} not found")
 
+        # Get code - for SQL models use sql_query, for Python models read file
+        code = model.sql_query
+        if code is None and hasattr(model, 'file_path') and model.file_path:
+            # Python model - read the file
+            try:
+                with open(model.file_path, 'r') as f:
+                    code = f.read()
+            except Exception as e:
+                code = f"# Error reading file: {e}"
+
         return {
             "name": model.name,
-            "code": model.sql_query,
+            "code": code,
+            "type": model.model_type.value,
             "config": getattr(model, 'config', {}),
             "depends_on": model.depends_on,
             "file_path": getattr(model, 'file_path', '')
@@ -2149,6 +194,19 @@ async def execute_transformations():
         # Save run history
         run_history.save_run(run_id, summary, context.logs)
 
+        # Build model results array with error messages
+        model_results = []
+        for name, meta in summary["models"].items():
+            model_results.append({
+                "name": name,
+                "status": meta["status"],
+                "execution_time": meta["execution_time"],
+                "error": meta.get("error", None)
+            })
+
+        # Add model_results to summary for frontend
+        summary["model_results"] = model_results
+
         return {
             "status": "completed",
             "run_id": run_id,
@@ -2162,6 +220,95 @@ async def execute_transformations():
             }
         }
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/execute/{model_name}")
+async def execute_single_model(model_name: str):
+    """Execute a single transformation model (and its dependencies)"""
+    try:
+        from orchestration import TransformationEngine
+
+        # Load all models (need dependencies)
+        all_models = loader.load_all_models()
+
+        # Find the target model
+        target_model = next((m for m in all_models if m.name == model_name), None)
+        if not target_model:
+            raise HTTPException(status_code=404, detail=f"Model '{model_name}' not found")
+
+        # Get all dependencies (recursively)
+        def get_dependencies(model_name, all_models):
+            model = next((m for m in all_models if m.name == model_name), None)
+            if not model:
+                return []
+
+            deps = []
+            for dep_name in model.depends_on:
+                deps.extend(get_dependencies(dep_name, all_models))
+                dep_model = next((m for m in all_models if m.name == dep_name), None)
+                if dep_model and dep_model not in deps:
+                    deps.append(dep_model)
+
+            return deps
+
+        # Get all models needed (dependencies + target)
+        dependency_models = get_dependencies(model_name, all_models)
+        models_to_run = dependency_models + [target_model]
+
+        # Run models
+        engine = TransformationEngine(models_to_run)
+        context = engine.run(verbose=False)
+
+        # Get summary
+        summary = context.get_summary()
+
+        # Save to run history
+        import uuid
+        from datetime import datetime
+        run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+
+        # Add run metadata to summary
+        summary['run_type'] = 'single_model'
+        summary['target_model'] = model_name
+        summary['timestamp'] = datetime.now().isoformat()
+
+        run_history.save_run(run_id, summary, context.logs)
+
+        # Check if target model succeeded
+        if target_model.status != "completed":
+            return {
+                "status": "failed",
+                "model": {
+                    'name': target_model.name,
+                    'type': target_model.model_type.value,
+                    'status': target_model.status,
+                    'error': target_model.error
+                },
+                "message": f"Model '{model_name}' failed to execute",
+                "dependencies_run": len(dependency_models),
+                "summary": summary,
+                "run_id": run_id
+            }
+
+        return {
+            "status": "completed",
+            "model": {
+                'name': target_model.name,
+                'type': target_model.model_type.value,
+                'status': target_model.status
+            },
+            "message": f"Model '{model_name}' executed successfully",
+            "dependencies_run": len(dependency_models),
+            "summary": summary,
+            "run_id": run_id
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error running model {model_name}: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -2187,6 +334,117 @@ async def get_run_details(run_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/models/{model_name}/runs")
+async def get_model_runs(model_name: str, limit: int = 10):
+    """Get execution history for a specific model"""
+    try:
+        all_runs = run_history.get_all_runs(limit=100)  # Get more runs to filter from
+        model_runs = []
+
+        for run in all_runs:
+            # Check if this model was in this run
+            if 'summary' in run and 'models' in run['summary']:
+                if model_name in run['summary']['models']:
+                    model_info = run['summary']['models'][model_name]
+
+                    # Extract logs related to this specific model
+                    model_logs = []
+                    if 'logs' in run:
+                        for log in run['logs']:
+                            # Include logs that mention this model name
+                            if model_name in log:
+                                model_logs.append(log)
+
+                    model_runs.append({
+                        'run_id': run['run_id'],
+                        'timestamp': run['timestamp'],
+                        'status': model_info['status'],
+                        'execution_time': model_info['execution_time'],
+                        'error': model_info.get('error', None),
+                        'logs': model_logs
+                    })
+
+                    if len(model_runs) >= limit:
+                        break
+
+        return {"runs": model_runs}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# ML MODEL ENDPOINTS
+# =============================================================================
+
+@app.get("/api/ml/models")
+async def get_ml_models():
+    """Get all registered ML models"""
+    try:
+        from ml.registry.model_registry import model_registry
+        models = model_registry.list_models()
+        return {"models": models}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ml/models/{model_name}")
+async def get_ml_model_info(model_name: str, version: str = None):
+    """Get detailed information about a specific ML model"""
+    try:
+        from ml.registry.model_registry import model_registry
+        info = model_registry.get_model_info(model_name, version)
+        return info
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ml/models/{model_name}/versions")
+async def get_ml_model_versions(model_name: str):
+    """Get all versions of a specific ML model"""
+    try:
+        from ml.registry.model_registry import model_registry
+        versions = model_registry.list_model_versions(model_name)
+        return {"model_name": model_name, "versions": versions}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ml/predict")
+async def ml_predict(request: Request):
+    """Make predictions using a registered ML model"""
+    try:
+        from ml.inference.predictor import ml_predictor
+        body = await request.json()
+
+        model_name = body.get('model_name')
+        features = body.get('features')
+        version = body.get('version')
+        return_proba = body.get('return_proba', False)
+
+        if not model_name or not features:
+            raise HTTPException(status_code=400, detail="model_name and features are required")
+
+        prediction = ml_predictor.predict(
+            model_name=model_name,
+            features=features,
+            version=version,
+            return_proba=return_proba
+        )
+
+        return {
+            "model_name": model_name,
+            "prediction": prediction
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/exposures")
 async def get_exposures():
     """Get dashboards/exposures that depend on models"""
@@ -2205,66 +463,1783 @@ async def get_exposures():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/tables/{table_name}/columns")
-async def get_table_columns(table_name: str):
-    """Get columns for a specific table"""
+@app.get("/api/dashboards")
+async def get_dashboards():
+    """Get dashboard configurations from database"""
     try:
-        from postgres import PostgresConnector
-        with PostgresConnector() as pg:
-            query = """
-                SELECT column_name, data_type
-                FROM information_schema.columns
-                WHERE table_schema = 'public'
-                AND table_name = %s
-                ORDER BY ordinal_position
+        from connection_manager import connection_manager
+
+        with connection_manager.get_connection() as pg:
+            # Get all dashboards
+            dashboards_query = """
+                SELECT id, name, description, created_at, updated_at
+                FROM dashboards
+                ORDER BY name
             """
-            result = pg.execute(query, (table_name,), fetch=True)
-            columns = [{"name": row['column_name'], "type": row['data_type']} for row in result]
+            dashboards = pg.execute(dashboards_query, fetch=True)
+
+            result = []
+            for dashboard in dashboards:
+                dashboard_id = dashboard['id']
+
+                # Get tabs for this dashboard
+                tabs_query = """
+                    SELECT id, name, position
+                    FROM dashboard_tabs
+                    WHERE dashboard_id = %s
+                    ORDER BY position
+                """
+                tabs = pg.execute(tabs_query, (dashboard_id,), fetch=True)
+
+                # Get filters for this dashboard
+                filters_query = """
+                    SELECT field, label, model, expression, apply_to_tabs
+                    FROM dashboard_filters
+                    WHERE dashboard_id = %s
+                    ORDER BY position
+                """
+                filters = pg.execute(filters_query, (dashboard_id,), fetch=True)
+
+                # Get charts for this dashboard
+                charts_query = """
+                    SELECT
+                        c.id,
+                        c.chart_number,
+                        c.title,
+                        c.type,
+                        c.model,
+                        c.connection_id,
+                        c.x_axis,
+                        c.y_axis,
+                        c.aggregation,
+                        c.columns,
+                        c.category,
+                        c.config,
+                        dc.tab_id,
+                        dc.position,
+                        dc.custom_width,
+                        dc.custom_height
+                    FROM charts c
+                    INNER JOIN dashboard_charts dc ON c.id = dc.chart_id
+                    WHERE dc.dashboard_id = %s
+                    ORDER BY dc.position
+                """
+                charts = pg.execute(charts_query, (dashboard_id,), fetch=True)
+
+                # Map charts with camelCase for custom dimensions
+                formatted_charts = []
+                for chart in charts:
+                    chart_dict = dict(chart)
+                    # Add camelCase versions of custom dimensions
+                    if 'custom_width' in chart_dict:
+                        chart_dict['customWidth'] = chart_dict['custom_width']
+                    if 'custom_height' in chart_dict:
+                        chart_dict['customHeight'] = chart_dict['custom_height']
+                    formatted_charts.append(chart_dict)
+
+                result.append({
+                    'id': dashboard['id'],
+                    'name': dashboard['name'],
+                    'description': dashboard['description'],
+                    'tabs': [{'id': t['id'], 'name': t['name']} for t in tabs],
+                    'filters': [dict(f) for f in filters],
+                    'charts': formatted_charts
+                })
+
+            return {"dashboards": result}
+    except Exception as e:
+        import traceback
+        import logging
+        logging.error(f"Error getting dashboards: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/dashboards")
+async def create_dashboard(request: Request):
+    """Create a new dashboard"""
+    try:
+        import yaml
+        import logging
+        import re
+
+        body = await request.json()
+        dashboard_name = body.get("name", "").strip()
+        dashboard_description = body.get("description", "").strip()
+
+        if not dashboard_name:
+            raise HTTPException(status_code=400, detail="Dashboard name is required")
+
+        # Generate dashboard ID from name (lowercase, replace spaces with hyphens)
+        dashboard_id = re.sub(r'[^a-z0-9]+', '-', dashboard_name.lower()).strip('-')
+
+        dashboards_file = models_dir / "dashboards.yml"
+
+        # Load existing dashboards or create new structure
+        if dashboards_file.exists():
+            with open(dashboards_file, 'r') as f:
+                data = yaml.safe_load(f) or {}
+        else:
+            data = {}
+
+        if 'dashboards' not in data:
+            data['dashboards'] = []
+
+        # Check if dashboard with this name or ID already exists
+        existing_names = [d.get('name', '').lower() for d in data['dashboards']]
+        existing_ids = [d.get('id') for d in data['dashboards']]
+
+        if dashboard_name.lower() in existing_names:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Dashboard with name '{dashboard_name}' already exists. Please choose a different name."
+            )
+
+        if dashboard_id in existing_ids:
+            # This shouldn't happen if name is unique, but just in case
+            raise HTTPException(
+                status_code=400,
+                detail=f"Dashboard ID conflict. Please choose a different name."
+            )
+
+        # Create new dashboard
+        new_dashboard = {
+            "id": dashboard_id,
+            "name": dashboard_name,
+            "description": dashboard_description or f"Custom dashboard: {dashboard_name}",
+            "charts": []
+        }
+
+        data['dashboards'].append(new_dashboard)
+
+        # Save to file
+        with open(dashboards_file, 'w') as f:
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+        logging.info(f"Created new dashboard: {dashboard_id}")
+
+        return {
+            "success": True,
+            "message": f"Dashboard '{dashboard_name}' created successfully!",
+            "dashboard": new_dashboard
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error creating dashboard: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/charts")
+async def get_all_charts():
+    """Get all charts from the database"""
+    try:
+        import logging
+        import json
+        from connection_manager import connection_manager
+
+        logging.info("Fetching all charts from database")
+
+        with connection_manager.get_connection() as pg:
+            # Query all charts from the charts table, including their dashboard assignments
+            charts_data = pg.execute("""
+                SELECT
+                    c.id,
+                    c.chart_number,
+                    c.title,
+                    c.description,
+                    c.type,
+                    c.model,
+                    c.connection_id,
+                    c.x_axis,
+                    c.y_axis,
+                    c.aggregation,
+                    c.columns,
+                    c.category,
+                    c.config,
+                    c.created_at,
+                    c.updated_at,
+                    dc.dashboard_id,
+                    dc.tab_id,
+                    d.name as dashboard_name
+                FROM charts c
+                LEFT JOIN dashboard_charts dc ON c.id = dc.chart_id
+                LEFT JOIN dashboards d ON dc.dashboard_id = d.id
+                ORDER BY c.chart_number ASC
+            """, fetch=True)
+
+            # Group charts and aggregate their dashboard assignments
+            charts_map = {}
+            if charts_data:
+                for row in charts_data:
+                    chart_id = row['id']
+
+                    # Create chart dict if it doesn't exist
+                    if chart_id not in charts_map:
+                        charts_map[chart_id] = {
+                            'id': chart_id,
+                            'chart_number': row['chart_number'],
+                            'title': row['title'],
+                            'description': row.get('description', ''),
+                            'type': row['type'],
+                            'model': row['model'],
+                            'connection_id': row['connection_id'],
+                            'x_axis': row['x_axis'],
+                            'y_axis': row['y_axis'],
+                            'aggregation': row['aggregation'],
+                            'columns': row['columns'] if row['columns'] else [],
+                            'category': row['category'],
+                            'config': row['config'] if row['config'] else {},
+                            'created_at': str(row['created_at']) if row['created_at'] else None,
+                            'updated_at': str(row['updated_at']) if row['updated_at'] else None,
+                            'dashboards': []  # Array of dashboard assignments
+                        }
+
+                    # Add dashboard assignment if it exists
+                    if row['dashboard_id']:
+                        charts_map[chart_id]['dashboards'].append({
+                            'id': row['dashboard_id'],
+                            'name': row['dashboard_name'],
+                            'tab_id': row['tab_id']
+                        })
+
+            all_charts = list(charts_map.values())
+
+            logging.info(f"Fetched {len(all_charts)} charts from database")
+            return {"charts": all_charts}
+
+    except Exception as e:
+        import logging
+        import traceback
+        logging.error(f"Error fetching charts: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/charts/save")
+async def save_chart(request: Request):
+    """Save a chart configuration to database"""
+    try:
+        import logging
+        import json
+        from connection_manager import connection_manager
+
+        # Parse request body
+        body = await request.json()
+        logging.info(f"Received chart save request: {body}")
+
+        # Get chart config from request
+        chart_id = body.get("id")
+        chart_title = body.get("title")
+        chart_description = body.get("description", "")
+        chart_type = body.get("type")
+        chart_model = body.get("model")
+        x_axis = body.get("x_axis", "")
+        y_axis = body.get("y_axis", "")
+        aggregation = body.get("aggregation", "sum")
+        columns = body.get("columns", None)  # For table charts
+        category = body.get("category", None)  # For stacked charts
+        config = body.get("config", None)  # Additional config
+
+        # Get the target dashboard ID from the request (None means standalone chart)
+        target_dashboard_id = body.get('dashboard_id', None)
+        tab_id = body.get('tab_id', None)  # NULL means unassigned
+        logging.info(f"Target dashboard ID: {target_dashboard_id}, tab: {tab_id}")
+
+        with connection_manager.get_connection() as pg:
+            # Handle creating a new dashboard if requested
+            if target_dashboard_id == '__new__':
+                new_dashboard_name = body.get('dashboard_name', 'New Dashboard')
+                new_dashboard_description = body.get('dashboard_description', '')
+                target_dashboard_id = new_dashboard_name.lower().replace(' ', '_').replace('-', '_')
+
+                # Check if dashboard exists
+                existing_dashboard = pg.execute(
+                    "SELECT id FROM dashboards WHERE id = %s",
+                    (target_dashboard_id,),
+                    fetch=True
+                )
+
+                if not existing_dashboard:
+                    # Create new dashboard
+                    pg.execute("""
+                        INSERT INTO dashboards (id, name, description)
+                        VALUES (%s, %s, %s)
+                    """, (target_dashboard_id, new_dashboard_name, new_dashboard_description))
+
+                    # Create default tab
+                    pg.execute("""
+                        INSERT INTO dashboard_tabs (id, dashboard_id, name, position)
+                        VALUES (%s, %s, %s, %s)
+                    """, (f"{target_dashboard_id}_tab_default", target_dashboard_id, 'All Charts', 0))
+
+                    tab_id = f"{target_dashboard_id}_tab_default"
+                    logging.info(f"Created new dashboard: {target_dashboard_id}")
+
+            # Check if dashboard exists (only if dashboard_id provided)
+            if target_dashboard_id:
+                dashboard_check = pg.execute(
+                    "SELECT id FROM dashboards WHERE id = %s",
+                    (target_dashboard_id,),
+                    fetch=True
+                )
+
+                if not dashboard_check:
+                    raise HTTPException(status_code=404, detail=f"Dashboard {target_dashboard_id} not found")
+
+            # Insert or update chart in charts table
+            pg.execute("""
+                INSERT INTO charts (id, title, description, type, model, x_axis, y_axis, aggregation, columns, category, config)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                    title = EXCLUDED.title,
+                    description = EXCLUDED.description,
+                    type = EXCLUDED.type,
+                    model = EXCLUDED.model,
+                    x_axis = EXCLUDED.x_axis,
+                    y_axis = EXCLUDED.y_axis,
+                    aggregation = EXCLUDED.aggregation,
+                    columns = EXCLUDED.columns,
+                    category = EXCLUDED.category,
+                    config = EXCLUDED.config,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (
+                chart_id, chart_title, chart_description, chart_type, chart_model,
+                x_axis, y_axis, aggregation,
+                json.dumps(columns) if columns else None,
+                category,
+                json.dumps(config) if config else None
+            ))
+
+            # Insert or update dashboard_charts junction (only if dashboard_id provided)
+            if target_dashboard_id:
+                # If tab_id is not set, use the default tab for this dashboard
+                if not tab_id:
+                    tab_id = f"{target_dashboard_id}_tab_default"
+
+                pg.execute("""
+                    INSERT INTO dashboard_charts (dashboard_id, chart_id, tab_id, position)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (dashboard_id, chart_id, tab_id) DO UPDATE SET
+                        position = EXCLUDED.position
+                """, (target_dashboard_id, chart_id, tab_id, 0))
+                logging.info(f"Successfully saved chart {chart_id} to dashboard {target_dashboard_id}")
+            else:
+                # Remove chart from all dashboards when saving as standalone
+                pg.execute("DELETE FROM dashboard_charts WHERE chart_id = %s", (chart_id,))
+                logging.info(f"Successfully saved standalone chart {chart_id} (removed from all dashboards)")
+
+        return {
+            "success": True,
+            "message": "Chart saved successfully!",
+            "dashboard_id": target_dashboard_id,
+            "chart_id": chart_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_detail = f"{str(e)}\n{traceback.format_exc()}"
+        logging.error(f"Error saving chart: {error_detail}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/charts/{chart_id}")
+async def delete_chart(chart_id: str):
+    """Delete a chart from the database"""
+    try:
+        import logging
+        from connection_manager import connection_manager
+
+        logging.info(f"Deleting chart: {chart_id}")
+
+        with connection_manager.get_connection() as pg:
+            # Check if chart exists
+            chart_check = pg.execute(
+                "SELECT id FROM charts WHERE id = %s",
+                (chart_id,),
+                fetch=True
+            )
+
+            if not chart_check:
+                raise HTTPException(status_code=404, detail=f"Chart {chart_id} not found")
+
+            # Delete from dashboard_charts junction table first (foreign key constraint)
+            pg.execute("DELETE FROM dashboard_charts WHERE chart_id = %s", (chart_id,))
+            logging.info(f"Removed chart {chart_id} from all dashboards")
+
+            # Delete the chart itself
+            pg.execute("DELETE FROM charts WHERE id = %s", (chart_id,))
+            logging.info(f"Successfully deleted chart {chart_id}")
+
+            return {
+                "success": True,
+                "message": f"Chart deleted successfully",
+                "chart_id": chart_id
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_detail = f"{str(e)}\n{traceback.format_exc()}"
+        logging.error(f"Error deleting chart: {error_detail}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/dashboards/{dashboard_id}/charts/add")
+async def add_chart_to_dashboard(dashboard_id: str, request: Request):
+    """Add an existing chart to a specific dashboard"""
+    try:
+        import yaml
+        import logging
+
+        body = await request.json()
+        chart_id = body.get("chart_id")
+
+        if not chart_id:
+            raise HTTPException(status_code=400, detail="chart_id is required")
+
+        dashboards_file = models_dir / "dashboards.yml"
+
+        if not dashboards_file.exists():
+            raise HTTPException(status_code=404, detail="Dashboards file not found")
+
+        # Load dashboards
+        with open(dashboards_file, 'r') as f:
+            data = yaml.safe_load(f) or {}
+
+        # Find the chart from all dashboards
+        chart_to_add = None
+        for dashboard in data.get('dashboards', []):
+            for chart in dashboard.get('charts', []):
+                if chart.get('id') == chart_id:
+                    chart_to_add = chart.copy()
+                    break
+            if chart_to_add:
+                break
+
+        if not chart_to_add:
+            raise HTTPException(status_code=404, detail=f"Chart {chart_id} not found")
+
+        # Find target dashboard
+        target_dashboard = None
+        for dashboard in data.get('dashboards', []):
+            if dashboard.get('id') == dashboard_id:
+                target_dashboard = dashboard
+                break
+
+        if not target_dashboard:
+            raise HTTPException(status_code=404, detail=f"Dashboard {dashboard_id} not found")
+
+        # Add chart to target dashboard if it doesn't already exist
+        if 'charts' not in target_dashboard:
+            target_dashboard['charts'] = []
+
+        # Check if chart already exists in this dashboard
+        chart_exists = any(c.get('id') == chart_id for c in target_dashboard['charts'])
+
+        if chart_exists:
+            return {
+                "success": False,
+                "message": "Chart already exists in this dashboard"
+            }
+
+        target_dashboard['charts'].append(chart_to_add)
+
+        # Save back to file
+        with open(dashboards_file, 'w') as f:
+            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+        return {
+            "success": True,
+            "message": f"Chart added to dashboard '{target_dashboard.get('name', dashboard_id)}' successfully!"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error adding chart to dashboard: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/dashboards/{dashboard_id}")
+async def get_dashboard(dashboard_id: str):
+    """Get a specific dashboard by ID from database"""
+    try:
+        from connection_manager import connection_manager
+
+        with connection_manager.get_connection() as pg:
+            # Get dashboard details
+            dashboard_query = """
+                SELECT id, name, description, created_at, updated_at
+                FROM dashboards
+                WHERE id = %s
+            """
+            dashboard_result = pg.execute(dashboard_query, (dashboard_id,), fetch=True)
+
+            if not dashboard_result:
+                raise HTTPException(status_code=404, detail=f"Dashboard {dashboard_id} not found")
+
+            dashboard = dashboard_result[0]
+
+            # Get tabs for this dashboard
+            tabs_query = """
+                SELECT id, name, position
+                FROM dashboard_tabs
+                WHERE dashboard_id = %s
+                ORDER BY position
+            """
+            tabs = pg.execute(tabs_query, (dashboard_id,), fetch=True)
+
+            # Get all charts assigned to this dashboard with their tab assignments
+            assigned_charts_query = """
+                SELECT
+                    c.id, c.title, c.type, c.model, c.x_axis, c.y_axis,
+                    c.aggregation, c.columns, c.category, c.config,
+                    dc.tab_id, dc.position, dc.size, dc.custom_width, dc.custom_height
+                FROM charts c
+                JOIN dashboard_charts dc ON c.id = dc.chart_id
+                WHERE dc.dashboard_id = %s
+                ORDER BY dc.position
+            """
+            assigned_charts = pg.execute(assigned_charts_query, (dashboard_id,), fetch=True)
+
+            # Organize charts by tab
+            tabs_with_charts = []
+            unassigned_charts = []
+
+            for tab in tabs:
+                tab_charts = [
+                    {
+                        'id': chart['id'],
+                        'title': chart['title'],
+                        'type': chart['type'],
+                        'model': chart['model'],
+                        'x_axis': chart['x_axis'],
+                        'y_axis': chart['y_axis'],
+                        'aggregation': chart['aggregation'],
+                        'columns': chart['columns'],
+                        'category': chart['category'],
+                        'config': chart['config'],
+                        'size': chart.get('size', 'medium'),
+                        'customWidth': chart.get('custom_width'),
+                        'customHeight': chart.get('custom_height')
+                    }
+                    for chart in assigned_charts
+                    if chart['tab_id'] == tab['id']
+                ]
+
+                tabs_with_charts.append({
+                    'id': tab['id'],
+                    'name': tab['name'],
+                    'position': tab['position'],
+                    'charts': tab_charts
+                })
+
+            # Get unassigned charts (tab_id is NULL)
+            unassigned_charts = [
+                {
+                    'id': chart['id'],
+                    'title': chart['title'],
+                    'type': chart['type'],
+                    'model': chart['model'],
+                    'x_axis': chart['x_axis'],
+                    'y_axis': chart['y_axis'],
+                    'aggregation': chart['aggregation'],
+                    'columns': chart['columns'],
+                    'category': chart['category'],
+                    'config': chart['config'],
+                    'size': chart.get('size', 'medium'),
+                    'customWidth': chart.get('custom_width'),
+                    'customHeight': chart.get('custom_height')
+                }
+                for chart in assigned_charts
+                if chart['tab_id'] is None
+            ]
+
+            # Get filters for this dashboard
+            filters_query = """
+                SELECT field, label, model, expression, apply_to_tabs
+                FROM dashboard_filters
+                WHERE dashboard_id = %s
+                ORDER BY position
+            """
+            filters = pg.execute(filters_query, (dashboard_id,), fetch=True)
+
+            return {
+                'id': dashboard['id'],
+                'name': dashboard['name'],
+                'description': dashboard['description'],
+                'tabs': tabs_with_charts,
+                'charts': unassigned_charts,  # Unassigned charts
+                'filters': [dict(f) for f in filters]
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        import traceback
+        logging.error(f"Error getting dashboard: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/dashboards/{dashboard_id}")
+async def update_dashboard(dashboard_id: str, request: Request):
+    """Update a dashboard with new chart configuration and filters in database"""
+    try:
+        import logging
+        from connection_manager import connection_manager
+
+        body = await request.json()
+        new_tabs = body.get("tabs", None)
+        new_charts = body.get("charts", None)  # Unassigned charts
+        new_filters = body.get("filters", [])
+
+        with connection_manager.get_connection() as pg:
+            # Check if dashboard exists
+            dashboard_result = pg.execute(
+                "SELECT id, name FROM dashboards WHERE id = %s",
+                (dashboard_id,),
+                fetch=True
+            )
+
+            if not dashboard_result:
+                raise HTTPException(status_code=404, detail=f"Dashboard {dashboard_id} not found")
+
+            dashboard_name = dashboard_result[0]['name']
+
+            # Update tabs if provided
+            if new_tabs is not None:
+                # Delete existing tabs and their chart assignments
+                pg.execute("DELETE FROM dashboard_tabs WHERE dashboard_id = %s", (dashboard_id,))
+
+                # Insert new tabs
+                for idx, tab in enumerate(new_tabs):
+                    tab_id = tab.get('id')
+                    tab_name = tab.get('name')
+
+                    # Create tab
+                    pg.execute("""
+                        INSERT INTO dashboard_tabs (id, dashboard_id, name, position)
+                        VALUES (%s, %s, %s, %s)
+                    """, (tab_id, dashboard_id, tab_name, idx))
+
+                    # Insert charts into this tab
+                    tab_charts = tab.get('charts', [])
+                    for chart_idx, chart in enumerate(tab_charts):
+                        chart_id = chart.get('id')
+
+                        # Check if chart exists in charts table; if not, create it
+                        chart_exists = pg.execute(
+                            "SELECT id FROM charts WHERE id = %s",
+                            (chart_id,),
+                            fetch=True
+                        )
+
+                        if not chart_exists:
+                            # Create chart in global charts table
+                            pg.execute("""
+                                INSERT INTO charts (id, title, type, model, x_axis, y_axis, aggregation, columns, category, config)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            """, (
+                                chart_id,
+                                chart.get('title'),
+                                chart.get('type'),
+                                chart.get('model'),
+                                chart.get('x_axis', ''),
+                                chart.get('y_axis', ''),
+                                chart.get('aggregation', 'sum'),
+                                chart.get('columns'),
+                                chart.get('category'),
+                                chart.get('config')
+                            ))
+
+                        # Assign chart to tab via junction table
+                        chart_size = chart.get('size', 'medium')
+                        custom_width = chart.get('customWidth')
+                        custom_height = chart.get('customHeight')
+                        pg.execute("""
+                            INSERT INTO dashboard_charts (dashboard_id, chart_id, tab_id, position, size, custom_width, custom_height)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (dashboard_id, chart_id, tab_id) DO UPDATE SET
+                                position = EXCLUDED.position,
+                                size = EXCLUDED.size,
+                                custom_width = EXCLUDED.custom_width,
+                                custom_height = EXCLUDED.custom_height
+                        """, (dashboard_id, chart_id, tab_id, chart_idx, chart_size, custom_width, custom_height))
+
+            # Update unassigned charts (charts with tab_id = NULL)
+            if new_charts is not None:
+                # Delete existing unassigned charts for this dashboard
+                pg.execute(
+                    "DELETE FROM dashboard_charts WHERE dashboard_id = %s AND tab_id IS NULL",
+                    (dashboard_id,)
+                )
+
+                # Insert unassigned charts
+                for chart_idx, chart in enumerate(new_charts):
+                    chart_id = chart.get('id')
+
+                    # Check if chart exists; if not, create it
+                    chart_exists = pg.execute(
+                        "SELECT id FROM charts WHERE id = %s",
+                        (chart_id,),
+                        fetch=True
+                    )
+
+                    if not chart_exists:
+                        pg.execute("""
+                            INSERT INTO charts (id, title, type, model, x_axis, y_axis, aggregation, columns, category, config)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            chart_id,
+                            chart.get('title'),
+                            chart.get('type'),
+                            chart.get('model'),
+                            chart.get('x_axis', ''),
+                            chart.get('y_axis', ''),
+                            chart.get('aggregation', 'sum'),
+                            chart.get('columns'),
+                            chart.get('category'),
+                            chart.get('config')
+                        ))
+
+                    # Assign chart as unassigned (tab_id = NULL)
+                    chart_size = chart.get('size', 'medium')
+                    custom_width = chart.get('customWidth')
+                    custom_height = chart.get('customHeight')
+                    pg.execute("""
+                        INSERT INTO dashboard_charts (dashboard_id, chart_id, tab_id, position, size, custom_width, custom_height)
+                        VALUES (%s, %s, NULL, %s, %s, %s, %s)
+                        ON CONFLICT (dashboard_id, chart_id, tab_id) DO UPDATE SET
+                            position = EXCLUDED.position,
+                            size = EXCLUDED.size,
+                            custom_width = EXCLUDED.custom_width,
+                            custom_height = EXCLUDED.custom_height
+                    """, (dashboard_id, chart_id, chart_idx, chart_size, custom_width, custom_height))
+
+            # Update filters if provided
+            if new_filters is not None:
+                # Delete existing filters
+                pg.execute("DELETE FROM dashboard_filters WHERE dashboard_id = %s", (dashboard_id,))
+
+                # Insert new filters
+                for filter_idx, filter_def in enumerate(new_filters):
+                    pg.execute("""
+                        INSERT INTO dashboard_filters (dashboard_id, field, label, model, expression, apply_to_tabs, position)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        dashboard_id,
+                        filter_def.get('field'),
+                        filter_def.get('label'),
+                        filter_def.get('model'),
+                        filter_def.get('expression'),
+                        filter_def.get('apply_to_tabs', []),
+                        filter_idx
+                    ))
+
+            logging.info(f"Successfully updated dashboard {dashboard_id}")
+
+        return {
+            "success": True,
+            "message": f"Dashboard '{dashboard_name}' updated successfully!"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error updating dashboard: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.patch("/api/dashboards/{dashboard_id}/metadata")
+async def update_dashboard_metadata(dashboard_id: str, request: Request):
+    """Update dashboard name and/or description"""
+    try:
+        body = await request.json()
+        name = body.get('name')
+        description = body.get('description')
+
+        logging.info(f"Updating dashboard {dashboard_id} metadata: name={name}, description={description}")
+
+        # Validate at least one field is provided
+        if name is None and description is None:
+            raise HTTPException(status_code=400, detail="At least one of 'name' or 'description' must be provided")
+
+        with connection_manager.get_connection() as pg:
+            # Check if dashboard exists
+            existing = pg.execute(
+                "SELECT id, name FROM dashboards WHERE id = %s",
+                (dashboard_id,),
+                fetch=True
+            )
+
+            if not existing or len(existing) == 0:
+                raise HTTPException(status_code=404, detail=f"Dashboard {dashboard_id} not found")
+
+            # Build dynamic UPDATE query based on what was provided
+            update_fields = []
+            update_values = []
+
+            if name is not None:
+                update_fields.append("name = %s")
+                update_values.append(name)
+
+            if description is not None:
+                update_fields.append("description = %s")
+                update_values.append(description)
+
+            update_fields.append("updated_at = NOW()")
+            update_values.append(dashboard_id)
+
+            update_query = f"""
+                UPDATE dashboards
+                SET {', '.join(update_fields)}
+                WHERE id = %s
+            """
+
+            pg.execute(update_query, tuple(update_values))
+
+            logging.info(f"Dashboard {dashboard_id} metadata updated successfully")
+            return {
+                "success": True,
+                "message": "Dashboard updated successfully"
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error updating dashboard metadata: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.patch("/api/dashboards/{dashboard_id}/charts/{chart_id}/dimensions")
+async def update_chart_dimensions(dashboard_id: str, chart_id: str, request: Request):
+    """Update custom dimensions (width/height) for a chart in a dashboard"""
+    try:
+        body = await request.json()
+        custom_width = body.get('customWidth')
+        custom_height = body.get('customHeight')
+
+        # INPUT VALIDATION: Type and range checks
+        if custom_width is not None:
+            if not isinstance(custom_width, (int, float)):
+                raise HTTPException(status_code=400, detail="customWidth must be a number")
+            custom_width = int(custom_width)
+            if custom_width < 250 or custom_width > 5000:
+                raise HTTPException(status_code=400, detail="customWidth must be between 250 and 5000 pixels")
+
+        if custom_height is not None:
+            if not isinstance(custom_height, (int, float)):
+                raise HTTPException(status_code=400, detail="customHeight must be a number")
+            custom_height = int(custom_height)
+            if custom_height < 200 or custom_height > 5000:
+                raise HTTPException(status_code=400, detail="customHeight must be between 200 and 5000 pixels")
+
+        logging.info(f"Updating chart {chart_id} dimensions in dashboard {dashboard_id}: {custom_width}x{custom_height}")
+
+        with connection_manager.get_connection() as pg:
+            # Check if the dashboard_chart relationship exists
+            check_query = """
+                SELECT id FROM dashboard_charts
+                WHERE dashboard_id = %s AND chart_id = %s
+            """
+            existing = pg.execute(check_query, (dashboard_id, chart_id), fetch=True)
+
+            if not existing or len(existing) == 0:
+                raise HTTPException(status_code=404, detail=f"Chart {chart_id} not found in dashboard {dashboard_id}")
+
+            # Update the custom dimensions in dashboard_charts table
+            update_query = """
+                UPDATE dashboard_charts
+                SET custom_width = %s, custom_height = %s
+                WHERE dashboard_id = %s AND chart_id = %s
+            """
+            pg.execute(update_query, (custom_width, custom_height, dashboard_id, chart_id))
+
+            logging.info(f"Chart {chart_id} dimensions updated successfully")
+            return {
+                "success": True,
+                "message": "Chart dimensions updated successfully"
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error updating chart dimensions: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Datasets API Routes
+# ============================================================================
+
+@app.get("/api/datasets")
+async def get_datasets():
+    """Get all datasets"""
+    return await datasets_api.get_all_datasets()
+
+
+@app.get("/api/datasets/{dataset_id}")
+async def get_dataset(dataset_id: str):
+    """Get a single dataset by ID"""
+    return await datasets_api.get_dataset_by_id(dataset_id)
+
+
+@app.post("/api/datasets")
+async def create_dataset_endpoint(request: Request):
+    """Create a new dataset"""
+    return await datasets_api.create_dataset(request)
+
+
+@app.put("/api/datasets/{dataset_id}")
+async def update_dataset_endpoint(dataset_id: str, request: Request):
+    """Update an existing dataset"""
+    return await datasets_api.update_dataset(dataset_id, request)
+
+
+@app.delete("/api/datasets/{dataset_id}")
+async def delete_dataset_endpoint(dataset_id: str):
+    """Delete a dataset"""
+    return await datasets_api.delete_dataset(dataset_id)
+
+
+@app.post("/api/datasets/preview")
+async def preview_dataset_endpoint(request: Request):
+    """Preview data from a dataset"""
+    return await datasets_api.preview_dataset(request)
+
+
+@app.post("/api/datasets/upload-csv")
+async def upload_csv(
+    file: UploadFile = File(...),
+    dataset_id: str = Form(None),
+    dataset_name: str = Form(None),
+    dataset_description: str = Form(None),
+    preview_only: str = Form(None)
+):
+    """Upload a CSV file and create a dataset"""
+    from postgres import PostgresConnector
+    import traceback
+
+    try:
+        # Validate file type
+        if not file.filename.endswith('.csv'):
+            raise HTTPException(status_code=400, detail="Only CSV files are supported")
+
+        # Read CSV file
+        contents = await file.read()
+
+        # Parse CSV with pandas
+        try:
+            import io
+            df = pd.read_csv(io.BytesIO(contents))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to parse CSV: {str(e)}")
+
+        # Get columns and data types
+        columns = []
+        for col in df.columns:
+            dtype = str(df[col].dtype)
+            # Map pandas dtypes to SQL types
+            if dtype.startswith('int'):
+                sql_type = 'INTEGER'
+            elif dtype.startswith('float'):
+                sql_type = 'NUMERIC'
+            elif dtype == 'bool':
+                sql_type = 'BOOLEAN'
+            elif dtype == 'datetime64':
+                sql_type = 'TIMESTAMP'
+            else:
+                sql_type = 'TEXT'
+
+            columns.append({
+                'name': col,
+                'type': sql_type
+            })
+
+        # Preview mode - just return data without saving
+        if preview_only == 'true':
+            preview_data = df.head(10).to_dict('records')
+            return {
+                "columns": columns,
+                "data": preview_data,
+                "row_count": len(df)
+            }
+
+        # Save mode - persist the file and create dataset record
+        # Create uploads directory if it doesn't exist
+        uploads_dir = Path(__file__).parent.parent / "uploads" / "csv"
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate unique filename
+        file_extension = Path(file.filename).suffix
+        unique_filename = f"{uuid.uuid4().hex}{file_extension}"
+        file_path = uploads_dir / unique_filename
+
+        # Save file
+        with open(file_path, 'wb') as f:
+            f.write(contents)
+
+        file_size = len(contents)
+
+        # Create dataset record in database
+        from connection_manager import connection_manager
+
+        # Use provided dataset_id or generate new one
+        if not dataset_id:
+            dataset_id = f"dataset_{uuid.uuid4().hex[:8]}"
+
+        # Generate table name from dataset name
+        table_name = dataset_name or file.filename.replace('.csv', '')
+        # Clean table name to be SQL-safe
+        table_name = ''.join(c if c.isalnum() or c == '_' else '_' for c in table_name.lower())
+        table_name = f"csv_{table_name}"
+
+        # Import CSV data into a database table
+        with connection_manager.get_connection() as pg:
+            import json
+
+            # Create table with columns based on detected types
+            create_cols = []
+            for col in columns:
+                col_name = col['name']
+                col_type = col['type']
+                # Escape column names with quotes to handle spaces and special chars
+                create_cols.append(f'"{col_name}" {col_type}')
+
+            create_table_sql = f"""
+                DROP TABLE IF EXISTS {table_name};
+                CREATE TABLE {table_name} (
+                    {', '.join(create_cols)}
+                );
+            """
+
+            pg.execute(create_table_sql)
+            logging.info(f"Created table {table_name} for CSV data")
+
+            # Insert data into table
+            if len(df) > 0:
+                # Use pandas to_sql for efficient bulk insert
+                from sqlalchemy import create_engine
+                import os
+
+                # Create SQLAlchemy engine from connection details
+                db_url = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/transformdash')
+                engine = create_engine(db_url)
+
+                # Insert dataframe into table
+                df.to_sql(table_name, engine, if_exists='replace', index=False)
+                logging.info(f"Inserted {len(df)} rows into {table_name}")
+
+            # Insert dataset record
+            pg.execute("""
+                INSERT INTO datasets (
+                    id, name, description, source_type,
+                    table_name, schema_name,
+                    file_path, original_filename, file_size_bytes,
+                    columns, created_at, updated_at
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, NOW(), NOW()
+                )
+            """, (
+                dataset_id,
+                dataset_name or file.filename.replace('.csv', ''),
+                dataset_description or '',
+                'csv',
+                table_name,
+                'public',
+                str(file_path),
+                file.filename,
+                file_size,
+                json.dumps(columns)
+            ))
+
+        logging.info(f"CSV dataset created: {dataset_id} from file {file.filename}, imported to table {table_name}")
+
+        return {
+            "success": True,
+            "dataset_id": dataset_id,
+            "columns": columns,
+            "row_count": len(df),
+            "file_size": file_size
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error uploading CSV: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Table/Column Metadata Routes
+# ============================================================================
+
+@app.get("/api/tables/{table_name}/columns")
+async def get_table_columns(table_name: str, schema: str = "public", connection_id: str = None):
+    """Get columns for a specific table or view"""
+    try:
+        from connection_manager import connection_manager
+        import logging
+
+        # Get connection from connection manager
+        with connection_manager.get_connection(connection_id) as pg:
+            # Use pg_attribute for more reliable column information
+            # Also check if column is part of any index
+            query = """
+                WITH index_columns AS (
+                    SELECT
+                        i.indrelid,
+                        unnest(i.indkey) as attnum,
+                        i.indisprimary,
+                        i.indisunique
+                    FROM pg_catalog.pg_index i
+                    JOIN pg_catalog.pg_class c ON i.indrelid = c.oid
+                    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+                    WHERE n.nspname = %s
+                    AND c.relname = %s
+                )
+                SELECT
+                    a.attname as column_name,
+                    pg_catalog.format_type(a.atttypid, a.atttypmod) as data_type,
+                    CASE
+                        WHEN bool_or(ic.indisprimary) THEN 'primary'
+                        WHEN bool_or(ic.indisunique) THEN 'unique'
+                        WHEN COUNT(ic.attnum) > 0 THEN 'index'
+                        ELSE NULL
+                    END as index_type,
+                    a.attnum as column_order
+                FROM pg_catalog.pg_attribute a
+                JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
+                JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+                LEFT JOIN index_columns ic ON a.attrelid = ic.indrelid AND a.attnum = ic.attnum
+                WHERE n.nspname = %s
+                AND c.relname = %s
+                AND a.attnum > 0
+                AND NOT a.attisdropped
+                GROUP BY a.attname, a.atttypid, a.atttypmod, a.attnum
+                ORDER BY column_order
+            """
+            logging.info(f"Fetching columns for connection {connection_id or 'default'}.{schema}.{table_name}")
+            result = pg.execute(query, (schema, table_name, schema, table_name), fetch=True)
+            columns = [{"name": row['column_name'], "type": row['data_type'], "index_type": row['index_type']} for row in result]
+            logging.info(f"Found {len(columns)} columns for {schema}.{table_name}")
             return {"columns": columns}
     except Exception as e:
+        import logging
+        import traceback
+        logging.error(f"Error fetching columns: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/query")
-async def query_data(request: dict):
+async def query_data(request: Request):
     """Execute a query and return aggregated data for charting"""
     try:
         from postgres import PostgresConnector
+        import logging
 
-        table = request.get('table')
-        x_axis = request.get('x_axis')
-        y_axis = request.get('y_axis')
-        aggregation = request.get('aggregation', 'sum')
+        body = await request.json()
+        logging.info(f"Query request body: {body}")
+        logging.info(f"Body keys: {body.keys()}")
 
-        if not all([table, x_axis, y_axis]):
-            raise HTTPException(status_code=400, detail="Missing required parameters")
+        table = body.get('table') or body.get('model')
+        chart_type = body.get('type', 'bar')
+        metric = body.get('metric')
+        x_axis = body.get('x_axis')
+        y_axis = body.get('y_axis')
+        aggregation = body.get('aggregation', 'sum')
+        filters = body.get('filters', {})
+        filter_expressions = body.get('filter_expressions', {})
+        schema = body.get('schema', 'public')
+        connection_id = body.get('connection_id')
 
-        # Build aggregation query
-        agg_func = aggregation.upper()
-        query = f"""
-            SELECT
-                {x_axis} as label,
-                {agg_func}({y_axis}) as value
-            FROM public.{table}
-            WHERE {x_axis} IS NOT NULL
-            GROUP BY {x_axis}
-            ORDER BY {x_axis}
-            LIMIT 50
-        """
+        logging.info(f"Extracted table/model: {table}, schema: {schema}, connection_id: {connection_id}")
+        logging.info(f"Filters: {filters}, Filter expressions: {filter_expressions}")
+
+        if not table:
+            logging.error(f"No table found! Body was: {body}")
+            raise HTTPException(status_code=400, detail="Missing table/model parameter")
+
+        from connection_manager import connection_manager
+
+        # Helper function to build WHERE clause for filters with optional expressions
+        def build_filter_clauses(filters, filter_expressions, available_columns):
+            """Build WHERE clauses supporting SQL expressions for filters"""
+            where_clauses = []
+            params = []
+
+            for field, value in filters.items():
+                if not value:
+                    continue
+
+                # Check if there's an SQL expression for this filter
+                if field in filter_expressions and filter_expressions[field]:
+                    # Use the SQL expression instead of the raw field
+                    expression = filter_expressions[field]
+                    where_clauses.append(f"({expression}) = %s")
+                    params.append(value)
+                elif field in available_columns:
+                    # Use the field directly
+                    where_clauses.append(f"{field} = %s")
+                    params.append(value)
+
+            return where_clauses, params
+
+        with connection_manager.get_connection(connection_id) as pg:
+            # First, get available columns for this table
+            col_query = """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = %s AND table_name = %s
+            """
+            col_result = pg.execute(col_query, (schema, table), fetch=True)
+            available_columns = {row['column_name'] for row in col_result}
+
+            # Handle table type charts (data table display)
+            if chart_type == 'table':
+                columns = body.get('columns', [])
+                if not columns:
+                    raise HTTPException(status_code=400, detail="Missing columns for table chart")
+
+                # Build WHERE clauses from filters using helper function
+                where_clauses, params = build_filter_clauses(filters, filter_expressions, available_columns)
+                where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+                # Build column selection
+                column_names = ', '.join(columns)
+                query = f"""
+                    SELECT {column_names}
+                    FROM {schema}.{table}
+                    {where_sql}
+                    LIMIT 100
+                """
+
+                df = pg.query_to_dataframe(query, tuple(params) if params else None)
+
+                # Convert DataFrame to list of dictionaries
+                data = df.to_dict('records')
+
+                return {
+                    "columns": columns,
+                    "data": data
+                }
+
+            # Handle metric type charts (single value)
+            if chart_type == 'metric' and metric:
+                # Build WHERE clauses from filters using helper function
+                where_clauses, params = build_filter_clauses(filters, filter_expressions, available_columns)
+                where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+                agg_func = aggregation.upper()
+                query = f"""
+                    SELECT {agg_func}({metric}) as value
+                    FROM {schema}.{table}
+                    {where_sql}
+                """
+
+                df = pg.query_to_dataframe(query, tuple(params) if params else None)
+                value = df['value'].iloc[0] if len(df) > 0 else 0
+
+                # Handle NaN values
+                import math
+                if value is None or (isinstance(value, float) and math.isnan(value)):
+                    value = 0
+
+                return {
+                    "value": float(value),
+                    "labels": [],
+                    "values": []
+                }
+
+            # Handle multi-metric charts (multiple series on same chart)
+            metrics = body.get('metrics')
+            if metrics and isinstance(metrics, list):
+                if not x_axis:
+                    raise HTTPException(status_code=400, detail="Missing x_axis for multi-metric chart")
+
+                # Build WHERE clauses from filters using helper function
+                filter_clauses, params = build_filter_clauses(filters, filter_expressions, available_columns)
+                where_clauses = [f"{x_axis} IS NOT NULL"] + filter_clauses
+                where_sql = "WHERE " + " AND ".join(where_clauses)
+
+                # Build query with multiple aggregations
+                metric_selects = []
+                for metric in metrics:
+                    field = metric.get('field')
+                    agg = metric.get('aggregation', 'sum').upper()
+                    label = metric.get('label', field)
+                    metric_selects.append(f"{agg}({field}) as {field}")
+
+                query = f"""
+                    SELECT
+                        {x_axis} as label,
+                        {', '.join(metric_selects)}
+                    FROM {schema}.{table}
+                    {where_sql}
+                    GROUP BY {x_axis}
+                    ORDER BY {x_axis}
+                    LIMIT 50
+                """
+
+                df = pg.query_to_dataframe(query, tuple(params) if params else None)
+
+                # Convert to multi-series format
+                import math
+                labels = df['label'].astype(str).tolist()
+                datasets = []
+
+                for metric in metrics:
+                    field = metric.get('field')
+                    label = metric.get('label', field)
+                    values = [
+                        None if (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) else v
+                        for v in df[field].tolist()
+                    ]
+                    datasets.append({
+                        'label': label,
+                        'data': values
+                    })
+
+                return {
+                    "labels": labels,
+                    "datasets": datasets
+                }
+
+            # Handle regular charts with x_axis and y_axis
+            if not all([x_axis, y_axis]):
+                raise HTTPException(status_code=400, detail="Missing x_axis or y_axis for chart")
+
+            # Build WHERE clauses from filters using helper function
+            filter_clauses, params = build_filter_clauses(filters, filter_expressions, available_columns)
+            where_clauses = [f"{x_axis} IS NOT NULL"] + filter_clauses
+            where_sql = "WHERE " + " AND ".join(where_clauses)
+
+            # Check if this is a stacked bar chart with a category field
+            category = body.get('category')
+            if chart_type == 'bar-stacked' and category:
+                # For stacked charts, we need to pivot data by category
+                agg_func = aggregation.upper()
+                query = f"""
+                    SELECT
+                        {x_axis} as label,
+                        {category} as category,
+                        {agg_func}({y_axis}) as value
+                    FROM {schema}.{table}
+                    {where_sql}
+                    GROUP BY {x_axis}, {category}
+                    ORDER BY {x_axis}, {category}
+                    LIMIT 500
+                """
+
+                df = pg.query_to_dataframe(query, tuple(params) if params else None)
+
+                # Pivot the data to create multiple datasets (one per category)
+                import pandas as pd
+                import math
+
+                # Get unique categories and labels
+                categories = df['category'].unique().tolist()
+                labels = sorted(df['label'].unique().tolist(), key=str)
+
+                # Build datasets for each category
+                datasets = []
+                for cat in categories:
+                    cat_data = df[df['category'] == cat]
+                    # Create a value for each label, filling missing with 0
+                    values = []
+                    for label in labels:
+                        matching = cat_data[cat_data['label'] == label]
+                        if len(matching) > 0:
+                            val = matching['value'].iloc[0]
+                            # Handle NaN/inf
+                            if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+                                values.append(0)
+                            else:
+                                values.append(float(val) if val is not None else 0)
+                        else:
+                            values.append(0)
+
+                    datasets.append({
+                        "label": str(cat),
+                        "data": values
+                    })
+
+                return {
+                    "labels": [str(l) for l in labels],
+                    "datasets": datasets
+                }
+            else:
+                # Regular (non-stacked) chart
+                agg_func = aggregation.upper()
+                query = f"""
+                    SELECT
+                        {x_axis} as label,
+                        {agg_func}({y_axis}) as value
+                    FROM {schema}.{table}
+                    {where_sql}
+                    GROUP BY {x_axis}
+                    ORDER BY {x_axis}
+                    LIMIT 50
+                """
+
+                df = pg.query_to_dataframe(query, tuple(params) if params else None)
+
+                # Convert to chart-friendly format
+                # Replace NaN with None for JSON compatibility
+                import math
+                labels = df['label'].astype(str).tolist()
+                values = [
+                    None if (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) else v
+                    for v in df['value'].tolist()
+                ]
+
+                return {
+                    "labels": labels,
+                    "values": values
+                }
+    except Exception as e:
+        import traceback
+        logging.error(f"Query error: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/connections/list")
+async def list_connections():
+    """List all configured database connections"""
+    try:
+        from connection_manager import connection_manager
+        import logging
+
+        connections = connection_manager.list_connections()
+        logging.info(f"Found {len(connections)} configured connections")
+        return {"connections": connections}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error listing connections: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/databases/list")
+async def list_databases():
+    """List all databases"""
+    try:
+        from postgres import PostgresConnector
+        import logging
 
         with PostgresConnector() as pg:
-            df = pg.query_to_dataframe(query)
+            query = """
+                SELECT datname as name
+                FROM pg_database
+                WHERE datistemplate = false
+                ORDER BY datname
+            """
+            result = pg.execute(query, fetch=True)
+            databases = [row['name'] for row in result]
+            logging.info(f"Found {len(databases)} databases")
+            return {"databases": databases}
 
-            # Convert to chart-friendly format
-            labels = df['label'].astype(str).tolist()
-            values = df['value'].tolist()
+    except Exception as e:
+        import traceback
+        logging.error(f"Error listing databases: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/schemas/list")
+async def list_schemas(connection_id: str = None):
+    """List all schemas in specified connection"""
+    try:
+        from connection_manager import connection_manager
+        import logging
+
+        # Get connection from connection manager
+        with connection_manager.get_connection(connection_id) as pg:
+            query = """
+                SELECT nspname as name
+                FROM pg_namespace
+                WHERE nspname NOT LIKE 'pg_%'
+                  AND nspname != 'information_schema'
+                ORDER BY nspname
+            """
+            result = pg.execute(query, fetch=True)
+            schemas = [row['name'] for row in result]
+            logging.info(f"Found {len(schemas)} schemas in connection {connection_id or 'default'}")
+            return {"schemas": schemas}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error listing schemas: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/tables/list")
+async def list_tables(schema: str = "public", connection_id: str = None):
+    """List all tables/views in the database for SQL Query Lab"""
+    try:
+        from connection_manager import connection_manager
+        import logging
+
+        # Get connection from connection manager
+        with connection_manager.get_connection(connection_id) as pg:
+            # Get all tables and views with their sizes
+            query = """
+                SELECT
+                    t.tablename as name,
+                    'table' as type,
+                    pg_size_pretty(pg_total_relation_size(quote_ident(t.schemaname) || '.' || quote_ident(t.tablename))) as size
+                FROM pg_catalog.pg_tables t
+                WHERE t.schemaname = %s
+                UNION ALL
+                SELECT
+                    v.viewname as name,
+                    'view' as type,
+                    '-' as size
+                FROM pg_catalog.pg_views v
+                WHERE v.schemaname = %s
+                    AND v.viewname NOT LIKE 'pg_%%'
+                ORDER BY name
+            """
+            result = pg.execute(query, (schema, schema), fetch=True)
+
+            tables = []
+            for row in result:
+                tables.append({
+                    'name': str(row['name']),
+                    'type': str(row['type']),
+                    'size': str(row['size']) if row['size'] else '-'
+                })
+
+            logging.info(f"Found {len(tables)} database objects in connection {connection_id or 'default'}.{schema}")
+            return {"tables": tables}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error listing tables: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/filter/values")
+async def get_filter_values(request: Request):
+    """Get distinct values for a filter field (supports SQL expressions)"""
+    try:
+        from connection_manager import connection_manager
+        import logging
+
+        body = await request.json()
+        table = body.get('table')
+        field = body.get('field')
+        expression = body.get('expression')  # Optional SQL expression
+        schema = body.get('schema', 'public')
+        connection_id = body.get('connection_id')
+
+        if not table:
+            raise HTTPException(status_code=400, detail="Table name is required")
+
+        if not field and not expression:
+            raise HTTPException(status_code=400, detail="Either field or expression is required")
+
+        # Use expression if provided, otherwise use field
+        query_field = expression if expression else field
+
+        # Get connection from connection manager
+        with connection_manager.get_connection(connection_id) as pg:
+            # Set search path to use the selected schema
+            if schema:
+                pg.execute(f"SET search_path TO {schema}, public")
+
+            # Build query to get distinct values
+            query = f"""
+                SELECT DISTINCT {query_field} as value
+                FROM {table}
+                WHERE {query_field} IS NOT NULL
+                ORDER BY {query_field}
+                LIMIT 1000
+            """
+
+            logging.info(f"Fetching filter values: {query}")
+            result = pg.execute(query, fetch=True)
+
+            values = [row['value'] for row in result]
+            logging.info(f"Found {len(values)} distinct values for {field or expression}")
+
+            return {"values": values}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error fetching filter values: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/query/execute")
+async def execute_query(request: Request):
+    """Execute a SQL query and return results for SQL Query Lab"""
+    try:
+        from postgres import PostgresConnector
+        import logging
+
+        body = await request.json()
+        sql = body.get('sql', '').strip()
+        connection_id = body.get('connection_id')
+        schema = body.get('schema', 'public')
+
+        if not sql:
+            raise HTTPException(status_code=400, detail="SQL query is required")
+
+        # Safety check: only allow SELECT queries
+        sql_upper = sql.upper().strip()
+        if not sql_upper.startswith('SELECT') and not sql_upper.startswith('WITH'):
+            raise HTTPException(
+                status_code=400,
+                detail="Only SELECT queries and CTEs (WITH) are allowed in SQL Query Lab"
+            )
+
+        # Additional safety: block dangerous keywords
+        dangerous_keywords = ['DROP', 'DELETE', 'TRUNCATE', 'ALTER', 'CREATE', 'INSERT', 'UPDATE']
+        for keyword in dangerous_keywords:
+            if keyword in sql_upper:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Query contains forbidden keyword: {keyword}"
+                )
+
+        logging.info(f"Executing query in connection={connection_id or 'default'}, schema={schema}")
+
+        # Get connection from connection manager
+        from connection_manager import connection_manager
+        with connection_manager.get_connection(connection_id) as pg:
+            # Set search path to use the selected schema
+            if schema:
+                pg.execute(f"SET search_path TO {schema}, public")
+                logging.info(f"Set search_path to {schema}, public")
+
+            # Execute query and convert to dataframe
+            df = pg.query_to_dataframe(sql)
+
+            # Convert to JSON-friendly format
+            import math
+            import numpy as np
+            import json as json_lib
+
+            columns = df.columns.tolist()
+
+            # Replace NaN and Inf with None before converting to dict
+            df = df.replace([np.inf, -np.inf], None)
+            df = df.where(df.notna(), None)
+
+            # Convert to list of dictionaries
+            rows_raw = df.to_dict('records')
+            rows = []
+
+            for row_dict in rows_raw:
+                row_data = {}
+                for col, value in row_dict.items():
+                    # Handle None first
+                    if value is None:
+                        row_data[col] = None
+                    # Check for NaN/Inf in both Python float and numpy types BEFORE any conversion
+                    elif isinstance(value, (float, np.floating)):
+                        # Use pandas isna which handles both Python and numpy NaN
+                        import pandas as pd
+                        if pd.isna(value) or math.isinf(float(value)):
+                            row_data[col] = None
+                        else:
+                            # Convert numpy float to Python float
+                            row_data[col] = float(value)
+                    # Convert pandas Timestamp to string
+                    elif hasattr(value, 'isoformat'):
+                        row_data[col] = value.isoformat()
+                    # Handle lists and tuples (PostgreSQL arrays)
+                    elif isinstance(value, (list, tuple)):
+                        row_data[col] = list(value)
+                    # Handle numpy arrays (convert to list)
+                    elif isinstance(value, np.ndarray):
+                        row_data[col] = value.tolist()
+                    # Convert other numpy scalar types to Python native types
+                    elif isinstance(value, np.integer):
+                        row_data[col] = int(value)
+                    elif isinstance(value, np.bool_):
+                        row_data[col] = bool(value)
+                    # Handle Python native types
+                    elif isinstance(value, (int, str, bool)):
+                        row_data[col] = value
+                    else:
+                        # For any other type (UUID, etc.), try JSON serialization or convert to string
+                        try:
+                            # Test if it's JSON serializable
+                            json_lib.dumps(value)
+                            row_data[col] = value
+                        except (TypeError, ValueError):
+                            # Convert to string as fallback (handles UUID, etc.)
+                            row_data[col] = str(value)
+                rows.append(row_data)
+
+            logging.info(f"Query executed successfully: {len(rows)} rows returned")
 
             return {
-                "labels": labels,
-                "values": values
+                "success": True,
+                "columns": columns,
+                "rows": rows,
+                "row_count": len(rows)
             }
+
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        logging.error(f"Error executing query: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Query execution failed: {str(e)}")
+
+
+@app.post("/api/views/create")
+async def create_view(request: Request):
+    """Create a database view from a SQL query"""
+    try:
+        body = await request.json()
+        connection_id = body.get('connection_id')
+        schema = body.get('schema', 'public')
+        view_name = body.get('view_name')
+        query = body.get('query', '').strip()
+
+        if not view_name:
+            raise HTTPException(status_code=400, detail="View name is required")
+        if not query:
+            raise HTTPException(status_code=400, detail="Query is required")
+
+        # Validate view name (alphanumeric and underscores only)
+        import re
+        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', view_name):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid view name. Use only letters, numbers, and underscores."
+            )
+
+        # Get connection from connection manager
+        from connection_manager import connection_manager
+        with connection_manager.get_connection(connection_id) as pg:
+            # Create the view
+            create_view_sql = f"CREATE OR REPLACE VIEW {schema}.{view_name} AS\n{query}"
+            logging.info(f"Creating view: {create_view_sql}")
+            pg.execute(create_view_sql)
+
+            logging.info(f"View {schema}.{view_name} created successfully")
+
+            return {
+                "success": True,
+                "message": f"View {schema}.{view_name} created successfully",
+                "view_name": view_name,
+                "schema": schema
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error creating view: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to create view: {str(e)}")
 
 
 @app.get("/api/health")
@@ -2273,10 +2248,1476 @@ async def health_check():
     return {"status": "healthy", "service": "transformdash"}
 
 
+@app.get("/api/status")
+async def server_status():
+    """Get comprehensive server status including scheduler and jobs"""
+    import psutil
+    import os
+    from datetime import datetime
+
+    try:
+        # Get process info
+        process = psutil.Process(os.getpid())
+
+        # Get scheduler status
+        scheduler = get_scheduler()
+        active_jobs = scheduler.get_active_schedules() if scheduler else []
+
+        # Get database connection status
+        try:
+            conn_status = {
+                "transformdash": "connected" if connection_manager.get_connection('transformdash') else "disconnected",
+                "app": "connected" if connection_manager.get_connection('app') else "disconnected"
+            }
+        except Exception:
+            conn_status = {"error": "Unable to check connections"}
+
+        return {
+            "status": "healthy",
+            "service": "transformdash",
+            "timestamp": datetime.now().isoformat(),
+            "process": {
+                "pid": process.pid,
+                "uptime_seconds": (datetime.now() - datetime.fromtimestamp(process.create_time())).total_seconds(),
+                "memory_mb": round(process.memory_info().rss / (1024 * 1024), 2),
+                "cpu_percent": process.cpu_percent(interval=0.1),
+                "threads": process.num_threads()
+            },
+            "scheduler": {
+                "active": scheduler is not None,
+                "jobs_count": len(active_jobs),
+                "jobs": active_jobs
+            },
+            "database": conn_status
+        }
+    except Exception as e:
+        logger.error(f"Error getting server status: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@app.get("/api/jobs")
+async def get_jobs():
+    """Get all scheduled jobs and their status"""
+    try:
+        scheduler = get_scheduler()
+        if not scheduler:
+            return {"jobs": [], "message": "Scheduler not initialized"}
+
+        jobs = scheduler.get_active_schedules()
+
+        return {
+            "jobs": jobs,
+            "jobs_count": len(jobs)
+        }
+    except Exception as e:
+        logger.error(f"Error getting jobs: {e}")
+        return {"error": str(e), "jobs": []}
+
+
+@app.get("/api/jobs/{job_id}")
+async def get_job_details(job_id: str):
+    """Get details of a specific job"""
+    try:
+        scheduler = get_scheduler()
+        if not scheduler:
+            raise HTTPException(status_code=503, detail="Scheduler not available")
+
+        # Get job from scheduler
+        job = scheduler.scheduler.get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+        return {
+            "id": job.id,
+            "name": job.name,
+            "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
+            "trigger": str(job.trigger),
+            "args": job.args,
+            "kwargs": job.kwargs
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/jobs/{job_id}/pause")
+async def pause_job(job_id: str):
+    """Pause a scheduled job"""
+    try:
+        scheduler = get_scheduler()
+        if not scheduler:
+            raise HTTPException(status_code=503, detail="Scheduler not available")
+
+        # Extract schedule_id from job_id (format: "schedule_{id}")
+        if job_id.startswith("schedule_"):
+            schedule_id = int(job_id.replace("schedule_", ""))
+            success = scheduler.pause_schedule(schedule_id)
+
+            if success:
+                return {"status": "paused", "job_id": job_id}
+            else:
+                raise HTTPException(status_code=500, detail="Failed to pause job")
+        else:
+            raise HTTPException(status_code=400, detail="Invalid job ID format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/jobs/{job_id}/resume")
+async def resume_job(job_id: str):
+    """Resume a paused job"""
+    try:
+        scheduler = get_scheduler()
+        if not scheduler:
+            raise HTTPException(status_code=503, detail="Scheduler not available")
+
+        if job_id.startswith("schedule_"):
+            schedule_id = int(job_id.replace("schedule_", ""))
+            success = scheduler.resume_schedule(schedule_id)
+
+            if success:
+                return {"status": "resumed", "job_id": job_id}
+            else:
+                raise HTTPException(status_code=500, detail="Failed to resume job")
+        else:
+            raise HTTPException(status_code=400, detail="Invalid job ID format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/dashboard/{dashboard_id}/export")
+async def export_dashboard_data(dashboard_id: str, request: Request):
+    """Export all dashboard data as CSV or Excel"""
+    try:
+        from postgres import PostgresConnector
+        import yaml
+        import io
+        from fastapi.responses import StreamingResponse
+
+        body = await request.json()
+
+        dashboards_file = models_dir / "dashboards.yml"
+        with open(dashboards_file, 'r') as f:
+            data = yaml.safe_load(f)
+
+        dashboard = next((d for d in data.get('dashboards', []) if d['id'] == dashboard_id), None)
+        if not dashboard:
+            raise HTTPException(status_code=404, detail="Dashboard not found")
+
+        export_format = body.get('format', 'csv')  # csv or excel
+        filters = body.get('filters', {})
+
+        # Collect all data from all charts
+        all_data = {}
+
+        with PostgresConnector() as pg:
+            for chart in dashboard.get('charts', []):
+                # Skip metric-only charts and advanced charts
+                if chart.get('type') == 'metric' or chart.get('metrics') or chart.get('calculation'):
+                    continue
+
+                if not chart.get('model') or not chart.get('x_axis') or not chart.get('y_axis'):
+                    continue
+
+                # Build query with filters
+                table = chart['model']
+                x_axis = chart['x_axis']
+                y_axis = chart['y_axis']
+                agg_func = chart.get('aggregation', 'sum').upper()
+
+                # Apply filters from request
+                where_clauses = []
+                params = []
+                if filters:
+                    for field, value in filters.items():
+                        where_clauses.append(f"{field} = %s")
+                        params.append(value)
+
+                where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+                query = f"""
+                    SELECT
+                        {x_axis} as label,
+                        {agg_func}({y_axis}) as value
+                    FROM {schema}.{table}
+                    {where_sql}
+                    GROUP BY {x_axis}
+                    ORDER BY {x_axis}
+                """
+
+                df = pg.query_to_dataframe(query, tuple(params) if params else None)
+                all_data[chart['title']] = df
+
+        # Export as requested format
+        if export_format == 'excel':
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                for sheet_name, df in all_data.items():
+                    # Excel sheet names have 31 char limit
+                    safe_name = sheet_name[:31]
+                    df.to_excel(writer, sheet_name=safe_name, index=False)
+            output.seek(0)
+
+            return StreamingResponse(
+                output,
+                media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                headers={'Content-Disposition': f'attachment; filename="{dashboard_id}_data.xlsx"'}
+            )
+        else:  # CSV - combine all data
+            output = io.StringIO()
+            for chart_title, df in all_data.items():
+                output.write(f"\n{chart_title}\n")
+                df.to_csv(output, index=False)
+                output.write("\n")
+            output.seek(0)
+
+            return StreamingResponse(
+                iter([output.getvalue()]),
+                media_type='text/csv',
+                headers={'Content-Disposition': f'attachment; filename="{dashboard_id}_data.csv"'}
+            )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/dashboard/{dashboard_id}/filters")
+async def get_dashboard_filters(dashboard_id: str):
+    """Get available filter options for a dashboard"""
+    try:
+        from postgres import PostgresConnector
+        import yaml
+
+        dashboards_file = models_dir / "dashboards.yml"
+        with open(dashboards_file, 'r') as f:
+            data = yaml.safe_load(f)
+
+        dashboard = next((d for d in data.get('dashboards', []) if d['id'] == dashboard_id), None)
+        if not dashboard:
+            raise HTTPException(status_code=404, detail="Dashboard not found")
+
+        # Collect all possible filter fields from charts
+        filter_fields = set()
+        models_used = set()
+
+        for chart in dashboard.get('charts', []):
+            if chart.get('model'):
+                models_used.add(chart['model'])
+            if chart.get('filters'):
+                for f in chart['filters']:
+                    filter_fields.add(f['field'])
+
+        # Get unique values for each filter field
+        filters = {}
+        with PostgresConnector() as pg:
+            for model in models_used:
+                # Get columns for this model
+                query = f"""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = %s
+                    ORDER BY ordinal_position
+                """
+                result = pg.execute(query, (model,), fetch=True)
+                columns = [row['column_name'] for row in result]
+
+                # Get distinct values for common filter columns
+                common_filters = ['order_year', 'order_month', 'sale_year', 'sale_month',
+                                'order_value_tier', 'status', 'category', 'warehouse_id']
+
+                for col in columns:
+                    if any(cf in col.lower() for cf in ['year', 'month', 'tier', 'status', 'category', 'warehouse']):
+                        try:
+                            query = f"""
+                                SELECT DISTINCT {col} as value
+                                FROM public.{model}
+                                WHERE {col} IS NOT NULL
+                                ORDER BY {col}
+                                LIMIT 100
+                            """
+                            result = pg.execute(query, fetch=True)
+                            values = [row['value'] for row in result]
+                            if values:
+                                filters[col] = {
+                                    'label': col.replace('_', ' ').title(),
+                                    'values': values
+                                }
+                        except:
+                            continue
+
+        return {"filters": filters}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/data-quality/orphaned-models")
+async def get_orphaned_models():
+    """
+    Detect orphaned database objects - tables/views that exist in the database
+    but are not defined in any dbt model files.
+
+    This helps identify:
+    - Old tables that should be cleaned up
+    - Manual tables created outside the dbt workflow
+    - Test tables that weren't removed
+    """
+    try:
+        from postgres import PostgresConnector
+        import logging
+
+        # Get all database objects in public schema
+        with PostgresConnector() as pg:
+            db_objects_query = """
+                SELECT tablename AS name, 'table' AS type
+                FROM pg_catalog.pg_tables
+                WHERE schemaname = 'public'
+                UNION ALL
+                SELECT matviewname AS name, 'materialized_view' AS type
+                FROM pg_catalog.pg_matviews
+                WHERE schemaname = 'public'
+                UNION ALL
+                SELECT viewname AS name, 'view' AS type
+                FROM pg_catalog.pg_views
+                WHERE schemaname = 'public'
+                    AND viewname NOT LIKE 'pg_%'
+                ORDER BY name
+            """
+            db_objects = pg.execute(db_objects_query, fetch=True)
+
+        # Get all model names from dbt
+        models = loader.load_all_models()
+        model_names = set(model.name for model in models)
+
+        # Also check sources from sources.yml
+        import yaml
+        sources_file = models_dir / "sources.yml"
+        raw_tables = set()
+
+        if sources_file.exists():
+            with open(sources_file, 'r') as f:
+                sources_config = yaml.safe_load(f) or {}
+                for source in sources_config.get('sources', []):
+                    for table in source.get('tables', []):
+                        raw_tables.add(table['name'])
+
+        # Find orphaned objects
+        orphaned = []
+        managed = []
+
+        for obj in db_objects:
+            obj_name = obj['name']
+            obj_type = obj['type']
+
+            is_model = obj_name in model_names
+            is_source = obj_name in raw_tables
+
+            if not is_model and not is_source:
+                orphaned.append({
+                    'name': obj_name,
+                    'type': obj_type,
+                    'reason': 'Not defined in any model or source'
+                })
+            else:
+                managed.append({
+                    'name': obj_name,
+                    'type': obj_type,
+                    'managed_by': 'dbt_model' if is_model else 'raw_source'
+                })
+
+        return {
+            'orphaned': orphaned,
+            'managed': managed,
+            'summary': {
+                'total_objects': len(db_objects),
+                'orphaned_count': len(orphaned),
+                'managed_count': len(managed),
+                'status': 'clean' if len(orphaned) == 0 else 'needs_attention'
+            }
+        }
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error detecting orphaned models: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# SCHEDULE MANAGEMENT ENDPOINTS
+# =============================================================================
+
+from scheduler import get_scheduler
+from connection_manager import connection_manager
+from pydantic import BaseModel
+
+class ScheduleCreate(BaseModel):
+    schedule_name: str
+    model_names: list[str]  # Changed to support multiple models
+    cron_expression: str
+    description: str = None
+    timezone: str = 'UTC'
+    max_retries: int = 0
+
+class ScheduleUpdate(BaseModel):
+    schedule_name: str = None
+    model_names: list[str] = None
+    cron_expression: str = None
+    description: str = None
+    is_active: bool = None
+    timezone: str = None
+
+@app.get("/api/schedules")
+async def list_schedules():
+    """Get all model schedules with their status"""
+    try:
+        with connection_manager.get_connection() as pg:
+            schedules = pg.execute("""
+                SELECT * FROM v_schedule_status
+                ORDER BY created_at DESC
+            """, fetch=True) or []
+        return {"schedules": schedules}
+    except Exception as e:
+        import traceback
+        logging.error(f"Error listing schedules: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/schedules")
+async def create_schedule(schedule: ScheduleCreate):
+    """Create a new model schedule with support for multiple models"""
+    try:
+        # Validate models exist
+        all_models = loader.load_all_models()
+        model_map = {m.name: m for m in all_models}
+
+        for model_name in schedule.model_names:
+            if model_name not in model_map:
+                raise HTTPException(status_code=404, detail=f"Model '{model_name}' not found")
+
+        # Validate cron expression
+        parts = schedule.cron_expression.split()
+        if len(parts) != 5:
+            raise HTTPException(status_code=400, detail="Invalid cron expression. Expected format: 'minute hour day month day_of_week'")
+
+        # Insert into database
+        with connection_manager.get_connection() as pg:
+            # Create the schedule (no longer requires model_name)
+            result = pg.execute("""
+                INSERT INTO model_schedules (
+                    schedule_name, cron_expression,
+                    description, timezone, max_retries, is_active
+                )
+                VALUES (%s, %s, %s, %s, %s, TRUE)
+                RETURNING id, schedule_name, cron_expression
+            """, params=(
+                schedule.schedule_name,
+                schedule.cron_expression,
+                schedule.description,
+                schedule.timezone,
+                schedule.max_retries
+            ), fetch=True)
+
+            schedule_record = result[0]
+            schedule_id = schedule_record['id']
+
+            # Add models to schedule_models table
+            for idx, model_name in enumerate(schedule.model_names):
+                pg.execute("""
+                    INSERT INTO schedule_models (schedule_id, model_name, execution_order)
+                    VALUES (%s, %s, %s)
+                """, params=(schedule_id, model_name, idx))
+
+        # Add to scheduler
+        scheduler = get_scheduler()
+        success = scheduler.add_schedule(
+            schedule_id=schedule_id,
+            model_names=schedule.model_names,
+            cron_expression=schedule_record['cron_expression'],
+            timezone=schedule.timezone
+        )
+
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to add schedule to scheduler")
+
+        return {
+            "message": "Schedule created successfully",
+            "schedule": {
+                **schedule_record,
+                "models": schedule.model_names,
+                "model_count": len(schedule.model_names)
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error creating schedule: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/schedules/{schedule_id}")
+async def get_schedule(schedule_id: int):
+    """Get a specific schedule with its run history"""
+    try:
+        with connection_manager.get_connection() as pg:
+            # Get schedule details
+            schedule = pg.execute("""
+                SELECT * FROM v_schedule_status
+                WHERE id = %s
+            """, params=(schedule_id,), fetch=True)
+
+            if not schedule:
+                raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+
+            # Get associated models
+            models = pg.execute("""
+                SELECT model_name
+                FROM schedule_models
+                WHERE schedule_id = %s
+                ORDER BY model_name
+            """, params=(schedule_id,), fetch=True)
+
+            # Get recent runs
+            runs = pg.execute("""
+                SELECT * FROM schedule_runs
+                WHERE schedule_id = %s
+                ORDER BY started_at DESC
+                LIMIT 50
+            """, params=(schedule_id,), fetch=True)
+
+        schedule_data = schedule[0]
+        schedule_data['models'] = [m['model_name'] for m in models]
+
+        return {
+            "schedule": schedule_data,
+            "recent_runs": runs
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error getting schedule: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/schedules/{schedule_id}")
+async def update_schedule(schedule_id: int, update: ScheduleUpdate):
+    """Update a schedule"""
+    try:
+        scheduler = get_scheduler()
+
+        with connection_manager.get_connection() as pg:
+            # Build dynamic update query
+            updates = []
+            params = []
+
+            if update.schedule_name is not None:
+                updates.append("schedule_name = %s")
+                params.append(update.schedule_name)
+
+            if update.cron_expression is not None:
+                # Validate cron expression
+                parts = update.cron_expression.split()
+                if len(parts) != 5:
+                    raise HTTPException(status_code=400, detail="Invalid cron expression")
+                updates.append("cron_expression = %s")
+                params.append(update.cron_expression)
+
+            if update.description is not None:
+                updates.append("description = %s")
+                params.append(update.description)
+
+            if update.is_active is not None:
+                updates.append("is_active = %s")
+                params.append(update.is_active)
+
+            if update.timezone is not None:
+                updates.append("timezone = %s")
+                params.append(update.timezone)
+
+            if not updates and update.model_names is None:
+                raise HTTPException(status_code=400, detail="No fields to update")
+
+            updates.append("updated_at = CURRENT_TIMESTAMP")
+            params.append(schedule_id)
+
+            # Update schedule table if there are updates
+            if updates:
+                query = f"""
+                    UPDATE model_schedules
+                    SET {', '.join(updates)}
+                    WHERE id = %s
+                    RETURNING id, schedule_name, cron_expression, timezone, is_active
+                """
+                result = pg.execute(query, params, fetch=True)
+
+                if not result:
+                    raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+
+                schedule_record = result[0]
+            else:
+                # Just get the existing schedule
+                schedule_record = pg.execute("""
+                    SELECT id, schedule_name, cron_expression, timezone, is_active
+                    FROM model_schedules
+                    WHERE id = %s
+                """, params=(schedule_id,), fetch=True)
+                if not schedule_record:
+                    raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+                schedule_record = schedule_record[0]
+
+            # Update models if provided
+            if update.model_names is not None:
+                if not update.model_names:
+                    raise HTTPException(status_code=400, detail="At least one model must be selected")
+
+                # Delete old model associations
+                pg.execute("""
+                    DELETE FROM schedule_models
+                    WHERE schedule_id = %s
+                """, params=(schedule_id,))
+
+                # Insert new model associations
+                for model_name in update.model_names:
+                    pg.execute("""
+                        INSERT INTO schedule_models (schedule_id, model_name)
+                        VALUES (%s, %s)
+                    """, params=(schedule_id, model_name))
+
+            # Get updated models for the schedule
+            models = pg.execute("""
+                SELECT model_name
+                FROM schedule_models
+                WHERE schedule_id = %s
+                ORDER BY model_name
+            """, params=(schedule_id,), fetch=True)
+            model_names = [m['model_name'] for m in models]
+
+        # Update scheduler if cron, timezone, or models changed, or if activating
+        needs_reschedule = (
+            update.cron_expression is not None or
+            update.timezone is not None or
+            update.model_names is not None or
+            (update.is_active and update.is_active == True)
+        )
+
+        if needs_reschedule:
+            scheduler.remove_schedule(schedule_id)
+            if schedule_record['is_active'] and model_names:
+                scheduler.add_schedule(
+                    schedule_id=schedule_record['id'],
+                    model_names=model_names,
+                    cron_expression=schedule_record['cron_expression'],
+                    timezone=schedule_record['timezone']
+                )
+        elif update.is_active is not None and not update.is_active:
+            # Deactivating - remove from scheduler
+            scheduler.remove_schedule(schedule_id)
+
+        # Add models to response
+        schedule_record['models'] = model_names
+
+        return {
+            "message": "Schedule updated successfully",
+            "schedule": schedule_record
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error updating schedule: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/schedules/{schedule_id}")
+async def delete_schedule(schedule_id: int):
+    """Delete a schedule"""
+    try:
+        scheduler = get_scheduler()
+
+        # Remove from scheduler
+        scheduler.remove_schedule(schedule_id)
+
+        # Delete from database
+        with connection_manager.get_connection() as pg:
+            pg.execute("""
+                DELETE FROM model_schedules
+                WHERE id = %s
+            """, [schedule_id])
+
+        return {"message": "Schedule deleted successfully"}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error deleting schedule: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/schedules/{schedule_id}/toggle")
+async def toggle_schedule(schedule_id: int):
+    """Toggle a schedule active/inactive"""
+    try:
+        with connection_manager.get_connection() as pg:
+            # Toggle is_active
+            result = pg.execute("""
+                UPDATE model_schedules
+                SET is_active = NOT is_active, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                RETURNING id, model_name, cron_expression, timezone, is_active
+            """, [schedule_id])
+
+            if not result:
+                raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+
+            schedule_record = result[0]
+
+        scheduler = get_scheduler()
+
+        if schedule_record['is_active']:
+            # Activating - add to scheduler
+            scheduler.add_schedule(
+                schedule_id=schedule_record['id'],
+                model_name=schedule_record['model_name'],
+                cron_expression=schedule_record['cron_expression'],
+                timezone=schedule_record['timezone']
+            )
+            message = "Schedule activated"
+        else:
+            # Deactivating - remove from scheduler
+            scheduler.remove_schedule(schedule_id)
+            message = "Schedule deactivated"
+
+        return {
+            "message": message,
+            "is_active": schedule_record['is_active']
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error toggling schedule: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/schedules/{schedule_id}/runs")
+async def get_schedule_runs(schedule_id: int, limit: int = 50):
+    """Get run history for a schedule"""
+    try:
+        with connection_manager.get_connection() as pg:
+            runs = pg.execute("""
+                SELECT * FROM schedule_runs
+                WHERE schedule_id = %s
+                ORDER BY started_at DESC
+                LIMIT %s
+            """, params=(schedule_id, limit), fetch=True)
+
+        return {"runs": runs}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error getting schedule runs: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+### Assets Management API ###
+
+@app.get("/api/assets")
+async def get_assets(asset_type: str = None, tags: str = None):
+    """Get all assets, optionally filtered by type and tags"""
+    try:
+        from connection_manager import connection_manager
+
+        with connection_manager.get_connection('transformdash') as pg:
+            # Build query with optional filters
+            query = "SELECT * FROM assets WHERE is_active = TRUE"
+            params = []
+
+            if asset_type:
+                query += " AND asset_type = %s"
+                params.append(asset_type)
+
+            if tags:
+                tag_list = [t.strip() for t in tags.split(',')]
+                query += " AND tags && %s"
+                params.append(tag_list)
+
+            query += " ORDER BY created_at DESC"
+
+            assets = pg.execute(query, tuple(params) if params else None, fetch=True)
+            return {"assets": assets}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error fetching assets: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/assets/{asset_id}")
+async def get_asset(asset_id: int):
+    """Get a single asset by ID"""
+    try:
+        from connection_manager import connection_manager
+
+        with connection_manager.get_connection('transformdash') as pg:
+            assets = pg.execute(
+                "SELECT * FROM assets WHERE id = %s AND is_active = TRUE",
+                (asset_id,),
+                fetch=True
+            )
+
+            if not assets:
+                raise HTTPException(status_code=404, detail="Asset not found")
+
+            return {"asset": assets[0]}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error fetching asset: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/assets/upload")
+async def upload_asset(
+    file: UploadFile = File(...),
+    name: str = Form(...),
+    description: str = Form(None),
+    asset_type: str = Form(...),
+    tags: str = Form(None),
+    created_by: str = Form(None)
+):
+    """Upload a new asset"""
+    try:
+        from connection_manager import connection_manager
+        import shutil
+
+        # Create assets directory if it doesn't exist
+        assets_dir = Path(__file__).parent.parent / "assets" / asset_type
+        assets_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate unique filename
+        file_extension = Path(file.filename).suffix
+        unique_filename = f"{uuid.uuid4().hex}{file_extension}"
+        file_path = assets_dir / unique_filename
+
+        # Save file
+        with open(file_path, 'wb') as f:
+            shutil.copyfileobj(file.file, f)
+
+        # Get file size
+        file_size = file_path.stat().st_size
+
+        # Get relative path
+        relative_path = f"{asset_type}/{unique_filename}"
+
+        # Parse tags
+        tags_array = [t.strip() for t in tags.split(',')] if tags else []
+
+        # Extract metadata based on file type
+        metadata = {}
+        if asset_type in ['csv', 'excel']:
+            try:
+                df = pd.read_csv(file_path) if asset_type == 'csv' else pd.read_excel(file_path)
+                metadata = {
+                    'columns': list(df.columns),
+                    'row_count': len(df),
+                    'column_types': {col: str(dtype) for col, dtype in df.dtypes.items()}
+                }
+            except:
+                pass
+
+        # Insert into database
+        with connection_manager.get_connection('transformdash') as pg:
+            result = pg.execute("""
+                INSERT INTO assets (name, description, asset_type, file_path, file_size,
+                                   mime_type, created_by, tags, metadata)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id, name, asset_type, file_path, created_at
+            """, (
+                name,
+                description,
+                asset_type,
+                relative_path,
+                file_size,
+                file.content_type,
+                created_by,
+                tags_array,
+                json.dumps(metadata) if metadata else None
+            ), fetch=True)
+
+            asset = result[0] if result else None
+
+            return {
+                "message": "Asset uploaded successfully",
+                "asset": asset
+            }
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error uploading asset: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/assets/{asset_id}")
+async def update_asset(asset_id: int, request: Request):
+    """Update asset metadata"""
+    try:
+        from connection_manager import connection_manager
+
+        body = await request.json()
+        name = body.get('name')
+        description = body.get('description')
+        tags = body.get('tags', [])
+
+        with connection_manager.get_connection('transformdash') as pg:
+            pg.execute("""
+                UPDATE assets
+                SET name = %s, description = %s, tags = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (name, description, tags, asset_id))
+
+            return {"message": "Asset updated successfully"}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error updating asset: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/assets/{asset_id}")
+async def delete_asset(asset_id: int):
+    """Soft delete an asset"""
+    try:
+        from connection_manager import connection_manager
+
+        with connection_manager.get_connection('transformdash') as pg:
+            pg.execute(
+                "UPDATE assets SET is_active = FALSE WHERE id = %s",
+                (asset_id,)
+            )
+
+            return {"message": "Asset deleted successfully"}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error deleting asset: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/assets/{asset_id}/download")
+async def download_asset(asset_id: int):
+    """Download an asset file"""
+    try:
+        from connection_manager import connection_manager
+        from fastapi.responses import FileResponse
+
+        with connection_manager.get_connection('transformdash') as pg:
+            assets = pg.execute(
+                "SELECT name, file_path, mime_type FROM assets WHERE id = %s AND is_active = TRUE",
+                (asset_id,),
+                fetch=True
+            )
+
+            if not assets:
+                raise HTTPException(status_code=404, detail="Asset not found")
+
+            asset = assets[0]
+            file_path = Path(__file__).parent.parent / "assets" / asset['file_path']
+
+            if not file_path.exists():
+                raise HTTPException(status_code=404, detail="File not found")
+
+            return FileResponse(
+                path=file_path,
+                filename=asset['name'],
+                media_type=asset['mime_type']
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error downloading asset: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Authentication Endpoints
+# =============================================================================
+
+@app.post("/api/auth/login")
+async def login(request: Request):
+    """Login endpoint - authenticate user and return JWT token"""
+    try:
+        import sys
+        from pathlib import Path
+        sys.path.append(str(Path(__file__).parent.parent))
+        from auth import authenticate_user, create_access_token
+        from fastapi.responses import JSONResponse
+
+        body = await request.json()
+        username = body.get('username')
+        password = body.get('password')
+
+        if not username or not password:
+            raise HTTPException(status_code=400, detail="Username and password required")
+
+        # Authenticate user
+        user = await authenticate_user(username, password)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password"
+            )
+
+        # Create access token
+        access_token = create_access_token(data={"sub": user['username']})
+
+        # Return token in both body and cookie
+        response = JSONResponse(content={
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "id": user['id'],
+                "username": user['username'],
+                "email": user['email'],
+                "full_name": user.get('full_name'),
+                "is_superuser": user['is_superuser']
+            }
+        })
+
+        # Set cookie (httponly for security)
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            max_age=480 * 60,  # 8 hours in seconds
+            samesite="lax"
+        )
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Login error: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/auth/logout")
+async def logout():
+    """Logout endpoint - clear authentication cookie"""
+    from fastapi.responses import JSONResponse
+
+    response = JSONResponse(content={"message": "Logged out successfully"})
+    response.delete_cookie(key="access_token")
+    return response
+
+
+@app.get("/api/auth/me")
+async def get_current_user_info(request: Request):
+    """Get current authenticated user info"""
+    try:
+        import sys
+        from pathlib import Path
+        sys.path.append(str(Path(__file__).parent.parent))
+        from auth import get_current_user
+
+        user = await get_current_user(request)
+        return {
+            "user": {
+                "id": user['id'],
+                "username": user['username'],
+                "email": user['email'],
+                "full_name": user.get('full_name'),
+                "is_superuser": user['is_superuser'],
+                "roles": user.get('roles', []),
+                "permissions": user.get('permissions', [])
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error getting current user: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# User Management Endpoints
+# =============================================================================
+
+@app.get("/api/users")
+async def get_users():
+    """Get all users with their roles"""
+    try:
+        from connection_manager import connection_manager
+
+        with connection_manager.get_connection() as pg:
+            users = pg.execute("""
+                SELECT
+                    u.id,
+                    u.username,
+                    u.email,
+                    u.full_name,
+                    u.is_active,
+                    u.is_superuser,
+                    u.created_at,
+                    u.last_login,
+                    COALESCE(
+                        json_agg(
+                            json_build_object('id', r.id, 'name', r.name)
+                        ) FILTER (WHERE r.id IS NOT NULL),
+                        '[]'::json
+                    ) as roles
+                FROM users u
+                LEFT JOIN user_roles ur ON u.id = ur.user_id
+                LEFT JOIN roles r ON ur.role_id = r.id
+                GROUP BY u.id, u.username, u.email, u.full_name, u.is_active, u.is_superuser, u.created_at, u.last_login
+                ORDER BY u.created_at DESC
+            """, fetch=True)
+
+            return {"users": [dict(u) for u in users]}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error fetching users: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/users")
+async def create_user(request: Request):
+    """Create a new user"""
+    try:
+        from connection_manager import connection_manager
+        import bcrypt
+
+        body = await request.json()
+        username = body.get('username')
+        email = body.get('email')
+        password = body.get('password')
+        full_name = body.get('full_name', '')
+        role_ids = body.get('role_ids', [])
+
+        if not username or not email or not password:
+            raise HTTPException(status_code=400, detail="Username, email, and password are required")
+
+        # Hash password (truncate to 72 bytes for bcrypt limit)
+        password = password[:72]
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+        with connection_manager.get_connection() as pg:
+            # Create user
+            user_id = pg.execute("""
+                INSERT INTO users (username, email, password_hash, full_name, is_active, is_superuser)
+                VALUES (%s, %s, %s, %s, TRUE, FALSE)
+                RETURNING id
+            """, (username, email, password_hash, full_name), fetch=True)[0]['id']
+
+            # Assign roles
+            for role_id in role_ids:
+                pg.execute("""
+                    INSERT INTO user_roles (user_id, role_id)
+                    VALUES (%s, %s)
+                """, (user_id, role_id))
+
+            return {"message": "User created successfully", "user_id": user_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error creating user: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/users/{user_id}")
+async def update_user(user_id: int, request: Request):
+    """Update user details"""
+    try:
+        from connection_manager import connection_manager
+        import bcrypt
+
+        body = await request.json()
+        email = body.get('email')
+        full_name = body.get('full_name')
+        is_active = body.get('is_active')
+        is_superuser = body.get('is_superuser')
+        password = body.get('password')  # Optional - only if changing password
+        role_ids = body.get('role_ids')
+
+        with connection_manager.get_connection() as pg:
+            # Update basic info
+            update_fields = []
+            params = []
+
+            if email is not None:
+                update_fields.append("email = %s")
+                params.append(email)
+            if full_name is not None:
+                update_fields.append("full_name = %s")
+                params.append(full_name)
+            if is_active is not None:
+                update_fields.append("is_active = %s")
+                params.append(is_active)
+            if is_superuser is not None:
+                update_fields.append("is_superuser = %s")
+                params.append(is_superuser)
+            if password:
+                # Truncate to 72 bytes for bcrypt limit
+                password = password[:72]
+                password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                update_fields.append("password_hash = %s")
+                params.append(password_hash)
+
+            if update_fields:
+                update_fields.append("updated_at = CURRENT_TIMESTAMP")
+                params.append(user_id)
+                pg.execute(f"""
+                    UPDATE users
+                    SET {', '.join(update_fields)}
+                    WHERE id = %s
+                """, tuple(params))
+
+            # Update roles if provided
+            if role_ids is not None:
+                # Remove existing roles
+                pg.execute("DELETE FROM user_roles WHERE user_id = %s", (user_id,))
+
+                # Add new roles
+                for role_id in role_ids:
+                    pg.execute("""
+                        INSERT INTO user_roles (user_id, role_id)
+                        VALUES (%s, %s)
+                    """, (user_id, role_id))
+
+            return {"message": "User updated successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error updating user: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/users/{user_id}")
+async def delete_user(user_id: int):
+    """Delete a user"""
+    try:
+        from connection_manager import connection_manager
+
+        with connection_manager.get_connection() as pg:
+            pg.execute("DELETE FROM users WHERE id = %s", (user_id,))
+            return {"message": "User deleted successfully"}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error deleting user: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/roles")
+async def get_roles():
+    """Get all roles with their permissions"""
+    try:
+        from connection_manager import connection_manager
+
+        with connection_manager.get_connection() as pg:
+            roles = pg.execute("""
+                SELECT
+                    r.id,
+                    r.name,
+                    r.description,
+                    COALESCE(
+                        json_agg(
+                            json_build_object(
+                                'id', p.id,
+                                'name', p.name,
+                                'resource', p.resource,
+                                'action', p.action,
+                                'description', p.description
+                            )
+                        ) FILTER (WHERE p.id IS NOT NULL),
+                        '[]'::json
+                    ) as permissions
+                FROM roles r
+                LEFT JOIN role_permissions rp ON r.id = rp.role_id
+                LEFT JOIN permissions p ON rp.permission_id = p.id
+                GROUP BY r.id, r.name, r.description
+                ORDER BY r.name
+            """, fetch=True)
+
+            return {"roles": [dict(r) for r in roles]}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error fetching roles: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/permissions")
+async def get_permissions():
+    """Get all available permissions"""
+    try:
+        from connection_manager import connection_manager
+
+        with connection_manager.get_connection() as pg:
+            permissions = pg.execute("""
+                SELECT id, name, resource, action, description
+                FROM permissions
+                ORDER BY resource, action
+            """, fetch=True)
+
+            return {"permissions": [dict(p) for p in permissions]}
+
+    except Exception as e:
+        import traceback
+        logging.error(f"Error fetching permissions: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/roles")
+async def create_role(request: Request):
+    """Create a new role"""
+    try:
+        from connection_manager import connection_manager
+
+        body = await request.json()
+        name = body.get('name')
+        description = body.get('description', '')
+        permission_ids = body.get('permission_ids', [])
+
+        if not name:
+            raise HTTPException(status_code=400, detail="Role name is required")
+
+        with connection_manager.get_connection() as pg:
+            # Create role
+            role_id = pg.execute("""
+                INSERT INTO roles (name, description)
+                VALUES (%s, %s)
+                RETURNING id
+            """, (name, description), fetch=True)[0]['id']
+
+            # Assign permissions
+            for permission_id in permission_ids:
+                pg.execute("""
+                    INSERT INTO role_permissions (role_id, permission_id)
+                    VALUES (%s, %s)
+                """, (role_id, permission_id))
+
+            return {"message": "Role created successfully", "role_id": role_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error creating role: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/roles/{role_id}")
+async def update_role(role_id: int, request: Request):
+    """Update role details and permissions"""
+    try:
+        from connection_manager import connection_manager
+
+        body = await request.json()
+        name = body.get('name')
+        description = body.get('description')
+        permission_ids = body.get('permission_ids')
+
+        with connection_manager.get_connection() as pg:
+            # Update basic info
+            update_fields = []
+            params = []
+
+            if name is not None:
+                update_fields.append("name = %s")
+                params.append(name)
+            if description is not None:
+                update_fields.append("description = %s")
+                params.append(description)
+
+            if update_fields:
+                params.append(role_id)
+                pg.execute(f"""
+                    UPDATE roles
+                    SET {', '.join(update_fields)}
+                    WHERE id = %s
+                """, tuple(params))
+
+            # Update permissions if provided
+            if permission_ids is not None:
+                # Remove existing permissions
+                pg.execute("DELETE FROM role_permissions WHERE role_id = %s", (role_id,))
+
+                # Add new permissions
+                for permission_id in permission_ids:
+                    pg.execute("""
+                        INSERT INTO role_permissions (role_id, permission_id)
+                        VALUES (%s, %s)
+                    """, (role_id, permission_id))
+
+            return {"message": "Role updated successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error updating role: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/roles/{role_id}")
+async def delete_role(role_id: int):
+    """Delete a role"""
+    try:
+        from connection_manager import connection_manager
+
+        with connection_manager.get_connection() as pg:
+            # Check if role is in use
+            users_with_role = pg.execute("""
+                SELECT COUNT(*) as count
+                FROM user_roles
+                WHERE role_id = %s
+            """, (role_id,), fetch=True)[0]['count']
+
+            if users_with_role > 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot delete role: {users_with_role} user(s) still have this role"
+                )
+
+            pg.execute("DELETE FROM roles WHERE id = %s", (role_id,))
+            return {"message": "Role deleted successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"Error deleting role: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
+    from scheduler import start_scheduler
+
+    # Start the scheduler service
+    start_scheduler()
+
     print("\n🚀 Starting TransformDash Web UI...")
     print("📊 Dashboard: http://localhost:8000")
     print("📖 API Docs: http://localhost:8000/docs")
+    print("⏰ Scheduler: Active")
     print("\n")
     uvicorn.run(app, host="0.0.0.0", port=8000)
