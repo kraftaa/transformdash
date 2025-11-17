@@ -1277,6 +1277,19 @@ async function toggleModelHistory(modelName) {
     }
 }
 
+function toggleRunLogs(logsId) {
+    const logsRow = document.getElementById(logsId);
+    const button = event.target;
+
+    if (logsRow.style.display === 'none' || logsRow.style.display === '') {
+        logsRow.style.display = 'table-row';
+        button.textContent = '▼';
+    } else {
+        logsRow.style.display = 'none';
+        button.textContent = '▶';
+    }
+}
+
 async function loadModelHistory(modelName) {
     const historySection = document.getElementById(`history-${modelName}`);
 
@@ -1296,6 +1309,7 @@ async function loadModelHistory(modelName) {
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
                     <thead>
                         <tr style="background: #e9ecef; border-bottom: 2px solid #dee2e6;">
+                            <th style="padding: 0.5rem; text-align: left; width: 30px;"></th>
                             <th style="padding: 0.5rem; text-align: left;">Timestamp</th>
                             <th style="padding: 0.5rem; text-align: left;">Status</th>
                             <th style="padding: 0.5rem; text-align: right;">Execution Time</th>
@@ -1305,7 +1319,7 @@ async function loadModelHistory(modelName) {
                     <tbody>
         `;
 
-        data.runs.forEach(run => {
+        data.runs.forEach((run, index) => {
             const timestamp = new Date(run.timestamp).toLocaleString();
             const statusBadge = run.status === 'success'
                 ? '<span style="color: #22c55e; font-weight: 600;">✓ Success</span>'
@@ -1315,14 +1329,33 @@ async function loadModelHistory(modelName) {
                 ? `<span style="color: #ef4444; font-size: 0.8rem;">${run.error.substring(0, 100)}${run.error.length > 100 ? '...' : ''}</span>`
                 : '-';
 
+            const hasLogs = run.logs && run.logs.length > 0;
+            const logsId = `logs-${modelName}-${index}`;
+
             html += `
                 <tr style="border-bottom: 1px solid #e9ecef;">
+                    <td style="padding: 0.5rem;">
+                        ${hasLogs ? `<button onclick="toggleRunLogs('${logsId}')" style="background: none; border: none; cursor: pointer; font-size: 1rem; padding: 0;" title="Toggle logs">▶</button>` : ''}
+                    </td>
                     <td style="padding: 0.5rem;">${timestamp}</td>
                     <td style="padding: 0.5rem;">${statusBadge}</td>
                     <td style="padding: 0.5rem; text-align: right;">${execTime}</td>
                     <td style="padding: 0.5rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${errorMsg}</td>
                 </tr>
             `;
+
+            // Add logs row (initially hidden)
+            if (hasLogs) {
+                html += `
+                    <tr id="${logsId}" style="display: none; background: #f8f9fa;">
+                        <td colspan="5" style="padding: 0.75rem;">
+                            <div style="background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 6px; font-family: 'Monaco', 'Menlo', 'Courier New', monospace; font-size: 0.75rem; max-height: 300px; overflow-y: auto; white-space: pre-wrap; line-height: 1.4;">
+${run.logs.join('\n')}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
         });
 
         html += `
@@ -1829,54 +1862,111 @@ function renderEditorCharts() {
         resizeHandleCorner.style.cssText = 'position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, rgba(102, 126, 234, 0.5) 50%); opacity: 0; transition: opacity 0.2s; z-index: 10;';
         resizeHandleCorner.title = 'Drag to resize';
 
+        // Prevent drag when clicking resize handle
+        resizeHandleCorner.addEventListener('dragstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        });
+
         // Implement drag-to-resize functionality
         let isResizing = false;
         let startX, startY, startWidth, startHeight;
+        let mouseMoveHandler = null;
+        let mouseUpHandler = null;
+        let animationFrameId = null;
 
         resizeHandleCorner.addEventListener('mousedown', (e) => {
             e.preventDefault();
             e.stopPropagation();
+
+            // Check global resize state
+            if (window.chartResizeState && window.chartResizeState.isResizing) {
+                return; // Another chart is already being resized
+            }
+
             isResizing = true;
             startX = e.clientX;
             startY = e.clientY;
             startWidth = chartCard.offsetWidth;
             startHeight = chartCard.offsetHeight;
 
+            // Set global resize state
+            if (!window.chartResizeState) {
+                window.chartResizeState = {};
+            }
+            window.chartResizeState.isResizing = true;
+            window.chartResizeState.currentChart = chartCard;
+
             // Temporarily disable draggable during resize
-            chartCard.draggable = false;
+            chartCard.setAttribute('draggable', 'false');
             document.body.style.cursor = 'nwse-resize';
             document.body.style.userSelect = 'none';
-        });
 
-        document.addEventListener('mousemove', (e) => {
-            if (!isResizing) return;
+            // Define handlers that will be removed later
+            mouseMoveHandler = (e) => {
+                if (!isResizing) return;
 
-            const deltaX = e.clientX - startX;
-            const deltaY = e.clientY - startY;
+                // Cancel previous animation frame
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                }
 
-            const newWidth = Math.max(250, startWidth + deltaX);
-            const newHeight = Math.max(200, startHeight + deltaY);
+                // Use requestAnimationFrame for smooth performance
+                animationFrameId = requestAnimationFrame(() => {
+                    const deltaX = e.clientX - startX;
+                    const deltaY = e.clientY - startY;
 
-            chartCard.style.width = newWidth + 'px';
-            chartCard.style.height = newHeight + 'px';
-        });
+                    const newWidth = Math.max(250, Math.min(5000, startWidth + deltaX));
+                    const newHeight = Math.max(200, Math.min(5000, startHeight + deltaY));
 
-        document.addEventListener('mouseup', () => {
-            if (isResizing) {
-                isResizing = false;
-                chartCard.draggable = true;
-                document.body.style.cursor = '';
-                document.body.style.userSelect = '';
+                    chartCard.style.width = newWidth + 'px';
+                    chartCard.style.height = newHeight + 'px';
+                });
+            };
 
-                // Save the new dimensions to chart config
-                const newWidth = chartCard.offsetWidth;
-                const newHeight = chartCard.offsetHeight;
-                chart.customWidth = newWidth;
-                chart.customHeight = newHeight;
+            mouseUpHandler = () => {
+                if (isResizing) {
+                    isResizing = false;
 
-                console.log(`Chart ${chart.id} resized in edit mode: ${newWidth}x${newHeight}`);
-                showToast(`Chart resized. Save dashboard to apply changes.`, 'info');
-            }
+                    // Clear global resize state
+                    if (window.chartResizeState) {
+                        window.chartResizeState.isResizing = false;
+                        window.chartResizeState.currentChart = null;
+                    }
+
+                    // Cancel any pending animation frame
+                    if (animationFrameId) {
+                        cancelAnimationFrame(animationFrameId);
+                        animationFrameId = null;
+                    }
+
+                    // Re-enable dragging after a small delay to prevent accidental drags
+                    setTimeout(() => {
+                        chartCard.setAttribute('draggable', 'true');
+                    }, 100);
+
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+
+                    // Save the new dimensions to chart config
+                    const newWidth = chartCard.offsetWidth;
+                    const newHeight = chartCard.offsetHeight;
+                    chart.customWidth = newWidth;
+                    chart.customHeight = newHeight;
+
+                    console.log(`Chart ${chart.id} resized in edit mode: ${newWidth}x${newHeight}`);
+                    showToast(`Chart resized. Save dashboard to apply changes.`, 'info');
+
+                    // CRITICAL: Remove event listeners to prevent memory leak
+                    document.removeEventListener('mousemove', mouseMoveHandler);
+                    document.removeEventListener('mouseup', mouseUpHandler);
+                }
+            };
+
+            // Add listeners only when needed
+            document.addEventListener('mousemove', mouseMoveHandler);
+            document.addEventListener('mouseup', mouseUpHandler);
         });
 
         chartCard.onmouseenter = () => {
@@ -2131,6 +2221,13 @@ function updateChartSize(index, size) {
 
 // Save custom chart dimensions to database
 async function saveChartDimensions(chartId, dashboardId, width, height) {
+    // Client-side validation
+    if (width < 250 || width > 5000 || height < 200 || height > 5000) {
+        console.error('Invalid dimensions:', width, height);
+        showToast('Chart dimensions must be between 250-5000px width and 200-5000px height', 'error');
+        return;
+    }
+
     try {
         const response = await fetch(`/api/dashboards/${dashboardId}/charts/${chartId}/dimensions`, {
             method: 'PATCH',
@@ -2142,13 +2239,14 @@ async function saveChartDimensions(chartId, dashboardId, width, height) {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to save chart dimensions');
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Server returned ${response.status}`);
         }
 
         console.log(`Saved dimensions for chart ${chartId}: ${width}x${height}`);
     } catch (error) {
         console.error('Error saving chart dimensions:', error);
-        // Don't show error toast to avoid annoying users during resize
+        showToast(`Failed to save chart size: ${error.message}`, 'error', 5000);
     }
 }
 
@@ -2359,10 +2457,14 @@ function renderDashboardFilters() {
         return;
     }
 
-    // Generate field options HTML - showing model and field type
-    const fieldOptions = editorState.availableFields.map(field =>
-        `<option value="${field.name}" data-model="${field.model}">${field.model}.${field.name} (${field.type})</option>`
-    ).join('');
+    // Generate field options HTML for datalist - showing model and field type
+    const generateFieldDatalist = (filterIndex) => {
+        const datalistId = `filter-fields-${filterIndex}`;
+        const options = editorState.availableFields.map(field =>
+            `<option value="${field.name}" data-model="${field.model}" label="${field.model}.${field.name} (${field.type})">`
+        ).join('');
+        return { datalistId, options };
+    };
 
     // Generate tab checkboxes HTML
     const generateTabCheckboxes = (filter, filterIndex) => {
@@ -2387,6 +2489,7 @@ function renderDashboardFilters() {
         const expression = filter.expression || '';
         const applyToTabs = filter.apply_to_tabs || [];
         const appliesTo = applyToTabs.length === 0 ? 'All tabs' : `${applyToTabs.length} tab(s)`;
+        const { datalistId, options } = generateFieldDatalist(index);
 
         return `
             <div style="display: flex; gap: 12px; align-items: flex-start; padding: 12px; background: var(--color-bg-secondary); border-radius: 8px; margin-bottom: 8px;">
@@ -2394,11 +2497,16 @@ function renderDashboardFilters() {
                     <input type="text" placeholder="Filter Label (e.g., 'Year')" value="${filter.label || ''}"
                         onchange="updateFilterLabel(${index}, this.value)"
                         style="width: 100%; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; margin-bottom: 8px;">
-                    <select onchange="updateFilterField(${index}, this)"
-                        style="width: 100%; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; background: white; cursor: pointer; margin-bottom: 8px;">
-                        <option value="">Select field...</option>
-                        ${fieldOptions}
-                    </select>
+                    <input type="text"
+                        list="${datalistId}"
+                        placeholder="Type to search field name..."
+                        value="${selectedField}"
+                        onchange="updateFilterFieldFromInput(${index}, this.value)"
+                        oninput="this.setAttribute('data-changed', 'true')"
+                        style="width: 100%; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; margin-bottom: 8px;">
+                    <datalist id="${datalistId}">
+                        ${options}
+                    </datalist>
                     <input type="text" placeholder="SQL Expression (optional, e.g. 'EXTRACT(YEAR FROM order_date)')" value="${expression}"
                         onchange="updateFilterExpression(${index}, this.value)"
                         style="width: 100%; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; font-family: monospace; font-size: 0.85rem; margin-bottom: 8px;">
@@ -2422,14 +2530,6 @@ function renderDashboardFilters() {
             </div>
         `;
     }).join('');
-
-    // Set selected values after rendering
-    editorState.currentFilters.forEach((filter, index) => {
-        const selectElement = container.querySelectorAll('select')[index];
-        if (selectElement && filter.field) {
-            selectElement.value = filter.field;
-        }
-    });
 }
 
 function addDashboardFilter() {
@@ -2453,6 +2553,18 @@ function updateFilterField(index, selectElement) {
         const selectedOption = selectElement.options[selectElement.selectedIndex];
         editorState.currentFilters[index].field = selectElement.value;
         editorState.currentFilters[index].model = selectedOption.getAttribute('data-model') || '';
+    }
+}
+
+function updateFilterFieldFromInput(index, fieldName) {
+    if (editorState.currentFilters[index]) {
+        // Find the matching field from availableFields to get the model
+        const matchingField = editorState.availableFields.find(f => f.name === fieldName);
+
+        editorState.currentFilters[index].field = fieldName;
+        editorState.currentFilters[index].model = matchingField ? matchingField.model : '';
+
+        console.log(`Updated filter ${index}: field=${fieldName}, model=${matchingField?.model || 'unknown'}`);
     }
 }
 
@@ -2963,48 +3075,94 @@ async function renderDashboardChart(chartConfig, container, filters = {}, filter
         // Implement drag-to-resize functionality
         let isResizing = false;
         let startX, startY, startWidth, startHeight;
+        let mouseMoveHandler = null;
+        let mouseUpHandler = null;
+        let animationFrameId = null;
 
         resizeHandleCorner.addEventListener('mousedown', (e) => {
             e.preventDefault();
             e.stopPropagation();
+
+            // Check global resize state
+            if (window.chartResizeState && window.chartResizeState.isResizing) {
+                return; // Another chart is already being resized
+            }
+
             isResizing = true;
             startX = e.clientX;
             startY = e.clientY;
             startWidth = chartWrapper.offsetWidth;
             startHeight = chartWrapper.offsetHeight;
 
+            // Set global resize state
+            if (!window.chartResizeState) {
+                window.chartResizeState = {};
+            }
+            window.chartResizeState.isResizing = true;
+            window.chartResizeState.currentChart = chartWrapper;
+
             document.body.style.cursor = 'nwse-resize';
             document.body.style.userSelect = 'none';
-        });
 
-        document.addEventListener('mousemove', (e) => {
-            if (!isResizing) return;
+            // Define handlers that will be removed later
+            mouseMoveHandler = (e) => {
+                if (!isResizing) return;
 
-            const deltaX = e.clientX - startX;
-            const deltaY = e.clientY - startY;
+                // Cancel previous animation frame
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                }
 
-            const newWidth = Math.max(250, startWidth + deltaX);
-            const newHeight = Math.max(200, startHeight + deltaY);
+                // Use requestAnimationFrame for smooth performance
+                animationFrameId = requestAnimationFrame(() => {
+                    const deltaX = e.clientX - startX;
+                    const deltaY = e.clientY - startY;
 
-            chartWrapper.style.width = newWidth + 'px';
-            chartWrapper.style.height = newHeight + 'px';
-        });
+                    const newWidth = Math.max(250, Math.min(5000, startWidth + deltaX));
+                    const newHeight = Math.max(200, Math.min(5000, startHeight + deltaY));
 
-        document.addEventListener('mouseup', () => {
-            if (isResizing) {
-                isResizing = false;
-                document.body.style.cursor = '';
-                document.body.style.userSelect = '';
+                    chartWrapper.style.width = newWidth + 'px';
+                    chartWrapper.style.height = newHeight + 'px';
+                });
+            };
 
-                // Save the new dimensions
-                const newWidth = chartWrapper.offsetWidth;
-                const newHeight = chartWrapper.offsetHeight;
-                chartConfig.customWidth = newWidth;
-                chartConfig.customHeight = newHeight;
+            mouseUpHandler = () => {
+                if (isResizing) {
+                    isResizing = false;
 
-                // Trigger save after resize completes
-                saveChartDimensions(chartConfig.id, chartConfig.dashboard_id, newWidth, newHeight);
-            }
+                    // Clear global resize state
+                    if (window.chartResizeState) {
+                        window.chartResizeState.isResizing = false;
+                        window.chartResizeState.currentChart = null;
+                    }
+
+                    // Cancel any pending animation frame
+                    if (animationFrameId) {
+                        cancelAnimationFrame(animationFrameId);
+                        animationFrameId = null;
+                    }
+
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+
+                    // Save the new dimensions
+                    const newWidth = chartWrapper.offsetWidth;
+                    const newHeight = chartWrapper.offsetHeight;
+                    chartConfig.customWidth = newWidth;
+                    chartConfig.customHeight = newHeight;
+
+                    // Trigger save after resize completes
+                    saveChartDimensions(chartConfig.id, chartConfig.dashboard_id, newWidth, newHeight);
+
+                    // CRITICAL: Remove event listeners to prevent memory leak
+                    document.removeEventListener('mousemove', mouseMoveHandler);
+                    document.removeEventListener('mouseup', mouseUpHandler);
+                }
+            };
+
+            // Add listeners only when needed
+            document.addEventListener('mousemove', mouseMoveHandler);
+            document.addEventListener('mouseup', mouseUpHandler);
         });
 
         chartWrapper.onmouseenter = () => {
@@ -3482,11 +3640,29 @@ async function loadAllCharts() {
         }
 
         // Use all charts from the API
-        let allCharts = allChartsData.map(chart => ({
-            ...chart,
-            dashboardName: 'Standalone',
-            dashboardId: null
-        }));
+        let allCharts = allChartsData.map(chart => {
+            // Determine dashboard display name
+            let dashboardName = 'Standalone';
+            let dashboardId = null;
+
+            if (chart.dashboards && chart.dashboards.length > 0) {
+                if (chart.dashboards.length === 1) {
+                    // Single dashboard assignment
+                    dashboardName = chart.dashboards[0].name;
+                    dashboardId = chart.dashboards[0].id;
+                } else {
+                    // Multiple dashboard assignments
+                    dashboardName = chart.dashboards.map(d => d.name).join(', ');
+                    dashboardId = 'multiple';
+                }
+            }
+
+            return {
+                ...chart,
+                dashboardName: dashboardName,
+                dashboardId: dashboardId
+            };
+        });
 
         // Apply search filter
         if (currentChartsSearchTerm) {

@@ -323,12 +323,22 @@ async def get_model_runs(model_name: str, limit: int = 10):
             if 'summary' in run and 'models' in run['summary']:
                 if model_name in run['summary']['models']:
                     model_info = run['summary']['models'][model_name]
+
+                    # Extract logs related to this specific model
+                    model_logs = []
+                    if 'logs' in run:
+                        for log in run['logs']:
+                            # Include logs that mention this model name
+                            if model_name in log:
+                                model_logs.append(log)
+
                     model_runs.append({
                         'run_id': run['run_id'],
                         'timestamp': run['timestamp'],
                         'status': model_info['status'],
                         'execution_time': model_info['execution_time'],
-                        'error': model_info.get('error', None)
+                        'error': model_info.get('error', None),
+                        'logs': model_logs
                     })
 
                     if len(model_runs) >= limit:
@@ -627,36 +637,50 @@ async def get_all_charts():
                     c.created_at,
                     c.updated_at,
                     dc.dashboard_id,
-                    dc.tab_id
+                    dc.tab_id,
+                    d.name as dashboard_name
                 FROM charts c
                 LEFT JOIN dashboard_charts dc ON c.id = dc.chart_id
+                LEFT JOIN dashboards d ON dc.dashboard_id = d.id
                 ORDER BY c.chart_number ASC
             """, fetch=True)
 
-            all_charts = []
-            # Handle case where charts_data might be None or empty list
+            # Group charts and aggregate their dashboard assignments
+            charts_map = {}
             if charts_data:
-                for chart in charts_data:
-                    chart_dict = {
-                        'id': chart['id'],
-                        'chart_number': chart['chart_number'],
-                        'title': chart['title'],
-                        'description': chart.get('description', ''),
-                        'type': chart['type'],
-                        'model': chart['model'],
-                        'connection_id': chart['connection_id'],
-                        'x_axis': chart['x_axis'],
-                        'y_axis': chart['y_axis'],
-                        'aggregation': chart['aggregation'],
-                        'columns': chart['columns'] if chart['columns'] else [],
-                        'category': chart['category'],
-                        'config': chart['config'] if chart['config'] else {},
-                        'created_at': str(chart['created_at']) if chart['created_at'] else None,
-                        'updated_at': str(chart['updated_at']) if chart['updated_at'] else None,
-                        'dashboard_id': chart['dashboard_id'],  # Include current dashboard assignment
-                        'tab_id': chart['tab_id']  # Include current tab assignment
-                    }
-                    all_charts.append(chart_dict)
+                for row in charts_data:
+                    chart_id = row['id']
+
+                    # Create chart dict if it doesn't exist
+                    if chart_id not in charts_map:
+                        charts_map[chart_id] = {
+                            'id': chart_id,
+                            'chart_number': row['chart_number'],
+                            'title': row['title'],
+                            'description': row.get('description', ''),
+                            'type': row['type'],
+                            'model': row['model'],
+                            'connection_id': row['connection_id'],
+                            'x_axis': row['x_axis'],
+                            'y_axis': row['y_axis'],
+                            'aggregation': row['aggregation'],
+                            'columns': row['columns'] if row['columns'] else [],
+                            'category': row['category'],
+                            'config': row['config'] if row['config'] else {},
+                            'created_at': str(row['created_at']) if row['created_at'] else None,
+                            'updated_at': str(row['updated_at']) if row['updated_at'] else None,
+                            'dashboards': []  # Array of dashboard assignments
+                        }
+
+                    # Add dashboard assignment if it exists
+                    if row['dashboard_id']:
+                        charts_map[chart_id]['dashboards'].append({
+                            'id': row['dashboard_id'],
+                            'name': row['dashboard_name'],
+                            'tab_id': row['tab_id']
+                        })
+
+            all_charts = list(charts_map.values())
 
             logging.info(f"Fetched {len(all_charts)} charts from database")
             return {"charts": all_charts}
@@ -1274,6 +1298,21 @@ async def update_chart_dimensions(dashboard_id: str, chart_id: str, request: Req
         body = await request.json()
         custom_width = body.get('customWidth')
         custom_height = body.get('customHeight')
+
+        # INPUT VALIDATION: Type and range checks
+        if custom_width is not None:
+            if not isinstance(custom_width, (int, float)):
+                raise HTTPException(status_code=400, detail="customWidth must be a number")
+            custom_width = int(custom_width)
+            if custom_width < 250 or custom_width > 5000:
+                raise HTTPException(status_code=400, detail="customWidth must be between 250 and 5000 pixels")
+
+        if custom_height is not None:
+            if not isinstance(custom_height, (int, float)):
+                raise HTTPException(status_code=400, detail="customHeight must be a number")
+            custom_height = int(custom_height)
+            if custom_height < 200 or custom_height > 5000:
+                raise HTTPException(status_code=400, detail="customHeight must be between 200 and 5000 pixels")
 
         logging.info(f"Updating chart {chart_id} dimensions in dashboard {dashboard_id}: {custom_width}x{custom_height}")
 
