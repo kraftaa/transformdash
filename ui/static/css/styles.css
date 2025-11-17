@@ -2230,10 +2230,11 @@ body.dark-mode .chart-badge-model {
    ============================================ */
 
 .dashboard-editor-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: var(--space-4);
     min-height: 300px;
+    align-items: flex-start;
 }
 
 .editor-chart-card {
@@ -2244,6 +2245,8 @@ body.dark-mode .chart-badge-model {
     cursor: move;
     transition: all 0.2s ease;
     position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 .editor-chart-card:hover {

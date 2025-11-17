@@ -1109,13 +1109,17 @@ async def update_dashboard(dashboard_id: str, request: Request):
 
                         # Assign chart to tab via junction table
                         chart_size = chart.get('size', 'medium')
+                        custom_width = chart.get('customWidth')
+                        custom_height = chart.get('customHeight')
                         pg.execute("""
-                            INSERT INTO dashboard_charts (dashboard_id, chart_id, tab_id, position, size)
-                            VALUES (%s, %s, %s, %s, %s)
+                            INSERT INTO dashboard_charts (dashboard_id, chart_id, tab_id, position, size, custom_width, custom_height)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
                             ON CONFLICT (dashboard_id, chart_id, tab_id) DO UPDATE SET
                                 position = EXCLUDED.position,
-                                size = EXCLUDED.size
-                        """, (dashboard_id, chart_id, tab_id, chart_idx, chart_size))
+                                size = EXCLUDED.size,
+                                custom_width = EXCLUDED.custom_width,
+                                custom_height = EXCLUDED.custom_height
+                        """, (dashboard_id, chart_id, tab_id, chart_idx, chart_size, custom_width, custom_height))
 
             # Update unassigned charts (charts with tab_id = NULL)
             if new_charts is not None:
@@ -1155,13 +1159,17 @@ async def update_dashboard(dashboard_id: str, request: Request):
 
                     # Assign chart as unassigned (tab_id = NULL)
                     chart_size = chart.get('size', 'medium')
+                    custom_width = chart.get('customWidth')
+                    custom_height = chart.get('customHeight')
                     pg.execute("""
-                        INSERT INTO dashboard_charts (dashboard_id, chart_id, tab_id, position, size)
-                        VALUES (%s, %s, NULL, %s, %s)
+                        INSERT INTO dashboard_charts (dashboard_id, chart_id, tab_id, position, size, custom_width, custom_height)
+                        VALUES (%s, %s, NULL, %s, %s, %s, %s)
                         ON CONFLICT (dashboard_id, chart_id, tab_id) DO UPDATE SET
                             position = EXCLUDED.position,
-                            size = EXCLUDED.size
-                    """, (dashboard_id, chart_id, chart_idx, chart_size))
+                            size = EXCLUDED.size,
+                            custom_width = EXCLUDED.custom_width,
+                            custom_height = EXCLUDED.custom_height
+                    """, (dashboard_id, chart_id, chart_idx, chart_size, custom_width, custom_height))
 
             # Update filters if provided
             if new_filters is not None:

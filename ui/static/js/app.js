@@ -1801,6 +1801,12 @@ function renderEditorCharts() {
 
         const currentSize = chart.size || 'medium';
 
+        // Apply custom dimensions if saved
+        let cardWidth = chart.customWidth ? `${chart.customWidth}px` : '300px';
+        let cardHeight = chart.customHeight ? `${chart.customHeight}px` : '350px';
+
+        chartCard.style.cssText = `width: ${cardWidth}; height: ${cardHeight}; min-width: 250px; min-height: 200px; position: relative;`;
+
         chartCard.innerHTML = `
             <div class="editor-chart-header">
                 <div class="editor-chart-title">${chart.title || chart.id}</div>
@@ -1810,56 +1816,79 @@ function renderEditorCharts() {
                     </svg>
                 </button>
             </div>
-            <div class="editor-chart-preview-wrapper" style="height: 200px; background: var(--color-bg-secondary); border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; position: relative; resize: both; overflow: auto; min-height: 150px; min-width: 200px;">
-                <canvas id="${canvasId}" style="max-height: 180px;"></canvas>
+            <div class="editor-chart-preview-wrapper" style="flex: 1; background: var(--color-bg-secondary); border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;">
+                <canvas id="${canvasId}" style="max-width: 100%; max-height: 100%;"></canvas>
             </div>
             <div class="editor-chart-info">Model: ${chart.model}</div>
             <div class="editor-chart-info">${chart.x_axis} vs ${chart.y_axis} (${chart.aggregation || 'count'})</div>
-            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border);">
-                <label style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">
-                    Chart Size
-                </label>
-                <select onchange="updateChartSize(${index}, this.value)" style="width: 100%; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; background: white; font-size: 0.875rem; cursor: pointer;">
-                    <option value="small" ${currentSize === 'small' ? 'selected' : ''}>Small (1/4 width)</option>
-                    <option value="medium" ${currentSize === 'medium' ? 'selected' : ''}>Medium (1/2 width)</option>
-                    <option value="large" ${currentSize === 'large' ? 'selected' : ''}>Large (3/4 width)</option>
-                    <option value="full" ${currentSize === 'full' ? 'selected' : ''}>Full width</option>
-                </select>
-            </div>
             <span class="editor-chart-type">${chart.type}</span>
         `;
 
-        // Add resize handles to the chart preview wrapper
-        const previewWrapper = chartCard.querySelector('.editor-chart-preview-wrapper');
-        if (previewWrapper) {
-            // Create resize handles
-            const resizeHandleRight = document.createElement('div');
-            resizeHandleRight.style.cssText = 'position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1)); opacity: 0; transition: opacity 0.2s; pointer-events: none;';
-            resizeHandleRight.title = 'Drag to resize';
+        // Add drag-to-resize corner handle to the entire chart card
+        const resizeHandleCorner = document.createElement('div');
+        resizeHandleCorner.style.cssText = 'position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, rgba(102, 126, 234, 0.5) 50%); opacity: 0; transition: opacity 0.2s; z-index: 10;';
+        resizeHandleCorner.title = 'Drag to resize';
 
-            const resizeHandleBottom = document.createElement('div');
-            resizeHandleBottom.style.cssText = 'position: absolute; left: 0; right: 0; bottom: 0; height: 8px; cursor: ns-resize; background: linear-gradient(180deg, transparent, rgba(102, 126, 234, 0.1)); opacity: 0; transition: opacity 0.2s; pointer-events: none;';
-            resizeHandleBottom.title = 'Drag to resize';
+        // Implement drag-to-resize functionality
+        let isResizing = false;
+        let startX, startY, startWidth, startHeight;
 
-            const resizeHandleCorner = document.createElement('div');
-            resizeHandleCorner.style.cssText = 'position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, rgba(102, 126, 234, 0.2) 50%); opacity: 0; transition: opacity 0.2s; pointer-events: none;';
-            resizeHandleCorner.title = 'Drag to resize';
+        resizeHandleCorner.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            isResizing = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startWidth = chartCard.offsetWidth;
+            startHeight = chartCard.offsetHeight;
 
-            previewWrapper.onmouseenter = () => {
-                resizeHandleRight.style.opacity = '1';
-                resizeHandleBottom.style.opacity = '1';
-                resizeHandleCorner.style.opacity = '1';
-            };
-            previewWrapper.onmouseleave = () => {
-                resizeHandleRight.style.opacity = '0';
-                resizeHandleBottom.style.opacity = '0';
+            // Temporarily disable draggable during resize
+            chartCard.draggable = false;
+            document.body.style.cursor = 'nwse-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+
+            const newWidth = Math.max(250, startWidth + deltaX);
+            const newHeight = Math.max(200, startHeight + deltaY);
+
+            chartCard.style.width = newWidth + 'px';
+            chartCard.style.height = newHeight + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                chartCard.draggable = true;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+
+                // Save the new dimensions to chart config
+                const newWidth = chartCard.offsetWidth;
+                const newHeight = chartCard.offsetHeight;
+                chart.customWidth = newWidth;
+                chart.customHeight = newHeight;
+
+                console.log(`Chart ${chart.id} resized in edit mode: ${newWidth}x${newHeight}`);
+                showToast(`Chart resized. Save dashboard to apply changes.`, 'info');
+            }
+        });
+
+        chartCard.onmouseenter = () => {
+            resizeHandleCorner.style.opacity = '1';
+        };
+        chartCard.onmouseleave = () => {
+            if (!isResizing) {
                 resizeHandleCorner.style.opacity = '0';
-            };
+            }
+        };
 
-            previewWrapper.appendChild(resizeHandleRight);
-            previewWrapper.appendChild(resizeHandleBottom);
-            previewWrapper.appendChild(resizeHandleCorner);
-        }
+        chartCard.appendChild(resizeHandleCorner);
 
         // Add drag event listeners
         chartCard.addEventListener('dragstart', handleDragStart);
@@ -2919,39 +2948,74 @@ async function renderDashboardChart(chartConfig, container, filters = {}, filter
             heightStyle = `height: ${chartConfig.customHeight}px;`;
         }
 
-        chartWrapper.style.cssText = `background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); ${widthStyle} ${heightStyle} display: inline-block; vertical-align: top; margin: 7.5px; position: relative; resize: both; overflow: auto;`;
+        chartWrapper.style.cssText = `background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); ${widthStyle} ${heightStyle} display: inline-flex; flex-direction: column; vertical-align: top; margin: 7.5px; position: relative; overflow: hidden;`;
         chartWrapper.style.minWidth = '250px';
         chartWrapper.style.maxWidth = '100%';
         chartWrapper.style.minHeight = '200px';
         chartWrapper.dataset.chartId = chartConfig.id;
         chartWrapper.dataset.dashboardId = chartConfig.dashboard_id;
 
-        // Add resize handle indicators (right edge and bottom edge)
-        const resizeHandleRight = document.createElement('div');
-        resizeHandleRight.style.cssText = 'position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1)); opacity: 0; transition: opacity 0.2s; pointer-events: none;';
-        resizeHandleRight.title = 'Drag to resize';
-
-        const resizeHandleBottom = document.createElement('div');
-        resizeHandleBottom.style.cssText = 'position: absolute; left: 0; right: 0; bottom: 0; height: 8px; cursor: ns-resize; background: linear-gradient(180deg, transparent, rgba(102, 126, 234, 0.1)); opacity: 0; transition: opacity 0.2s; pointer-events: none;';
-        resizeHandleBottom.title = 'Drag to resize';
-
+        // Add resize handle indicators with drag functionality
         const resizeHandleCorner = document.createElement('div');
-        resizeHandleCorner.style.cssText = 'position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, rgba(102, 126, 234, 0.2) 50%); opacity: 0; transition: opacity 0.2s; pointer-events: none;';
+        resizeHandleCorner.style.cssText = 'position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, rgba(102, 126, 234, 0.5) 50%); opacity: 0; transition: opacity 0.2s; z-index: 10;';
         resizeHandleCorner.title = 'Drag to resize';
 
+        // Implement drag-to-resize functionality
+        let isResizing = false;
+        let startX, startY, startWidth, startHeight;
+
+        resizeHandleCorner.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            isResizing = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startWidth = chartWrapper.offsetWidth;
+            startHeight = chartWrapper.offsetHeight;
+
+            document.body.style.cursor = 'nwse-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+
+            const newWidth = Math.max(250, startWidth + deltaX);
+            const newHeight = Math.max(200, startHeight + deltaY);
+
+            chartWrapper.style.width = newWidth + 'px';
+            chartWrapper.style.height = newHeight + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+
+                // Save the new dimensions
+                const newWidth = chartWrapper.offsetWidth;
+                const newHeight = chartWrapper.offsetHeight;
+                chartConfig.customWidth = newWidth;
+                chartConfig.customHeight = newHeight;
+
+                // Trigger save after resize completes
+                saveChartDimensions(chartConfig.id, chartConfig.dashboard_id, newWidth, newHeight);
+            }
+        });
+
         chartWrapper.onmouseenter = () => {
-            resizeHandleRight.style.opacity = '1';
-            resizeHandleBottom.style.opacity = '1';
             resizeHandleCorner.style.opacity = '1';
         };
         chartWrapper.onmouseleave = () => {
-            resizeHandleRight.style.opacity = '0';
-            resizeHandleBottom.style.opacity = '0';
-            resizeHandleCorner.style.opacity = '0';
+            if (!isResizing) {
+                resizeHandleCorner.style.opacity = '0';
+            }
         };
 
-        chartWrapper.appendChild(resizeHandleRight);
-        chartWrapper.appendChild(resizeHandleBottom);
         chartWrapper.appendChild(resizeHandleCorner);
 
         // Chart title with edit button
@@ -3001,62 +3065,25 @@ async function renderDashboardChart(chartConfig, container, filters = {}, filter
         // Handle table type differently - no canvas needed
         if (chartConfig.type === 'table') {
             const tableContainer = document.createElement('div');
-            tableContainer.style.cssText = `max-height: ${heightStyles[size]}; overflow: auto;`;
+            tableContainer.style.cssText = `flex: 1; overflow: auto;`;
             chartWrapper.appendChild(tableContainer);
             container.appendChild(chartWrapper);
-
-            // Add ResizeObserver for table charts too
-            const resizeObserver = new ResizeObserver(debounce((entries) => {
-                for (const entry of entries) {
-                    const wrapper = entry.target;
-                    const newWidth = Math.round(entry.contentRect.width);
-                    const newHeight = Math.round(entry.contentRect.height);
-
-                    // Only save if dimensions actually changed
-                    if (chartConfig.customWidth !== newWidth || chartConfig.customHeight !== newHeight) {
-                        chartConfig.customWidth = newWidth;
-                        chartConfig.customHeight = newHeight;
-
-                        // Save to database
-                        saveChartDimensions(chartConfig.id, chartConfig.dashboard_id, newWidth, newHeight);
-                    }
-                }
-            }, 500));
-
-            resizeObserver.observe(chartWrapper);
 
             await renderTableChart(tableContainer, chartConfig, filters, filterExpressions);
             return;
         }
 
-        // Canvas for chart
+        // Canvas container to properly constrain the chart
+        const canvasContainer = document.createElement('div');
+        canvasContainer.style.cssText = 'position: relative; flex: 1; min-height: 200px; display: flex; align-items: center; justify-content: center;';
+
         const canvas = document.createElement('canvas');
         canvas.id = 'chart-' + chartConfig.id;
-        canvas.style.maxHeight = heightStyles[size];
-        chartWrapper.appendChild(canvas);
+        canvasContainer.appendChild(canvas);
+        chartWrapper.appendChild(canvasContainer);
 
         // Add to container first
         container.appendChild(chartWrapper);
-
-        // Add ResizeObserver to save custom dimensions when user resizes
-        const resizeObserver = new ResizeObserver(debounce((entries) => {
-            for (const entry of entries) {
-                const wrapper = entry.target;
-                const newWidth = Math.round(entry.contentRect.width);
-                const newHeight = Math.round(entry.contentRect.height);
-
-                // Only save if dimensions actually changed
-                if (chartConfig.customWidth !== newWidth || chartConfig.customHeight !== newHeight) {
-                    chartConfig.customWidth = newWidth;
-                    chartConfig.customHeight = newHeight;
-
-                    // Save to database
-                    saveChartDimensions(chartConfig.id, chartConfig.dashboard_id, newWidth, newHeight);
-                }
-            }
-        }, 500)); // Debounce to avoid too many saves during resize
-
-        resizeObserver.observe(chartWrapper);
 
         // Handle metric type
         if (chartConfig.type === 'metric') {
