@@ -125,7 +125,7 @@
 
             <div class="nav-section">
                 <div class="nav-section-title">Configuration</div>
-                <a href="#" class="nav-item" data-view="users" onclick="switchView('users')">
+                <a href="#" class="nav-item" id="users-menu-item" data-view="users" onclick="switchView('users')" style="{% if not user.is_superuser %}{% set has_view_users = namespace(found=false) %}{% for role in user.roles %}{% for perm in role.permissions if perm.name == 'view_users' %}{% set has_view_users.found = true %}{% endfor %}{% endfor %}{% if not has_view_users.found %}display: none;{% endif %}{% endif %}">
                     <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                         <circle cx="9" cy="7" r="4"/>

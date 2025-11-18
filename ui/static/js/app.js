@@ -5,6 +5,53 @@
  */
 
 // ============================================
+// GLOBAL USER PERMISSIONS
+// ============================================
+
+// Store current user's permissions
+window.userPermissions = {
+    canDeleteCharts: false,
+    canEditCharts: false,
+    canCreateCharts: false,
+    isSuperuser: false,
+    loaded: false
+};
+
+// Load user permissions on page load
+async function loadUserPermissions() {
+    try {
+        const response = await fetch('/api/auth/me');
+        if (response.ok) {
+            const data = await response.json();
+            const user = data.user;
+
+            window.userPermissions.isSuperuser = user.is_superuser;
+
+            // Check permissions
+            if (user.is_superuser) {
+                // Superuser has all permissions
+                window.userPermissions.canDeleteCharts = true;
+                window.userPermissions.canEditCharts = true;
+                window.userPermissions.canCreateCharts = true;
+            } else if (user.permissions) {
+                // Check specific permissions
+                const permNames = user.permissions.map(p => p.name);
+                window.userPermissions.canDeleteCharts = permNames.includes('delete_charts');
+                window.userPermissions.canEditCharts = permNames.includes('edit_charts');
+                window.userPermissions.canCreateCharts = permNames.includes('create_charts');
+            }
+
+            window.userPermissions.loaded = true;
+        }
+    } catch (error) {
+        console.error('Error loading user permissions:', error);
+    }
+}
+
+// Load permissions when page loads
+loadUserPermissions();
+
+// ============================================
 // GLOBAL VIEW MODE SETTINGS
 // ============================================
 
@@ -3731,22 +3778,30 @@ async function loadAllCharts() {
                 };
 
                 const row = document.createElement('tr');
+
+                // Show delete button only if user has permission
+                const deleteButtonHtml = window.userPermissions.canDeleteCharts
+                    ? '<button class="icon-btn-small delete-btn" title="Delete chart" style="color: #ef4444; margin-right: 4px; font-size: 0.85rem;">🗑️</button>'
+                    : '';
+
                 row.innerHTML = `
                     <td><strong>${chart.title}</strong></td>
                     <td>${typeIcons[chart.type] || '📊'} ${chart.type}</td>
                     <td>${chart.dashboardName}</td>
                     <td><code>${chart.model}</code></td>
                     <td>
-                        <button class="icon-btn-small delete-btn" title="Delete chart" style="color: #ef4444; margin-right: 4px; font-size: 0.85rem;">🗑️</button>
+                        ${deleteButtonHtml}
                         <button class="icon-btn-small edit-btn" title="Edit chart">✏️</button>
                     </td>
                 `;
 
                 const deleteBtn = row.querySelector('.delete-btn');
-                deleteBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    deleteChart(chart);
-                };
+                if (deleteBtn) {
+                    deleteBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        deleteChart(chart);
+                    };
+                }
 
                 const editBtn = row.querySelector('.edit-btn');
                 editBtn.onclick = (e) => {
@@ -3781,6 +3836,19 @@ async function loadAllCharts() {
 
                 // Create preview canvas with unique ID (include index to avoid duplicates)
                 const canvasId = `chart-preview-${chart.dashboardId}-${chart.id}-${index}`;
+
+                // Show delete button only if user has permission
+                const deleteButtonHtml = window.userPermissions.canDeleteCharts
+                    ? '<button class="chart-item-delete-btn" title="Delete chart">🗑️</button>'
+                    : '';
+
+                // Adjust button positions based on whether delete button is shown
+                // When delete is shown: Delete (right), Export (right:50px), Edit (right:90px), Query (right:130px)
+                // When delete is hidden: Export (right), Edit (right:40px), Query (right:80px)
+                const exportBtnStyle = window.userPermissions.canDeleteCharts ? 'right: 50px;' : '';
+                const editBtnStyle = window.userPermissions.canDeleteCharts ? 'right: 90px;' : 'right: 40px;';
+                const queryBtnStyle = window.userPermissions.canDeleteCharts ? 'right: 130px;' : 'right: 80px;';
+
                 card.innerHTML = `
                     <div class="chart-item-preview" style="height: 120px; margin-bottom: 12px; background: var(--color-bg-secondary); border-radius: 8px; padding: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
                         <canvas id="${canvasId}" style="max-height: 100px; max-width: 100%;"></canvas>
@@ -3791,16 +3859,26 @@ async function loadAllCharts() {
                         <span class="chart-badge chart-badge-type">${chart.type}</span>
                         <span class="chart-badge chart-badge-model">${chart.model}</span>
                     </div>
-                    <button class="chart-item-delete-btn" title="Delete chart" style="right: 10px;">🗑️</button>
-                    <button class="chart-item-edit-btn" title="Edit chart" style="right: 50px;">✏️</button>
-                    <button class="chart-item-query-btn" title="View query" style="right: 90px;">📋</button>
+                    ${deleteButtonHtml}
+                    <button class="chart-item-export-btn" title="Export chart" style="${exportBtnStyle}">📥</button>
+                    <button class="chart-item-edit-btn" title="Edit chart" style="${editBtnStyle}">✏️</button>
+                    <button class="chart-item-query-btn" title="View query" style="${queryBtnStyle}">📋</button>
                 `;
 
-                // Delete button click handler
+                // Delete button click handler (only if button exists)
                 const deleteBtn = card.querySelector('.chart-item-delete-btn');
-                deleteBtn.onclick = (e) => {
+                if (deleteBtn) {
+                    deleteBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        deleteChart(chart);
+                    };
+                }
+
+                // Export button click handler
+                const exportBtn = card.querySelector('.chart-item-export-btn');
+                exportBtn.onclick = (e) => {
                     e.stopPropagation();
-                    deleteChart(chart);
+                    showChartExportMenu(e, chart);
                 };
 
                 // Edit button click handler
@@ -6157,6 +6235,18 @@ async function deleteChart(chartConfig) {
             method: 'DELETE'
         });
 
+        // Check for permission error
+        if (response.status === 403) {
+            showToast('⛔ Access Denied: You do not have permission to delete charts', 'error');
+            return;
+        }
+
+        if (!response.ok) {
+            const error = await response.json();
+            showToast(`Failed to delete chart: ${error.detail || 'Unknown error'}`, 'error');
+            return;
+        }
+
         const result = await response.json();
 
         if (result.success) {
@@ -8500,16 +8590,205 @@ function goToModelView(modelName) {
         const modelCard = document.getElementById(`model-card-${modelName}`);
         if (modelCard) {
             modelCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
+
             // Highlight the model card briefly
             modelCard.style.transition = 'all 0.3s';
             modelCard.style.boxShadow = '0 0 0 3px #667eea';
             modelCard.style.transform = 'scale(1.02)';
-            
+
             setTimeout(() => {
                 modelCard.style.boxShadow = '';
                 modelCard.style.transform = '';
             }, 2000);
         }
     }, 300);
+}
+
+// =============================================================================
+// CHART EXPORT FUNCTIONS
+// =============================================================================
+
+function showChartExportMenu(event, chart) {
+    // Remove any existing export menus
+    const existingMenu = document.querySelector('.chart-export-menu');
+    if (existingMenu) {
+        existingMenu.remove();
+    }
+
+    // Create export menu
+    const menu = document.createElement('div');
+    menu.className = 'chart-export-menu';
+    menu.style.cssText = `
+        position: fixed;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        padding: 8px 0;
+        z-index: 10000;
+        min-width: 150px;
+    `;
+
+    menu.innerHTML = `
+        <div class="export-menu-item" data-format="csv" style="padding: 8px 16px; cursor: pointer; transition: background 0.2s;">
+            📊 Export as CSV
+        </div>
+        <div class="export-menu-item" data-format="excel" style="padding: 8px 16px; cursor: pointer; transition: background 0.2s;">
+            📈 Export as Excel
+        </div>
+        <div class="export-menu-item" data-format="image" style="padding: 8px 16px; cursor: pointer; transition: background 0.2s;">
+            🖼️ Export as Image
+        </div>
+        <div class="export-menu-item" data-format="pdf" style="padding: 8px 16px; cursor: pointer; transition: background 0.2s;">
+            📄 Export as PDF
+        </div>
+    `;
+
+    // Position menu near the button
+    const rect = event.target.getBoundingClientRect();
+    menu.style.left = `${rect.left}px`;
+    menu.style.top = `${rect.bottom + 5}px`;
+
+    // Add hover effect
+    menu.querySelectorAll('.export-menu-item').forEach(item => {
+        item.addEventListener('mouseenter', () => {
+            item.style.background = '#f3f4f6';
+        });
+        item.addEventListener('mouseleave', () => {
+            item.style.background = 'transparent';
+        });
+        item.addEventListener('click', () => {
+            const format = item.getAttribute('data-format');
+            exportChart(chart, format);
+            menu.remove();
+        });
+    });
+
+    document.body.appendChild(menu);
+
+    // Close menu when clicking outside
+    setTimeout(() => {
+        document.addEventListener('click', function closeMenu(e) {
+            if (!menu.contains(e.target) && e.target !== event.target) {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        });
+    }, 100);
+}
+
+async function exportChart(chart, format) {
+    try {
+        if (format === 'image') {
+            await exportChartAsImage(chart);
+        } else if (format === 'pdf') {
+            await exportChartAsPDF(chart);
+        } else {
+            await exportChartAsData(chart, format);
+        }
+    } catch (error) {
+        console.error('Export error:', error);
+        showToast(`Failed to export chart: ${error.message}`, 'error');
+    }
+}
+
+async function exportChartAsData(chart, format) {
+    try {
+        const response = await fetch(`/api/charts/${chart.id}/export`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                format: format,
+                filters: {}
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Export failed');
+        }
+
+        // Download the file
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${chart.id}_data.${format === 'excel' ? 'xlsx' : 'csv'}`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        showToast(`Chart exported as ${format.toUpperCase()} successfully!`, 'success');
+    } catch (error) {
+        console.error('Error exporting chart data:', error);
+        throw error;
+    }
+}
+
+async function exportChartAsImage(chart) {
+    try {
+        // Find the chart canvas
+        const canvasElement = document.querySelector(`canvas[id*="${chart.id}"]`);
+        if (!canvasElement) {
+            throw new Error('Chart canvas not found');
+        }
+
+        // Convert canvas to blob
+        canvasElement.toBlob((blob) => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${chart.title || chart.id}.png`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            showToast('Chart exported as PNG successfully!', 'success');
+        });
+    } catch (error) {
+        console.error('Error exporting chart as image:', error);
+        throw error;
+    }
+}
+
+async function exportChartAsPDF(chart) {
+    try {
+        // Find the chart canvas
+        const canvasElement = document.querySelector(`canvas[id*="${chart.id}"]`);
+        if (!canvasElement) {
+            throw new Error('Chart canvas not found');
+        }
+
+        // Create a temporary container for printing
+        const printWindow = window.open('', '', 'width=800,height=600');
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>${chart.title || 'Chart'}</title>
+                    <style>
+                        body { margin: 0; padding: 20px; }
+                        h1 { text-align: center; }
+                        img { max-width: 100%; height: auto; }
+                    </style>
+                </head>
+                <body>
+                    <h1>${chart.title || 'Chart'}</h1>
+                    <img src="${canvasElement.toDataURL()}" />
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+
+        printWindow.onload = () => {
+            printWindow.print();
+            printWindow.close();
+        };
+
+        showToast('Opening print dialog for PDF export...', 'success');
+    } catch (error) {
+        console.error('Error exporting chart as PDF:', error);
+        throw error;
+    }
 }

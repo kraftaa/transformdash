@@ -2140,7 +2140,22 @@ body.dark-mode .chart-item-edit-btn:hover {
     color: var(--color-primary-light);
 }
 
-.chart-item-delete-btn,
+.chart-item-delete-btn {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    background: transparent;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+    font-size: 1.2rem;
+    opacity: 0;
+    z-index: 10;
+}
+
 .chart-item-query-btn {
     position: absolute;
     top: var(--space-3);
@@ -2154,6 +2169,58 @@ body.dark-mode .chart-item-edit-btn:hover {
     font-size: 1.2rem;
     opacity: 0;
     z-index: 10;
+}
+
+.chart-item-delete-btn:hover {
+    background: var(--color-gray-100);
+    color: #ef4444;
+    transform: scale(1.1);
+}
+
+body.dark-mode .chart-item-delete-btn:hover {
+    background: var(--color-gray-700);
+    color: #ef4444;
+}
+
+.chart-item-query-btn:hover {
+    background: var(--color-gray-100);
+    color: var(--color-primary);
+    transform: scale(1.1);
+}
+
+body.dark-mode .chart-item-query-btn:hover {
+    background: var(--color-gray-700);
+    color: var(--color-primary-light);
+}
+
+.chart-item-export-btn {
+    position: absolute;
+    top: var(--space-3);
+    background: transparent;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+    font-size: 1.2rem;
+    opacity: 0;
+    z-index: 10;
+}
+
+.chart-item-card:hover .chart-item-export-btn {
+    opacity: 1;
+}
+
+.chart-item-export-btn:hover {
+    background: var(--color-gray-100);
+    color: var(--color-primary);
+    transform: scale(1.1);
+}
+
+body.dark-mode .chart-item-export-btn:hover {
+    background: var(--color-gray-700);
+    color: var(--color-primary-light);
 }
 
 .chart-item-icon {

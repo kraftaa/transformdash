@@ -2,13 +2,32 @@
 
 ## High Priority
 
-### Authentication & Authorization (In Progress)
+### Authentication & Authorization (Completed)
 - [x] Create users and permissions database schema
 - [x] Implement JWT authentication with login/logout
 - [x] Add role-based access control (RBAC)
-- [ ] Add permission enforcement to API endpoints
-- [ ] Create user management modals (create/edit users)
+- [x] Add permission enforcement to API endpoints - **ALL CRITICAL ENDPOINTS PROTECTED!**
+  - [x] Model execution (`/api/execute`, `/api/execute/{model_name}`)
+  - [x] Model viewing (`/api/models`, `/api/models/{model_name}/code`)
+  - [x] Dataset management (`/api/datasets` - GET/POST/PUT/DELETE)
+  - [x] Dataset upload (`/api/datasets/upload-csv`)
+  - [x] Chart management (`/api/charts/save`, `/api/charts/{id}` DELETE)
+  - [x] User management (`/api/users` - GET/POST/PUT/DELETE)
+  - [x] Role management (`/api/roles` - GET)
+  - [x] Query execution (`/api/query`, `/api/query/execute`)
+- [x] Create user management modals (create/edit users)
 - [ ] Create role management modals (create/edit roles with permission assignment)
+
+### Security - CRITICAL
+- [x] Fix SQL injection in `/api/filter/values` (ui/app.py:2052-2061)
+- [x] Fix SQL injection in `/api/query` (ui/app.py:1683, 1714-1719)
+- [x] Fix SQL injection in `/api/query/execute` (SQL Query Lab schema parameter)
+- [x] Fix XSS vulnerabilities in users table (users_functions.js:77-88)
+- [x] Fix XSS vulnerabilities in roles table (users_functions.js:154-169)
+- [x] Add input validation for SQL identifiers (schema, table, column names)
+- [x] Add aggregation function whitelist (SUM, AVG, COUNT, MIN, MAX, STDDEV, VARIANCE)
+- [ ] Add rate limiting to login endpoint
+- [ ] Add file upload validation (type, size limits)
 
 ## Medium Priority
 

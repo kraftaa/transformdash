@@ -2,7 +2,7 @@
 TransformDash Web UI - FastAPI Application (Refactored)
 Interactive lineage graphs and dashboard with separated concerns
 """
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -28,9 +28,80 @@ from transformations import DAG
 from orchestration.history import RunHistory
 import datasets_api
 
+# Import authentication utilities
+from auth import get_current_user, require_permission, require_role
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# Authentication Helper Functions
+# =============================================================================
+
+async def require_auth(request: Request):
+    """Require authentication for endpoint (any logged-in user)"""
+    return await get_current_user(request)
+
+def require_models_execute():
+    """Require permission to execute transformation models"""
+    return require_permission('models', 'execute')
+
+def require_models_write():
+    """Require permission to create/edit models"""
+    return require_permission('models', 'write')
+
+def require_models_read():
+    """Require permission to view models"""
+    return require_permission('models', 'read')
+
+def require_datasets_write():
+    """Require permission to create/edit/delete datasets"""
+    return require_permission('datasets', 'write')
+
+def require_datasets_read():
+    """Require permission to view datasets"""
+    return require_permission('datasets', 'read')
+
+def require_charts_write():
+    """Require permission to create/edit/delete charts"""
+    return require_permission('charts', 'write')
+
+def require_charts_read():
+    """Require permission to view charts"""
+    return require_permission('charts', 'read')
+
+def require_dashboards_write():
+    """Require permission to create/edit/delete dashboards"""
+    return require_permission('dashboards', 'write')
+
+def require_dashboards_read():
+    """Require permission to view dashboards"""
+    return require_permission('dashboards', 'read')
+
+def require_schedules_manage():
+    """Require permission to manage schedules"""
+    return require_permission('schedules', 'write')
+
+def require_schedules_read():
+    """Require permission to view schedules"""
+    return require_permission('schedules', 'read')
+
+def require_users_manage():
+    """Require permission to manage users"""
+    return require_permission('users', 'write')
+
+def require_users_read():
+    """Require permission to view users"""
+    return require_permission('users', 'read')
+
+def require_permissions_manage():
+    """Require permission to manage roles and permissions"""
+    return require_permission('permissions', 'write')
+
+def require_queries_execute():
+    """Require permission to execute SQL queries"""
+    return require_permission('queries', 'execute')
 
 app = FastAPI(title="TransformDash", description="Hybrid Data Transformation Platform")
 
@@ -111,8 +182,11 @@ async def dashboard_view(request: Request, dashboard_id: str):
 
 
 @app.get("/api/models")
-async def get_models():
-    """Get all models with their dependencies"""
+async def get_models(
+    request: Request,
+    user: dict = Depends(require_models_read())
+):
+    """Get all models with their dependencies (requires view_models permission)"""
     try:
         models = loader.load_all_models()
 
@@ -144,8 +218,12 @@ async def get_lineage():
 
 
 @app.get("/api/models/{model_name}/code")
-async def get_model_code(model_name: str):
-    """Get the code for a specific model (SQL or Python)"""
+async def get_model_code(
+    model_name: str,
+    request: Request,
+    user: dict = Depends(require_models_read())
+):
+    """Get the code for a specific model (SQL or Python) (requires view_models permission)"""
     try:
         models = loader.load_all_models()
         model = next((m for m in models if m.name == model_name), None)
@@ -176,8 +254,11 @@ async def get_model_code(model_name: str):
 
 
 @app.post("/api/execute")
-async def execute_transformations():
-    """Execute all transformations in DAG order"""
+async def execute_transformations(
+    request: Request,
+    user: dict = Depends(require_models_execute())
+):
+    """Execute all transformations in DAG order (requires execute_models permission)"""
     try:
         from orchestration import TransformationEngine
         from datetime import datetime
@@ -224,8 +305,12 @@ async def execute_transformations():
 
 
 @app.post("/api/execute/{model_name}")
-async def execute_single_model(model_name: str):
-    """Execute a single transformation model (and its dependencies)"""
+async def execute_single_model(
+    model_name: str,
+    request: Request,
+    user: dict = Depends(require_models_execute())
+):
+    """Execute a single transformation model (and its dependencies) (requires execute_models permission)"""
     try:
         from orchestration import TransformationEngine
 
@@ -716,8 +801,11 @@ async def get_all_charts():
 
 
 @app.post("/api/charts/save")
-async def save_chart(request: Request):
-    """Save a chart configuration to database"""
+async def save_chart(
+    request: Request,
+    user: dict = Depends(require_charts_write())
+):
+    """Save a chart configuration to database (requires create_charts permission)"""
     try:
         import logging
         import json
@@ -844,8 +932,12 @@ async def save_chart(request: Request):
 
 
 @app.delete("/api/charts/{chart_id}")
-async def delete_chart(chart_id: str):
-    """Delete a chart from the database"""
+async def delete_chart(
+    chart_id: str,
+    request: Request,
+    user: dict = Depends(require_charts_write())
+):
+    """Delete a chart from the database (requires delete_charts permission)"""
     try:
         import logging
         from connection_manager import connection_manager
@@ -1377,50 +1469,73 @@ async def update_chart_dimensions(dashboard_id: str, chart_id: str, request: Req
 # ============================================================================
 
 @app.get("/api/datasets")
-async def get_datasets():
-    """Get all datasets"""
+async def get_datasets(
+    request: Request,
+    user: dict = Depends(require_datasets_read())
+):
+    """Get all datasets (requires view_datasets permission)"""
     return await datasets_api.get_all_datasets()
 
 
 @app.get("/api/datasets/{dataset_id}")
-async def get_dataset(dataset_id: str):
-    """Get a single dataset by ID"""
+async def get_dataset(
+    dataset_id: str,
+    request: Request,
+    user: dict = Depends(require_datasets_read())
+):
+    """Get a single dataset by ID (requires view_datasets permission)"""
     return await datasets_api.get_dataset_by_id(dataset_id)
 
 
 @app.post("/api/datasets")
-async def create_dataset_endpoint(request: Request):
-    """Create a new dataset"""
+async def create_dataset_endpoint(
+    request: Request,
+    user: dict = Depends(require_datasets_write())
+):
+    """Create a new dataset (requires create_datasets permission)"""
     return await datasets_api.create_dataset(request)
 
 
 @app.put("/api/datasets/{dataset_id}")
-async def update_dataset_endpoint(dataset_id: str, request: Request):
-    """Update an existing dataset"""
+async def update_dataset_endpoint(
+    dataset_id: str,
+    request: Request,
+    user: dict = Depends(require_datasets_write())
+):
+    """Update an existing dataset (requires edit_datasets permission)"""
     return await datasets_api.update_dataset(dataset_id, request)
 
 
 @app.delete("/api/datasets/{dataset_id}")
-async def delete_dataset_endpoint(dataset_id: str):
-    """Delete a dataset"""
+async def delete_dataset_endpoint(
+    dataset_id: str,
+    request: Request,
+    user: dict = Depends(require_datasets_write())
+):
+    """Delete a dataset (requires delete_datasets permission)"""
     return await datasets_api.delete_dataset(dataset_id)
 
 
 @app.post("/api/datasets/preview")
-async def preview_dataset_endpoint(request: Request):
-    """Preview data from a dataset"""
+async def preview_dataset_endpoint(
+    request: Request,
+    user: dict = Depends(require_datasets_read())
+):
+    """Preview data from a dataset (requires view_datasets permission)"""
     return await datasets_api.preview_dataset(request)
 
 
 @app.post("/api/datasets/upload-csv")
 async def upload_csv(
+    request: Request,
     file: UploadFile = File(...),
     dataset_id: str = Form(None),
     dataset_name: str = Form(None),
     dataset_description: str = Form(None),
-    preview_only: str = Form(None)
+    preview_only: str = Form(None),
+    user: dict = Depends(require_datasets_write())
 ):
-    """Upload a CSV file and create a dataset"""
+    """Upload a CSV file and create a dataset (requires upload_datasets permission)"""
     from postgres import PostgresConnector
     import traceback
 
@@ -1636,11 +1751,15 @@ async def get_table_columns(table_name: str, schema: str = "public", connection_
 
 
 @app.post("/api/query")
-async def query_data(request: Request):
-    """Execute a query and return aggregated data for charting"""
+async def query_data(
+    request: Request,
+    user: dict = Depends(require_queries_execute())
+):
+    """Execute a query and return aggregated data for charting (requires execute_queries permission)"""
     try:
         from postgres import PostgresConnector
         import logging
+        import pandas as pd
 
         body = await request.json()
         logging.info(f"Query request body: {body}")
@@ -1669,6 +1788,9 @@ async def query_data(request: Request):
         # Helper function to build WHERE clause for filters with optional expressions
         def build_filter_clauses(filters, filter_expressions, available_columns):
             """Build WHERE clauses supporting SQL expressions for filters"""
+            from psycopg2 import sql
+            import re
+
             where_clauses = []
             params = []
 
@@ -1680,10 +1802,27 @@ async def query_data(request: Request):
                 if field in filter_expressions and filter_expressions[field]:
                     # Use the SQL expression instead of the raw field
                     expression = filter_expressions[field]
+
+                    # Validate expression for safety
+                    dangerous_patterns = [';', '--', '/*', '*/', 'DROP', 'DELETE', 'INSERT', 'UPDATE', 'CREATE', 'ALTER', 'TRUNCATE', 'EXEC']
+                    expr_upper = expression.upper()
+                    for pattern in dangerous_patterns:
+                        if pattern in expr_upper:
+                            raise HTTPException(status_code=400, detail=f"Expression contains unsafe SQL pattern: {pattern}")
+
+                    # Only allow safe characters
+                    if not re.match(r'^[a-zA-Z0-9_\s\(\)\+\-\*\/\,\.\:\'\[\]]+$', expression):
+                        raise HTTPException(status_code=400, detail="Expression contains invalid characters")
+
+                    # Use parameterized query - expression goes in SQL, value as parameter
                     where_clauses.append(f"({expression}) = %s")
                     params.append(value)
                 elif field in available_columns:
-                    # Use the field directly
+                    # Validate field name (must be valid SQL identifier)
+                    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', field):
+                        raise HTTPException(status_code=400, detail=f"Invalid field name: {field}")
+
+                    # Use the field directly with parameterized value
                     where_clauses.append(f"{field} = %s")
                     params.append(value)
 
@@ -1701,24 +1840,47 @@ async def query_data(request: Request):
 
             # Handle table type charts (data table display)
             if chart_type == 'table':
+                from psycopg2 import sql
+                import re
+
                 columns = body.get('columns', [])
                 if not columns:
                     raise HTTPException(status_code=400, detail="Missing columns for table chart")
+
+                # Validate each column name and check it exists
+                for col in columns:
+                    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', col):
+                        raise HTTPException(status_code=400, detail=f"Invalid column name: {col}")
+                    if col not in available_columns:
+                        raise HTTPException(status_code=400, detail=f"Column not found in table: {col}")
 
                 # Build WHERE clauses from filters using helper function
                 where_clauses, params = build_filter_clauses(filters, filter_expressions, available_columns)
                 where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-                # Build column selection
-                column_names = ', '.join(columns)
-                query = f"""
-                    SELECT {column_names}
+                # Build column selection safely with sql.Identifier
+                column_identifiers = [sql.Identifier(col) for col in columns]
+                column_names_sql = sql.SQL(', ').join(column_identifiers)
+
+                # Build full query safely using psycopg2.sql.Composed
+                query = sql.SQL("""
+                    SELECT {columns}
                     FROM {schema}.{table}
                     {where_sql}
                     LIMIT 100
-                """
+                """).format(
+                    columns=column_names_sql,
+                    schema=sql.Identifier(schema),
+                    table=sql.Identifier(table),
+                    where_sql=sql.SQL(where_sql)
+                )
 
-                df = pg.query_to_dataframe(query, tuple(params) if params else None)
+                # Execute composed SQL directly with cursor (psycopg2 handles Composed objects)
+                from psycopg2.extras import RealDictCursor
+                with pg.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(query, tuple(params) if params else None)
+                    result = cur.fetchall()
+                    df = pd.DataFrame(result) if result else pd.DataFrame()
 
                 # Convert DataFrame to list of dictionaries
                 data = df.to_dict('records')
@@ -1730,16 +1892,37 @@ async def query_data(request: Request):
 
             # Handle metric type charts (single value)
             if chart_type == 'metric' and metric:
+                from psycopg2 import sql
+                import re
+
+                # Validate metric column
+                if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', metric):
+                    raise HTTPException(status_code=400, detail=f"Invalid metric name: {metric}")
+                if metric not in available_columns:
+                    raise HTTPException(status_code=400, detail=f"Metric column not found: {metric}")
+
+                # Validate aggregation function (whitelist)
+                ALLOWED_AGGREGATIONS = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX', 'STDDEV', 'VARIANCE']
+                agg_func = aggregation.upper()
+                if agg_func not in ALLOWED_AGGREGATIONS:
+                    raise HTTPException(status_code=400, detail=f"Invalid aggregation function: {aggregation}")
+
                 # Build WHERE clauses from filters using helper function
                 where_clauses, params = build_filter_clauses(filters, filter_expressions, available_columns)
                 where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-                agg_func = aggregation.upper()
-                query = f"""
+                # Build query safely
+                query = sql.SQL("""
                     SELECT {agg_func}({metric}) as value
                     FROM {schema}.{table}
                     {where_sql}
-                """
+                """).format(
+                    agg_func=sql.SQL(agg_func),
+                    metric=sql.Identifier(metric),
+                    schema=sql.Identifier(schema),
+                    table=sql.Identifier(table),
+                    where_sql=sql.SQL(where_sql)
+                )
 
                 df = pg.query_to_dataframe(query, tuple(params) if params else None)
                 value = df['value'].iloc[0] if len(df) > 0 else 0
@@ -1758,32 +1941,69 @@ async def query_data(request: Request):
             # Handle multi-metric charts (multiple series on same chart)
             metrics = body.get('metrics')
             if metrics and isinstance(metrics, list):
+                from psycopg2 import sql
+                import re
+
                 if not x_axis:
                     raise HTTPException(status_code=400, detail="Missing x_axis for multi-metric chart")
 
+                # Validate x_axis
+                if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', x_axis):
+                    raise HTTPException(status_code=400, detail=f"Invalid x_axis name: {x_axis}")
+                if x_axis not in available_columns:
+                    raise HTTPException(status_code=400, detail=f"x_axis column not found: {x_axis}")
+
                 # Build WHERE clauses from filters using helper function
                 filter_clauses, params = build_filter_clauses(filters, filter_expressions, available_columns)
+
+                # Add x_axis IS NOT NULL - safely
                 where_clauses = [f"{x_axis} IS NOT NULL"] + filter_clauses
                 where_sql = "WHERE " + " AND ".join(where_clauses)
 
-                # Build query with multiple aggregations
-                metric_selects = []
+                # Build query with multiple aggregations - validate each metric
+                ALLOWED_AGGREGATIONS = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX', 'STDDEV', 'VARIANCE']
+                metric_sql_parts = []
+
                 for metric in metrics:
                     field = metric.get('field')
                     agg = metric.get('aggregation', 'sum').upper()
-                    label = metric.get('label', field)
-                    metric_selects.append(f"{agg}({field}) as {field}")
 
-                query = f"""
+                    # Validate field
+                    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', field):
+                        raise HTTPException(status_code=400, detail=f"Invalid metric field: {field}")
+                    if field not in available_columns:
+                        raise HTTPException(status_code=400, detail=f"Metric field not found: {field}")
+
+                    # Validate aggregation
+                    if agg not in ALLOWED_AGGREGATIONS:
+                        raise HTTPException(status_code=400, detail=f"Invalid aggregation: {agg}")
+
+                    # Build safe SQL part
+                    metric_sql_parts.append(
+                        sql.SQL("{agg}({field}) as {alias}").format(
+                            agg=sql.SQL(agg),
+                            field=sql.Identifier(field),
+                            alias=sql.Identifier(field)
+                        )
+                    )
+
+                # Build full query safely
+                query = sql.SQL("""
                     SELECT
                         {x_axis} as label,
-                        {', '.join(metric_selects)}
+                        {metric_selects}
                     FROM {schema}.{table}
                     {where_sql}
                     GROUP BY {x_axis}
                     ORDER BY {x_axis}
                     LIMIT 50
-                """
+                """).format(
+                    x_axis=sql.Identifier(x_axis),
+                    metric_selects=sql.SQL(', ').join(metric_sql_parts),
+                    schema=sql.Identifier(schema),
+                    table=sql.Identifier(table),
+                    where_sql=sql.SQL(where_sql)
+                )
 
                 df = pg.query_to_dataframe(query, tuple(params) if params else None)
 
@@ -2027,7 +2247,9 @@ async def get_filter_values(request: Request):
     """Get distinct values for a filter field (supports SQL expressions)"""
     try:
         from connection_manager import connection_manager
+        from psycopg2 import sql
         import logging
+        import re
 
         body = await request.json()
         table = body.get('table')
@@ -2042,25 +2264,70 @@ async def get_filter_values(request: Request):
         if not field and not expression:
             raise HTTPException(status_code=400, detail="Either field or expression is required")
 
-        # Use expression if provided, otherwise use field
-        query_field = expression if expression else field
+        # Validate schema name (must be valid SQL identifier)
+        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', schema):
+            raise HTTPException(status_code=400, detail="Invalid schema name")
+
+        # Validate table name (must be valid SQL identifier)
+        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', table):
+            raise HTTPException(status_code=400, detail="Invalid table name")
 
         # Get connection from connection manager
         with connection_manager.get_connection(connection_id) as pg:
-            # Set search path to use the selected schema
-            if schema:
-                pg.execute(f"SET search_path TO {schema}, public")
+            # Validate that table exists in schema
+            table_check = pg.execute("""
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = %s AND table_name = %s
+            """, (schema, table), fetch=True)
 
-            # Build query to get distinct values
-            query = f"""
-                SELECT DISTINCT {query_field} as value
-                FROM {table}
-                WHERE {query_field} IS NOT NULL
-                ORDER BY {query_field}
-                LIMIT 1000
-            """
+            if not table_check:
+                raise HTTPException(status_code=404, detail=f"Table {schema}.{table} not found")
 
-            logging.info(f"Fetching filter values: {query}")
+            # Build query safely using psycopg2.sql for identifiers
+            if expression:
+                # For expressions, validate they don't contain dangerous patterns
+                dangerous_patterns = [';', '--', '/*', '*/', 'xp_', 'sp_', 'DROP', 'DELETE', 'INSERT', 'UPDATE', 'CREATE', 'ALTER', 'TRUNCATE', 'EXEC']
+                expr_upper = expression.upper()
+                for pattern in dangerous_patterns:
+                    if pattern in expr_upper:
+                        raise HTTPException(status_code=400, detail=f"Expression contains unsafe SQL pattern: {pattern}")
+
+                # For safety, expressions should only use allowed functions and operators
+                # Allow: CAST, EXTRACT, DATE, SUBSTRING, CONCAT, +, -, *, /, column names
+                if not re.match(r'^[a-zA-Z0-9_\s\(\)\+\-\*\/\,\.\:\'\[\]]+$', expression):
+                    raise HTTPException(status_code=400, detail="Expression contains invalid characters")
+
+                # Use SQL literal for expression (still safer than f-string)
+                query = sql.SQL("""
+                    SELECT DISTINCT ({expression}) as value
+                    FROM {schema}.{table}
+                    WHERE ({expression}) IS NOT NULL
+                    ORDER BY ({expression})
+                    LIMIT 1000
+                """).format(
+                    expression=sql.SQL(expression),
+                    schema=sql.Identifier(schema),
+                    table=sql.Identifier(table)
+                )
+            else:
+                # Validate field name (must be valid SQL identifier)
+                if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', field):
+                    raise HTTPException(status_code=400, detail="Invalid field name")
+
+                # Use sql.Identifier for safe quoting
+                query = sql.SQL("""
+                    SELECT DISTINCT {field} as value
+                    FROM {schema}.{table}
+                    WHERE {field} IS NOT NULL
+                    ORDER BY {field}
+                    LIMIT 1000
+                """).format(
+                    field=sql.Identifier(field),
+                    schema=sql.Identifier(schema),
+                    table=sql.Identifier(table)
+                )
+
+            logging.info(f"Fetching filter values from {schema}.{table}")
             result = pg.execute(query, fetch=True)
 
             values = [row['value'] for row in result]
@@ -2068,15 +2335,20 @@ async def get_filter_values(request: Request):
 
             return {"values": values}
 
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         logging.error(f"Error fetching filter values: {str(e)}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/api/query/execute")
-async def execute_query(request: Request):
-    """Execute a SQL query and return results for SQL Query Lab"""
+async def execute_query(
+    request: Request,
+    user: dict = Depends(require_queries_execute())
+):
+    """Execute a SQL query and return results for SQL Query Lab (requires execute_queries permission)"""
     try:
         from postgres import PostgresConnector
         import logging
@@ -2097,8 +2369,13 @@ async def execute_query(request: Request):
                 detail="Only SELECT queries and CTEs (WITH) are allowed in SQL Query Lab"
             )
 
-        # Additional safety: block dangerous keywords
-        dangerous_keywords = ['DROP', 'DELETE', 'TRUNCATE', 'ALTER', 'CREATE', 'INSERT', 'UPDATE']
+        # Additional safety: block dangerous keywords (including in subqueries)
+        dangerous_keywords = [
+            'DROP', 'DELETE', 'TRUNCATE', 'ALTER', 'CREATE', 'INSERT', 'UPDATE',
+            'GRANT', 'REVOKE', 'EXEC', 'EXECUTE', 'CALL',
+            'xp_', 'sp_',  # SQL Server procedures
+            ';--', '/*',  # Comment injection attempts
+        ]
         for keyword in dangerous_keywords:
             if keyword in sql_upper:
                 raise HTTPException(
@@ -2106,15 +2383,24 @@ async def execute_query(request: Request):
                     detail=f"Query contains forbidden keyword: {keyword}"
                 )
 
+        # Validate schema name to prevent SQL injection
+        import re
+        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', schema):
+            raise HTTPException(status_code=400, detail="Invalid schema name")
+
         logging.info(f"Executing query in connection={connection_id or 'default'}, schema={schema}")
 
         # Get connection from connection manager
         from connection_manager import connection_manager
+        from psycopg2 import sql as psycopg_sql
+
         with connection_manager.get_connection(connection_id) as pg:
-            # Set search path to use the selected schema
-            if schema:
-                pg.execute(f"SET search_path TO {schema}, public")
-                logging.info(f"Set search_path to {schema}, public")
+            # Set search path safely using parameterized query
+            set_path_query = psycopg_sql.SQL("SET search_path TO {schema}, public").format(
+                schema=psycopg_sql.Identifier(schema)
+            )
+            pg.execute(set_path_query)
+            logging.info(f"Set search_path to {schema}, public")
 
             # Execute query and convert to dataframe
             df = pg.query_to_dataframe(sql)
@@ -2398,28 +2684,43 @@ async def export_dashboard_data(dashboard_id: str, request: Request):
     """Export all dashboard data as CSV or Excel"""
     try:
         from postgres import PostgresConnector
-        import yaml
+        from connection_manager import connection_manager
         import io
         from fastapi.responses import StreamingResponse
 
         body = await request.json()
-
-        dashboards_file = models_dir / "dashboards.yml"
-        with open(dashboards_file, 'r') as f:
-            data = yaml.safe_load(f)
-
-        dashboard = next((d for d in data.get('dashboards', []) if d['id'] == dashboard_id), None)
-        if not dashboard:
-            raise HTTPException(status_code=404, detail="Dashboard not found")
-
         export_format = body.get('format', 'csv')  # csv or excel
         filters = body.get('filters', {})
 
         # Collect all data from all charts
         all_data = {}
 
+        # Fetch charts for this dashboard from the database
+        with connection_manager.get_connection() as viz_pg:
+            charts_data = viz_pg.execute("""
+                SELECT
+                    c.id,
+                    c.title,
+                    c.type,
+                    c.model,
+                    c.connection_id,
+                    c.x_axis,
+                    c.y_axis,
+                    c.aggregation,
+                    c.columns,
+                    c.category,
+                    c.config
+                FROM charts c
+                INNER JOIN dashboard_charts dc ON c.id = dc.chart_id
+                WHERE dc.dashboard_id = %s
+                ORDER BY dc.position
+            """, (dashboard_id,), fetch=True)
+
+            if not charts_data:
+                raise HTTPException(status_code=404, detail="No charts found for this dashboard")
+
         with PostgresConnector() as pg:
-            for chart in dashboard.get('charts', []):
+            for chart in charts_data:
                 # Skip metric-only charts and advanced charts
                 if chart.get('type') == 'metric' or chart.get('metrics') or chart.get('calculation'):
                     continue
@@ -2428,7 +2729,15 @@ async def export_dashboard_data(dashboard_id: str, request: Request):
                     continue
 
                 # Build query with filters
-                table = chart['model']
+                model = chart['model']
+
+                # Parse schema.table format (e.g., "raw.customers" or just "customers")
+                if '.' in model:
+                    schema, table = model.split('.', 1)
+                else:
+                    schema = 'public'  # Default schema
+                    table = model
+
                 x_axis = chart['x_axis']
                 y_axis = chart['y_axis']
                 agg_func = chart.get('aggregation', 'sum').upper()
@@ -2486,6 +2795,168 @@ async def export_dashboard_data(dashboard_id: str, request: Request):
             )
 
     except Exception as e:
+        import logging
+        import traceback
+        logging.error(f"Dashboard export error: {str(e)}")
+        logging.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/charts/{chart_id}/export")
+async def export_chart_data(chart_id: str, request: Request):
+    """Export individual chart data as CSV or Excel"""
+    try:
+        from postgres import PostgresConnector
+        from connection_manager import connection_manager
+        import io
+        import pandas as pd
+        from fastapi.responses import StreamingResponse
+
+        body = await request.json()
+        export_format = body.get('format', 'csv')  # csv or excel
+        filters = body.get('filters', {})
+
+        # Fetch chart details from the database
+        with connection_manager.get_connection() as viz_pg:
+            chart_data = viz_pg.execute("""
+                SELECT
+                    c.id,
+                    c.title,
+                    c.type,
+                    c.model,
+                    c.connection_id,
+                    c.x_axis,
+                    c.y_axis,
+                    c.aggregation,
+                    c.columns,
+                    c.category,
+                    c.config
+                FROM charts c
+                WHERE c.id = %s
+            """, (chart_id,), fetch=True)
+
+            if not chart_data or len(chart_data) == 0:
+                raise HTTPException(status_code=404, detail="Chart not found")
+
+            chart = chart_data[0]
+
+        # Query the chart data
+        with PostgresConnector() as pg:
+            # Skip metric-only charts
+            if chart.get('type') == 'metric':
+                raise HTTPException(status_code=400, detail="Cannot export metric-only charts")
+
+            if not chart.get('model'):
+                raise HTTPException(status_code=400, detail="Chart has no data model")
+
+            # Parse schema.table format
+            model = chart['model']
+            if '.' in model:
+                schema, table = model.split('.', 1)
+            else:
+                schema = 'public'
+                table = model
+
+            # Handle table-type charts (columns specified)
+            if chart.get('type') == 'table' and chart.get('columns'):
+                columns = [col if isinstance(col, str) else col.get('name') for col in chart['columns']]
+                columns_sql = ', '.join(columns)
+
+                # Apply filters
+                where_clauses = []
+                params = []
+                if filters:
+                    for field, value in filters.items():
+                        where_clauses.append(f"{field} = %s")
+                        params.append(value)
+
+                where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+                query = f"""
+                    SELECT {columns_sql}
+                    FROM {schema}.{table}
+                    {where_sql}
+                    LIMIT 10000
+                """
+
+                df = pg.query_to_dataframe(query, tuple(params) if params else None)
+
+            # Handle aggregated charts (bar, line, pie, etc.)
+            elif chart.get('x_axis') and chart.get('y_axis'):
+                x_axis = chart['x_axis']
+                y_axis = chart['y_axis']
+                agg_func = chart.get('aggregation', 'sum').upper()
+
+                # Apply filters
+                where_clauses = []
+                params = []
+                if filters:
+                    for field, value in filters.items():
+                        where_clauses.append(f"{field} = %s")
+                        params.append(value)
+
+                where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+                # Handle category (stacked charts)
+                if chart.get('category'):
+                    category = chart['category']
+                    query = f"""
+                        SELECT
+                            {x_axis} as label,
+                            {category} as category,
+                            {agg_func}({y_axis}) as value
+                        FROM {schema}.{table}
+                        {where_sql}
+                        GROUP BY {x_axis}, {category}
+                        ORDER BY {x_axis}, {category}
+                    """
+                else:
+                    query = f"""
+                        SELECT
+                            {x_axis} as label,
+                            {agg_func}({y_axis}) as value
+                        FROM {schema}.{table}
+                        {where_sql}
+                        GROUP BY {x_axis}
+                        ORDER BY {x_axis}
+                    """
+
+                df = pg.query_to_dataframe(query, tuple(params) if params else None)
+            else:
+                raise HTTPException(status_code=400, detail="Chart configuration is incomplete")
+
+        # Export as requested format
+        chart_title = chart.get('title', chart_id)
+        if export_format == 'excel':
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                safe_name = chart_title[:31]  # Excel sheet name limit
+                df.to_excel(writer, sheet_name=safe_name, index=False)
+            output.seek(0)
+
+            return StreamingResponse(
+                output,
+                media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                headers={'Content-Disposition': f'attachment; filename="{chart_id}_data.xlsx"'}
+            )
+        else:  # CSV
+            output = io.StringIO()
+            df.to_csv(output, index=False)
+            output.seek(0)
+
+            return StreamingResponse(
+                iter([output.getvalue()]),
+                media_type='text/csv',
+                headers={'Content-Disposition': f'attachment; filename="{chart_id}_data.csv"'}
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        import traceback
+        logging.error(f"Chart export error: {str(e)}")
+        logging.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -3356,8 +3827,11 @@ async def get_current_user_info(request: Request):
 # =============================================================================
 
 @app.get("/api/users")
-async def get_users():
-    """Get all users with their roles"""
+async def get_users(
+    request: Request,
+    user: dict = Depends(require_users_read())
+):
+    """Get all users with their roles (requires view_users permission)"""
     try:
         from connection_manager import connection_manager
 
@@ -3394,8 +3868,11 @@ async def get_users():
 
 
 @app.post("/api/users")
-async def create_user(request: Request):
-    """Create a new user"""
+async def create_user(
+    request: Request,
+    user: dict = Depends(require_users_manage())
+):
+    """Create a new user (requires manage_users permission)"""
     try:
         from connection_manager import connection_manager
         import bcrypt
@@ -3440,7 +3917,11 @@ async def create_user(request: Request):
 
 
 @app.put("/api/users/{user_id}")
-async def update_user(user_id: int, request: Request):
+async def update_user(
+    user_id: int,
+    request: Request,
+    user: dict = Depends(require_users_manage())
+):
     """Update user details"""
     try:
         from connection_manager import connection_manager
@@ -3510,8 +3991,12 @@ async def update_user(user_id: int, request: Request):
 
 
 @app.delete("/api/users/{user_id}")
-async def delete_user(user_id: int):
-    """Delete a user"""
+async def delete_user(
+    user_id: int,
+    request: Request,
+    user: dict = Depends(require_users_manage())
+):
+    """Delete a user (requires manage_users permission)"""
     try:
         from connection_manager import connection_manager
 
@@ -3526,8 +4011,11 @@ async def delete_user(user_id: int):
 
 
 @app.get("/api/roles")
-async def get_roles():
-    """Get all roles with their permissions"""
+async def get_roles(
+    request: Request,
+    user: dict = Depends(require_users_read())
+):
+    """Get all roles with their permissions (requires view_users permission)"""
     try:
         from connection_manager import connection_manager
 
