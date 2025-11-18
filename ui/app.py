@@ -2729,6 +2729,10 @@ async def export_dashboard_data(dashboard_id: str, request: Request):
                     continue
 
                 # Build query with filters
+                from psycopg2 import sql
+                from psycopg2.extras import RealDictCursor
+                import re
+
                 model = chart['model']
 
                 # Parse schema.table format (e.g., "raw.customers" or just "customers")
@@ -2738,21 +2742,42 @@ async def export_dashboard_data(dashboard_id: str, request: Request):
                     schema = 'public'  # Default schema
                     table = model
 
+                # Validate identifier names (schema, table, columns)
+                if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', schema):
+                    continue  # Skip invalid schema
+                if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', table):
+                    continue  # Skip invalid table
+
                 x_axis = chart['x_axis']
                 y_axis = chart['y_axis']
                 agg_func = chart.get('aggregation', 'sum').upper()
+
+                # Validate column names
+                if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', x_axis):
+                    continue
+                if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', y_axis):
+                    continue
+
+                # Validate aggregation function (whitelist)
+                ALLOWED_AGGREGATIONS = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX', 'STDDEV', 'VARIANCE']
+                if agg_func not in ALLOWED_AGGREGATIONS:
+                    continue
 
                 # Apply filters from request
                 where_clauses = []
                 params = []
                 if filters:
                     for field, value in filters.items():
+                        # Validate filter field names
+                        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', field):
+                            continue
                         where_clauses.append(f"{field} = %s")
                         params.append(value)
 
-                where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+                where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-                query = f"""
+                # Build query safely using sql.SQL
+                query = sql.SQL("""
                     SELECT
                         {x_axis} as label,
                         {agg_func}({y_axis}) as value
@@ -2760,9 +2785,21 @@ async def export_dashboard_data(dashboard_id: str, request: Request):
                     {where_sql}
                     GROUP BY {x_axis}
                     ORDER BY {x_axis}
-                """
+                """).format(
+                    x_axis=sql.Identifier(x_axis),
+                    agg_func=sql.SQL(agg_func),
+                    y_axis=sql.Identifier(y_axis),
+                    schema=sql.Identifier(schema),
+                    table=sql.Identifier(table),
+                    where_sql=sql.SQL(where_sql)
+                )
 
-                df = pg.query_to_dataframe(query, tuple(params) if params else None)
+                # Execute with cursor to handle Composed SQL
+                with pg.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(query, tuple(params) if params else None)
+                    result = cur.fetchall()
+                    df = pd.DataFrame(result) if result else pd.DataFrame()
+
                 all_data[chart['title']] = df
 
         # Export as requested format
@@ -2842,6 +2879,10 @@ async def export_chart_data(chart_id: str, request: Request):
 
         # Query the chart data
         with PostgresConnector() as pg:
+            from psycopg2 import sql
+            from psycopg2.extras import RealDictCursor
+            import re
+
             # Skip metric-only charts
             if chart.get('type') == 'metric':
                 raise HTTPException(status_code=400, detail="Cannot export metric-only charts")
@@ -2857,29 +2898,55 @@ async def export_chart_data(chart_id: str, request: Request):
                 schema = 'public'
                 table = model
 
+            # Validate schema and table names
+            if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', schema):
+                raise HTTPException(status_code=400, detail="Invalid schema name")
+            if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', table):
+                raise HTTPException(status_code=400, detail="Invalid table name")
+
             # Handle table-type charts (columns specified)
             if chart.get('type') == 'table' and chart.get('columns'):
                 columns = [col if isinstance(col, str) else col.get('name') for col in chart['columns']]
-                columns_sql = ', '.join(columns)
+
+                # Validate all column names
+                for col in columns:
+                    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', col):
+                        raise HTTPException(status_code=400, detail=f"Invalid column name: {col}")
 
                 # Apply filters
                 where_clauses = []
                 params = []
                 if filters:
                     for field, value in filters.items():
+                        # Validate filter field names
+                        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', field):
+                            continue
                         where_clauses.append(f"{field} = %s")
                         params.append(value)
 
-                where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+                where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-                query = f"""
-                    SELECT {columns_sql}
+                # Build safe query with sql.SQL
+                column_identifiers = [sql.Identifier(col) for col in columns]
+                columns_sql = sql.SQL(', ').join(column_identifiers)
+
+                query = sql.SQL("""
+                    SELECT {columns}
                     FROM {schema}.{table}
                     {where_sql}
                     LIMIT 10000
-                """
+                """).format(
+                    columns=columns_sql,
+                    schema=sql.Identifier(schema),
+                    table=sql.Identifier(table),
+                    where_sql=sql.SQL(where_sql)
+                )
 
-                df = pg.query_to_dataframe(query, tuple(params) if params else None)
+                # Execute with cursor
+                with pg.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(query, tuple(params) if params else None)
+                    result = cur.fetchall()
+                    df = pd.DataFrame(result) if result else pd.DataFrame()
 
             # Handle aggregated charts (bar, line, pie, etc.)
             elif chart.get('x_axis') and chart.get('y_axis'):
@@ -2887,20 +2954,39 @@ async def export_chart_data(chart_id: str, request: Request):
                 y_axis = chart['y_axis']
                 agg_func = chart.get('aggregation', 'sum').upper()
 
+                # Validate column names
+                if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', x_axis):
+                    raise HTTPException(status_code=400, detail=f"Invalid x_axis name: {x_axis}")
+                if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', y_axis):
+                    raise HTTPException(status_code=400, detail=f"Invalid y_axis name: {y_axis}")
+
+                # Validate aggregation function (whitelist)
+                ALLOWED_AGGREGATIONS = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX', 'STDDEV', 'VARIANCE']
+                if agg_func not in ALLOWED_AGGREGATIONS:
+                    raise HTTPException(status_code=400, detail=f"Invalid aggregation function: {agg_func}")
+
                 # Apply filters
                 where_clauses = []
                 params = []
                 if filters:
                     for field, value in filters.items():
+                        # Validate filter field names
+                        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', field):
+                            continue
                         where_clauses.append(f"{field} = %s")
                         params.append(value)
 
-                where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+                where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
                 # Handle category (stacked charts)
                 if chart.get('category'):
                     category = chart['category']
-                    query = f"""
+
+                    # Validate category name
+                    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', category):
+                        raise HTTPException(status_code=400, detail=f"Invalid category name: {category}")
+
+                    query = sql.SQL("""
                         SELECT
                             {x_axis} as label,
                             {category} as category,
@@ -2909,9 +2995,17 @@ async def export_chart_data(chart_id: str, request: Request):
                         {where_sql}
                         GROUP BY {x_axis}, {category}
                         ORDER BY {x_axis}, {category}
-                    """
+                    """).format(
+                        x_axis=sql.Identifier(x_axis),
+                        category=sql.Identifier(category),
+                        agg_func=sql.SQL(agg_func),
+                        y_axis=sql.Identifier(y_axis),
+                        schema=sql.Identifier(schema),
+                        table=sql.Identifier(table),
+                        where_sql=sql.SQL(where_sql)
+                    )
                 else:
-                    query = f"""
+                    query = sql.SQL("""
                         SELECT
                             {x_axis} as label,
                             {agg_func}({y_axis}) as value
@@ -2919,9 +3013,20 @@ async def export_chart_data(chart_id: str, request: Request):
                         {where_sql}
                         GROUP BY {x_axis}
                         ORDER BY {x_axis}
-                    """
+                    """).format(
+                        x_axis=sql.Identifier(x_axis),
+                        agg_func=sql.SQL(agg_func),
+                        y_axis=sql.Identifier(y_axis),
+                        schema=sql.Identifier(schema),
+                        table=sql.Identifier(table),
+                        where_sql=sql.SQL(where_sql)
+                    )
 
-                df = pg.query_to_dataframe(query, tuple(params) if params else None)
+                # Execute with cursor
+                with pg.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(query, tuple(params) if params else None)
+                    result = cur.fetchall()
+                    df = pd.DataFrame(result) if result else pd.DataFrame()
             else:
                 raise HTTPException(status_code=400, detail="Chart configuration is incomplete")
 
