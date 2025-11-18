@@ -14,11 +14,12 @@ logger = logging.getLogger(__name__)
 
 class RateLimiter:
     """
-    In-memory rate limiter using token bucket algorithm
+    In-memory rate limiter using sliding window algorithm.
 
-    For production, consider using Redis for distributed rate limiting:
-    - redis: pip install redis
-    - Use Redis to store request counts across multiple app instances
+    WARNING: Not suitable for distributed deployments. Request counts
+    are stored in-process and not shared across multiple instances.
+
+    For distributed systems, use a Redis-backed rate limiter.
     """
 
     def __init__(self):
@@ -156,9 +157,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         for endpoint_pattern, (max_req, window) in RATE_LIMITS.items():
             if self._matches_pattern(path, endpoint_pattern):
                 if rate_limiter.is_rate_limited(client_ip, path, max_req, window):
-                    return HTTPException(
+                    from fastapi.responses import JSONResponse
+                    return JSONResponse(
                         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                        detail=f"Rate limit exceeded. Maximum {max_req} requests per {window} seconds.",
+                        content={"detail": f"Rate limit exceeded. Maximum {max_req} requests per {window} seconds."},
                         headers={"Retry-After": str(window)}
                     )
 

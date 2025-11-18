@@ -4,7 +4,7 @@ Interactive lineage graphs and dashboard with separated concerns
 """
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 from pathlib import Path
@@ -14,6 +14,7 @@ import logging
 import uuid
 import os
 import json
+import traceback
 from datetime import datetime
 
 # Load environment variables from .env file
@@ -140,10 +141,6 @@ async def root(request: Request):
     """Serve the main dashboard HTML (requires authentication)"""
     import yaml
     import time
-    import sys
-    from pathlib import Path
-    from fastapi.responses import RedirectResponse
-    sys.path.append(str(Path(__file__).parent.parent))
     from auth import get_optional_user
 
     # Check if user is authenticated
@@ -398,7 +395,6 @@ async def execute_single_model(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error running model {model_name}: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -639,7 +635,6 @@ async def get_dashboards():
 
             return {"dashboards": result}
     except Exception as e:
-        import traceback
         import logging
         logging.error(f"Error getting dashboards: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -716,7 +711,6 @@ async def create_dashboard(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error creating dashboard: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -801,7 +795,6 @@ async def get_all_charts():
 
     except Exception as e:
         import logging
-        import traceback
         logging.error(f"Error fetching charts: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -931,7 +924,6 @@ async def save_chart(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         error_detail = f"{str(e)}\n{traceback.format_exc()}"
         logging.error(f"Error saving chart: {error_detail}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -977,7 +969,6 @@ async def delete_chart(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         error_detail = f"{str(e)}\n{traceback.format_exc()}"
         logging.error(f"Error deleting chart: {error_detail}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1054,7 +1045,6 @@ async def add_chart_to_dashboard(dashboard_id: str, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error adding chart to dashboard: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1176,7 +1166,6 @@ async def get_dashboard(dashboard_id: str):
         raise
     except Exception as e:
         import logging
-        import traceback
         logging.error(f"Error getting dashboard: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1345,7 +1334,6 @@ async def update_dashboard(dashboard_id: str, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error updating dashboard: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1407,7 +1395,6 @@ async def update_dashboard_metadata(dashboard_id: str, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error updating dashboard metadata: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1465,7 +1452,6 @@ async def update_chart_dimensions(dashboard_id: str, chart_id: str, request: Req
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error updating chart dimensions: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1543,7 +1529,6 @@ async def upload_csv(
 ):
     """Upload a CSV file and create a dataset (requires upload_datasets permission)"""
     from postgres import PostgresConnector
-    import traceback
 
     try:
         # Validate file type
@@ -1751,7 +1736,6 @@ async def get_table_columns(table_name: str, schema: str = "public", connection_
             return {"columns": columns}
     except Exception as e:
         import logging
-        import traceback
         logging.error(f"Error fetching columns: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1791,7 +1775,6 @@ async def query_data(
 
         from connection_manager import connection_manager
 
-        # Helper function to build WHERE clause for filters with optional expressions
         def build_filter_clauses(filters, filter_expressions, available_columns):
             """Build WHERE clauses supporting SQL expressions for filters"""
             from psycopg2 import sql
@@ -2128,7 +2111,6 @@ async def query_data(
                     "values": values
                 }
     except Exception as e:
-        import traceback
         logging.error(f"Query error: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2145,7 +2127,6 @@ async def list_connections():
         return {"connections": connections}
 
     except Exception as e:
-        import traceback
         logging.error(f"Error listing connections: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2170,7 +2151,6 @@ async def list_databases():
             return {"databases": databases}
 
     except Exception as e:
-        import traceback
         logging.error(f"Error listing databases: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2197,7 +2177,6 @@ async def list_schemas(connection_id: str = None):
             return {"schemas": schemas}
 
     except Exception as e:
-        import traceback
         logging.error(f"Error listing schemas: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2243,7 +2222,6 @@ async def list_tables(schema: str = "public", connection_id: str = None):
             return {"tables": tables}
 
     except Exception as e:
-        import traceback
         logging.error(f"Error listing tables: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2344,7 +2322,6 @@ async def get_filter_values(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error fetching filter values: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -2481,7 +2458,6 @@ async def execute_query(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error executing query: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Query execution failed: {str(e)}")
 
@@ -2529,7 +2505,6 @@ async def create_view(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error creating view: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to create view: {str(e)}")
 
@@ -2848,7 +2823,6 @@ async def export_dashboard_data(
 
     except Exception as e:
         import logging
-        import traceback
         logging.error(f"Dashboard export error: {str(e)}")
         logging.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -3088,7 +3062,6 @@ async def export_chart_data(
         raise
     except Exception as e:
         import logging
-        import traceback
         logging.error(f"Chart export error: {str(e)}")
         logging.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -3250,7 +3223,6 @@ async def get_orphaned_models():
         }
 
     except Exception as e:
-        import traceback
         logging.error(f"Error detecting orphaned models: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3290,7 +3262,6 @@ async def list_schedules():
             """, fetch=True) or []
         return {"schedules": schedules}
     except Exception as e:
-        import traceback
         logging.error(f"Error listing schedules: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3363,7 +3334,6 @@ async def create_schedule(schedule: ScheduleCreate):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error creating schedule: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3408,7 +3378,6 @@ async def get_schedule(schedule_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error getting schedule: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3537,7 +3506,6 @@ async def update_schedule(schedule_id: int, update: ScheduleUpdate):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error updating schedule: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3560,7 +3528,6 @@ async def delete_schedule(schedule_id: int):
         return {"message": "Schedule deleted successfully"}
 
     except Exception as e:
-        import traceback
         logging.error(f"Error deleting schedule: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3606,7 +3573,6 @@ async def toggle_schedule(schedule_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error toggling schedule: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3625,7 +3591,6 @@ async def get_schedule_runs(schedule_id: int, limit: int = 50):
         return {"runs": runs}
 
     except Exception as e:
-        import traceback
         logging.error(f"Error getting schedule runs: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3658,7 +3623,6 @@ async def get_assets(asset_type: str = None, tags: str = None):
             return {"assets": assets}
 
     except Exception as e:
-        import traceback
         logging.error(f"Error fetching assets: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3684,7 +3648,6 @@ async def get_asset(asset_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error fetching asset: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3765,7 +3728,6 @@ async def upload_asset(
             }
 
     except Exception as e:
-        import traceback
         logging.error(f"Error uploading asset: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3791,7 +3753,6 @@ async def update_asset(asset_id: int, request: Request):
             return {"message": "Asset updated successfully"}
 
     except Exception as e:
-        import traceback
         logging.error(f"Error updating asset: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3811,7 +3772,6 @@ async def delete_asset(asset_id: int):
             return {"message": "Asset deleted successfully"}
 
     except Exception as e:
-        import traceback
         logging.error(f"Error deleting asset: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3848,7 +3808,6 @@ async def download_asset(asset_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error downloading asset: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3861,11 +3820,7 @@ async def download_asset(asset_id: int):
 async def login(request: Request):
     """Login endpoint - authenticate user and return JWT token"""
     try:
-        import sys
-        from pathlib import Path
-        sys.path.append(str(Path(__file__).parent.parent))
         from auth import authenticate_user, create_access_token
-        from fastapi.responses import JSONResponse
 
         body = await request.json()
         username = body.get('username')
@@ -3898,11 +3853,12 @@ async def login(request: Request):
             }
         })
 
-        # Set cookie (httponly for security)
+        # Set cookie with security flags
         response.set_cookie(
             key="access_token",
             value=access_token,
             httponly=True,
+            secure=True,  # Only send over HTTPS
             max_age=480 * 60,  # 8 hours in seconds
             samesite="lax"
         )
@@ -3912,7 +3868,6 @@ async def login(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Login error: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3931,9 +3886,6 @@ async def logout():
 async def get_current_user_info(request: Request):
     """Get current authenticated user info"""
     try:
-        import sys
-        from pathlib import Path
-        sys.path.append(str(Path(__file__).parent.parent))
         from auth import get_current_user
 
         user = await get_current_user(request)
@@ -3951,7 +3903,6 @@ async def get_current_user_info(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error getting current user: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3996,7 +3947,6 @@ async def get_users(
             return {"users": [dict(u) for u in users]}
 
     except Exception as e:
-        import traceback
         logging.error(f"Error fetching users: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -4045,7 +3995,6 @@ async def create_user(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error creating user: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -4119,7 +4068,6 @@ async def update_user(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error updating user: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -4139,7 +4087,6 @@ async def delete_user(
             return {"message": "User deleted successfully"}
 
     except Exception as e:
-        import traceback
         logging.error(f"Error deleting user: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -4181,7 +4128,6 @@ async def get_roles(
             return {"roles": [dict(r) for r in roles]}
 
     except Exception as e:
-        import traceback
         logging.error(f"Error fetching roles: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -4202,7 +4148,6 @@ async def get_permissions():
             return {"permissions": [dict(p) for p in permissions]}
 
     except Exception as e:
-        import traceback
         logging.error(f"Error fetching permissions: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -4241,7 +4186,6 @@ async def create_role(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error creating role: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -4294,7 +4238,6 @@ async def update_role(role_id: int, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error updating role: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -4325,7 +4268,6 @@ async def delete_role(role_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
         logging.error(f"Error deleting role: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -2,7 +2,7 @@
 Authentication and Authorization Module
 Handles JWT tokens, password hashing, and permission checks
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 from jose import JWTError, jwt
 import bcrypt
@@ -25,28 +25,35 @@ security = HTTPBearer()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against a hash"""
-    # Bcrypt has a 72 byte limit - truncate if necessary
+    """
+    Verify plain text password against bcrypt hash.
+
+    Passwords are truncated to 72 bytes (bcrypt limitation).
+    """
     plain_password_bytes = plain_password.encode('utf-8')[:72]
     hashed_password_bytes = hashed_password.encode('utf-8') if isinstance(hashed_password, str) else hashed_password
     return bcrypt.checkpw(plain_password_bytes, hashed_password_bytes)
 
 
 def get_password_hash(password: str) -> str:
-    """Hash a password"""
-    # Bcrypt has a 72 byte limit - truncate if necessary
+    """
+    Generate bcrypt hash from plain text password.
+
+    Returns UTF-8 decoded hash for database storage.
+    Passwords are truncated to 72 bytes (bcrypt limitation).
+    """
     password_bytes = password.encode('utf-8')[:72]
     hashed = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
     return hashed.decode('utf-8')
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create a JWT access token"""
+    """Create a JWT access token with timezone-aware expiration"""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -54,7 +61,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 def decode_token(token: str) -> dict:
-    """Decode and validate a JWT token"""
+    """Decode and validate JWT token, raising HTTPException if invalid"""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload

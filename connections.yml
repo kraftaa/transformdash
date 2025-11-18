@@ -14,8 +14,8 @@ connections:
     name: "App Production"
     host: ${APP_HOST:-localhost}
     port: ${APP_PORT:-5432}
-    database: ${APP_DB}
-    user: ${APP_USER:-maria}
+    database: ${APP_DB:-production}
+    user: ${APP_USER:-postgres}
     password: ${APP_PASSWORD:-}
     default: false
     description: "App production database"
@@ -25,7 +25,7 @@ connections:
     host: ${POSTGRES_HOST:-localhost}
     port: ${POSTGRES_PORT:-5432}
     database: ${POSTGRES_DB:-postgres}
-    user: ${POSTGRES_USER:-maria}
+    user: ${POSTGRES_USER:-postgres}
     password: ${POSTGRES_PASSWORD:-}
     default: false
     description: "postgres database"
