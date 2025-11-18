@@ -1206,16 +1206,37 @@ async function highlightModel(modelName) {
 
         document.getElementById('modalTitle').textContent = data.name;
 
+        // Fetch all models to calculate "Used By"
+        const allModelsResponse = await fetch('/api/models');
+        const allModels = await allModelsResponse.json();
+
+        // Find models that depend on this model
+        const usedBy = allModels
+            .filter(m => m.depends_on.includes(modelName))
+            .map(m => m.name);
+
         const metaInfo = `
             <div class="model-meta-info">
                 <p><strong>Type:</strong> ${data.config.materialized || 'view'}</p>
-                <p><strong>Depends on:</strong> ${data.depends_on.length > 0 ? data.depends_on.join(', ') : 'None'}</p>
-                <p><strong>File:</strong> ${data.file_path}</p>
+                <p><strong>Depends on:</strong> ${data.depends_on.length > 0 ? data.depends_on.map(dep => `<span style="background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 4px; margin: 2px; display: inline-block; font-size: 0.875rem;">${dep}</span>`).join(' ') : '<span style="color: #9ca3af;">None</span>'}</p>
+                <p><strong>Used by:</strong> ${usedBy.length > 0 ? usedBy.map(model => `<span style="background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 4px; margin: 2px; display: inline-block; font-size: 0.875rem;">${model}</span>`).join(' ') : '<span style="color: #9ca3af;">None</span>'}</p>
+                <p><strong>File:</strong> <code style="background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-size: 0.875rem;">${data.file_path}</code></p>
+            </div>
+            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+                <button onclick="goToModelView('${modelName}')" class="btn btn-primary" style="margin-right: 8px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+                        <path d="M9 18l6-6-6-6"/>
+                    </svg>
+                    Go to Model
+                </button>
+                <button onclick="closeModal('codeModal')" class="btn btn-secondary">
+                    Close
+                </button>
             </div>
         `;
 
         const code = `
-            <h3>SQL Code:</h3>
+            <h3 style="margin-top: 24px; margin-bottom: 12px; color: #111827; font-size: 1.125rem;">SQL Code:</h3>
             <pre class="code-block"><code>${escapeHtml(data.code)}</code></pre>
         `;
 
@@ -8464,4 +8485,31 @@ async function logout() {
         console.error('Logout error:', error);
         showToast('Failed to logout', 'error');
     }
+}
+
+// Navigate to Models view and scroll to specific model
+function goToModelView(modelName) {
+    // Close the modal
+    closeModal('codeModal');
+    
+    // Switch to models view
+    switchView('models');
+    
+    // Wait for view to load, then scroll to the model card
+    setTimeout(() => {
+        const modelCard = document.getElementById(`model-card-${modelName}`);
+        if (modelCard) {
+            modelCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // Highlight the model card briefly
+            modelCard.style.transition = 'all 0.3s';
+            modelCard.style.boxShadow = '0 0 0 3px #667eea';
+            modelCard.style.transform = 'scale(1.02)';
+            
+            setTimeout(() => {
+                modelCard.style.boxShadow = '';
+                modelCard.style.transform = '';
+            }, 2000);
+        }
+    }, 300);
 }
