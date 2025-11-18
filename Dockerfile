@@ -19,12 +19,21 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p /app/models/bronze /app/models/silver /app/models/gold /app/ml/models /app/data
 
+# Create non-root user
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Change ownership of application files
+RUN chown -R appuser:appuser /app
+
 # Expose port for web UI
 EXPOSE 8000
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+
+# Switch to non-root user
+USER appuser
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

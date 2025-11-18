@@ -1,0 +1,58 @@
+# Cert-Manager ClusterIssuer for automatic TLS certificate provisioning
+# This uses Let's Encrypt to automatically issue and renew SSL certificates
+#
+# PREREQUISITES:
+# 1. Install cert-manager in your cluster:
+#    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
+#
+# 2. Update the email address below with your actual email
+#
+# 3. Apply this file:
+#    kubectl apply -f k8s/cert-manager-issuer.yaml
+
+---
+# Production Let's Encrypt issuer (use this for public-facing deployments)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    # REQUIRED: Change this to your email address for certificate notifications
+    email: your-email@example.com
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      # Secret to store the ACME account private key
+      name: letsencrypt-prod-account-key
+    # Use HTTP-01 challenge (requires port 80 to be accessible)
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+
+---
+# Staging Let's Encrypt issuer (use this for testing to avoid rate limits)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    # REQUIRED: Change this to your email address
+    email: your-email@example.com
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+
+---
+# Self-signed issuer (use this for local development/testing)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-issuer
+spec:
+  selfSigned: {}

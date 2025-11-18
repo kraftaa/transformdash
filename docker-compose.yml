@@ -7,7 +7,9 @@ services:
     container_name: transformdash-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # SECURITY WARNING: Change this password before deploying to production!
+      # Generate a strong password: openssl rand -base64 32
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_THIS_PASSWORD_IN_PRODUCTION}
       POSTGRES_DB: ${POSTGRES_DB:-transformdash}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -29,26 +31,29 @@ services:
       dockerfile: Dockerfile
     container_name: transformdash-app
     environment:
+      # JWT Authentication (REQUIRED - generate using: python -c 'import secrets; print(secrets.token_urlsafe(32))')
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+
       # TransformDash Database (metadata, charts, dashboards)
       TRANSFORMDASH_HOST: postgres
       TRANSFORMDASH_PORT: 5432
       TRANSFORMDASH_DB: ${TRANSFORMDASH_DB:-transformdash}
       TRANSFORMDASH_USER: ${TRANSFORMDASH_USER:-postgres}
-      TRANSFORMDASH_PASSWORD: ${TRANSFORMDASH_PASSWORD:-postgres}
+      TRANSFORMDASH_PASSWORD: ${TRANSFORMDASH_PASSWORD:-CHANGE_THIS_PASSWORD_IN_PRODUCTION}
 
       # App Production Database (data sources)
       APP_HOST: postgres
       APP_PORT: 5432
       APP_DB: ${APP_DB:-production}
       APP_USER: ${APP_USER:-postgres}
-      APP_PASSWORD: ${APP_PASSWORD:-postgres}
+      APP_PASSWORD: ${APP_PASSWORD:-CHANGE_THIS_PASSWORD_IN_PRODUCTION}
 
       # Postgres Database (admin)
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-transformdash}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_THIS_PASSWORD_IN_PRODUCTION}
 
       # App Settings
       PYTHONUNBUFFERED: 1
@@ -78,7 +83,7 @@ services:
     container_name: transformdash-pgadmin
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@transformdash.local}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-CHANGE_THIS_PASSWORD_IN_PRODUCTION}
       PGADMIN_CONFIG_SERVER_MODE: 'False'
     ports:
       - "${PGADMIN_PORT:-5050}:80"

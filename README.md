@@ -76,6 +76,10 @@ A modern, dbt-inspired data transformation platform that combines the power of S
 git clone https://github.com/kraftaa/transformdash.git
 cd transformdash
 
+# Generate a secure JWT secret key
+python -c 'import secrets; print(secrets.token_urlsafe(32))'
+# Copy the output and set it as JWT_SECRET_KEY in docker-compose.yml
+
 # Start all services (includes PostgreSQL)
 docker-compose up -d
 
@@ -94,6 +98,12 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install with ML support
 pip install -e ".[ml]"
+
+# Set up environment variables
+cp .env.example .env
+# Generate a secure JWT secret key
+python -c 'import secrets; print(secrets.token_urlsafe(32))'
+# Add the key to .env as: JWT_SECRET_KEY=<generated-key>
 
 # Run the web UI
 python ui/app_refactored.py

@@ -31,6 +31,9 @@ import datasets_api
 # Import authentication utilities
 from auth import get_current_user, require_permission, require_role
 
+# Import rate limiting
+from rate_limiter import RateLimitMiddleware, check_rate_limit
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -104,6 +107,9 @@ def require_queries_execute():
     return require_permission('queries', 'execute')
 
 app = FastAPI(title="TransformDash", description="Hybrid Data Transformation Platform")
+
+# Add rate limiting middleware
+app.add_middleware(RateLimitMiddleware)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
@@ -2680,8 +2686,12 @@ async def resume_job(job_id: str):
 
 
 @app.post("/api/dashboard/{dashboard_id}/export")
-async def export_dashboard_data(dashboard_id: str, request: Request):
-    """Export all dashboard data as CSV or Excel"""
+async def export_dashboard_data(
+    dashboard_id: str,
+    request: Request,
+    user: dict = Depends(require_queries_execute())
+):
+    """Export all dashboard data as CSV or Excel (requires execute_queries permission)"""
     try:
         from postgres import PostgresConnector
         from connection_manager import connection_manager
@@ -2771,10 +2781,15 @@ async def export_dashboard_data(dashboard_id: str, request: Request):
                         # Validate filter field names
                         if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', field):
                             continue
-                        where_clauses.append(f"{field} = %s")
+                        # Use sql.Identifier for safe field names
+                        where_clauses.append(sql.SQL("{field} = %s").format(field=sql.Identifier(field)))
                         params.append(value)
 
-                where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+                # Combine WHERE clauses with AND
+                if where_clauses:
+                    where_sql = sql.SQL("WHERE ") + sql.SQL(" AND ").join(where_clauses)
+                else:
+                    where_sql = sql.SQL("")
 
                 # Build query safely using sql.SQL
                 query = sql.SQL("""
@@ -2840,8 +2855,12 @@ async def export_dashboard_data(dashboard_id: str, request: Request):
 
 
 @app.post("/api/charts/{chart_id}/export")
-async def export_chart_data(chart_id: str, request: Request):
-    """Export individual chart data as CSV or Excel"""
+async def export_chart_data(
+    chart_id: str,
+    request: Request,
+    user: dict = Depends(require_queries_execute())
+):
+    """Export individual chart data as CSV or Excel (requires execute_queries permission)"""
     try:
         from postgres import PostgresConnector
         from connection_manager import connection_manager
@@ -2921,10 +2940,15 @@ async def export_chart_data(chart_id: str, request: Request):
                         # Validate filter field names
                         if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', field):
                             continue
-                        where_clauses.append(f"{field} = %s")
+                        # Use sql.Identifier for safe field names
+                        where_clauses.append(sql.SQL("{field} = %s").format(field=sql.Identifier(field)))
                         params.append(value)
 
-                where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+                # Combine WHERE clauses with AND
+                if where_clauses:
+                    where_sql = sql.SQL("WHERE ") + sql.SQL(" AND ").join(where_clauses)
+                else:
+                    where_sql = sql.SQL("")
 
                 # Build safe query with sql.SQL
                 column_identifiers = [sql.Identifier(col) for col in columns]
@@ -2973,10 +2997,15 @@ async def export_chart_data(chart_id: str, request: Request):
                         # Validate filter field names
                         if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', field):
                             continue
-                        where_clauses.append(f"{field} = %s")
+                        # Use sql.Identifier for safe field names
+                        where_clauses.append(sql.SQL("{field} = %s").format(field=sql.Identifier(field)))
                         params.append(value)
 
-                where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+                # Combine WHERE clauses with AND
+                if where_clauses:
+                    where_sql = sql.SQL("WHERE ") + sql.SQL(" AND ").join(where_clauses)
+                else:
+                    where_sql = sql.SQL("")
 
                 # Handle category (stacked charts)
                 if chart.get('category'):

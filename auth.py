@@ -11,7 +11,12 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import os
 
 # JWT Configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-this-in-production")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
+if not SECRET_KEY or SECRET_KEY == "your-secret-key-change-this-in-production":
+    raise RuntimeError(
+        "SECURITY ERROR: JWT_SECRET_KEY must be set in environment variables. "
+        "Generate a secure key using: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 hours
 
