@@ -1,8 +1,8 @@
-# ✨ TransformDash
+# TransformDash
 
 **Hybrid Data Transformation & Dashboard Platform**
 
-A modern, dbt-inspired data transformation platform that combines the power of SQL transformations, Python extensibility, DAG-based orchestration, and interactive data lineage visualization.
+Run SQL transformations with dependency management and lineage tracking directly against PostgreSQL, without needing a data warehouse.
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
@@ -13,20 +13,21 @@ A modern, dbt-inspired data transformation platform that combines the power of S
 ## 🌟 Features
 
 ### Core Capabilities
-- **📊 Multi-Layer Architecture**: Bronze → Silver → Gold medallion pattern (like dbt)
-- **🔗 SQL Transformations**: dbt-style SQL models with Jinja templating
-- **🐍 Python Extensibility**: Custom transformations for ML and complex logic
-- **🌊 DAG Orchestration**: Automatic dependency resolution and parallel execution
-- **🎨 Interactive Web UI**: Real-time lineage graphs and dashboards
-- **🔄 Incremental Processing**: Efficient updates with incremental materializations
-- **💾 Multi-Database Support**: PostgreSQL, MongoDB, Redis connectors
+- **Multi-Layer Architecture**: Bronze → Silver → Gold medallion pattern (like dbt)
+- **SQL Transformations**: dbt-style SQL models with Jinja templating
+- **Python Extensibility**: Custom transformations for ML and complex logic
+- **DAG Orchestration**: Automatic dependency resolution and parallel execution
+- **Interactive Web UI**: Real-time lineage graphs and dashboards
+- **PostgreSQL Support**: Full support for transformations
+- **MongoDB & Redis**: Basic connectors available (transformation integration in progress)
+- **Incremental Syntax**: Write incremental models with dbt syntax (full refresh for now, true incremental on roadmap)
 
 ### dbt-Compatible Features
 - `{{ source() }}` and `{{ ref() }}` macros
 - `{{ config() }}` for model configuration
-- `{% if is_incremental() %}` conditional logic
+- `{% if is_incremental() %}` syntax support (currently does full refreshes)
 - YAML-based source definitions
-- View, table, and incremental materializations
+- View and table materializations
 
 ---
 
@@ -37,13 +38,13 @@ A modern, dbt-inspired data transformation platform that combines the power of S
 │                      TransformDash                          │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  Raw Sources (PostgreSQL, MongoDB, Redis)                  │
+│  Raw Sources (PostgreSQL + MongoDB/Redis connectors)       │
 │         ↓                                                   │
 │  Bronze Layer (stg_* models - Views)                       │
 │    • Direct extraction from raw tables                      │
 │    • Column aliasing and standardization                    │
 │         ↓                                                   │
-│  Silver Layer (int_* models - Incremental)                 │
+│  Silver Layer (int_* models - Tables)                      │
 │    • Multi-table joins                                      │
 │    • Business logic and calculations                        │
 │    • Aggregations and window functions                      │

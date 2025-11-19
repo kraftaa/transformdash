@@ -57,6 +57,10 @@ htmlcov/
 .env
 connections.local.yml
 
-#
+# Internal documentation (not for public repos)
 SESSION_SUMMARY.md
 SECURITY_REVIEW.md
+RUN_IN_BACKGROUND.md
+
+# Process ID file
+.pid
