@@ -4,7 +4,7 @@
 
 ---
 
-Over the past few months, I've been building TransformDash - an open-source data transformation platform inspired by dbt but designed for a different use case. I'm sharing this because the technical challenges were interesting, and maybe the lessons will be useful to others building data tools.
+Over the past few months, I've been building TransformDash - an open-source data transformation platform. After working with dbt, Airflow, Airbyte, Superset, and Tableau, and building/running custom Rust transformations in Kubernetes via CronJobs, I wanted a single tool that combines transformation, orchestration, and visualization. I'm sharing this because the technical challenges were interesting, and maybe the lessons will be useful to others building data tools.
 
 ## The Original Problem
 
@@ -311,18 +311,19 @@ If you're building data tools, here's my advice:
 
 ## Try It Out
 
-If this sounds interesting, the repository has a getting started guide:
+If this sounds interesting, try it out:
 
 ```bash
 git clone https://github.com/kraftaa/transformdash.git
 cd transformdash
-cp .env.example .env
-# Generate JWT secret: python -c 'import secrets; print(secrets.token_urlsafe(32))'
-# Add to .env as JWT_SECRET_KEY
+
+# Generate JWT secret and start
+python -c 'import secrets; print(secrets.token_urlsafe(32))' > jwt_key.txt
+export JWT_SECRET_KEY=$(cat jwt_key.txt)
 docker-compose up -d
 ```
 
-The default login is admin/admin. From there you can connect databases, write models, and create dashboards.
+Visit http://localhost:8000 (default login: admin/admin). Docker Compose will start PostgreSQL and the app automatically. From there you can connect databases, write models, and create dashboards.
 
 I'm interested in feedback, especially from people working with data transformation pipelines. What features would make this more useful? What pain points does it miss?
 

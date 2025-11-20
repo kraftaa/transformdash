@@ -15,7 +15,7 @@ ml/
 │   └── predictor.py
 ├── features/          # Feature engineering (optional)
 ├── models/            # Stored model artifacts (.pkl files)
-└── jinja_functions.py # dbt integration functions
+└── jinja_functions.py # Jinja integration functions
 ```
 
 ## 🚀 Quick Start
@@ -78,7 +78,7 @@ df = pd.DataFrame({
 predictions_df = ml_predictor.predict_batch('customer_churn', df, return_proba=True)
 ```
 
-### 3. Use in dbt Models
+### 3. Use in SQL Models
 
 ```sql
 {{ config(materialized='table') }}

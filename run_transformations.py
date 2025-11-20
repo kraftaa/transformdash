@@ -8,7 +8,7 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent))
 
-from transformations.dbt_loader import DBTModelLoader
+from transformations.model_loader import ModelLoader
 from orchestration.engine import TransformationEngine
 from orchestration.history import RunHistory
 from datetime import datetime
@@ -22,7 +22,7 @@ def run_pipeline():
 
     # Load models from files
     models_dir = Path(__file__).parent / "models"
-    loader = DBTModelLoader(models_dir=str(models_dir))
+    loader = ModelLoader(models_dir=str(models_dir))
 
     print("📂 Loading SQL models...")
     models = loader.load_all_models()

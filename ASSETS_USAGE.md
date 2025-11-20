@@ -1,6 +1,6 @@
 # Asset Referencing in TransformDash Models
 
-Assets are files (CSV, Excel, SQL, Python, etc.) that you upload through the TransformDash UI and can reference in your dbt models using the `{{ asset('filename') }}` function.
+Assets are files (CSV, Excel, SQL, Python, etc.) that you upload through the TransformDash UI and can reference in your SQL models using the `{{ asset('filename') }}` function.
 
 ## How to Use Assets
 
@@ -271,7 +271,7 @@ LEFT JOIN daily_metrics m ON d.date = m.date
 - **File Size:** Best for files under 100MB
 - **Asset Lifespan:** Asset tables exist only during model execution
 - **Python Assets:** Path reference only (full Python integration planned)
-- **Not for Source Data:** Use dbt sources for primary data ingestion
+- **Not for Source Data:** Use sources.yml for primary data ingestion
 
 ## Troubleshooting
 

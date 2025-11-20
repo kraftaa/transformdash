@@ -62,5 +62,7 @@ SESSION_SUMMARY.md
 SECURITY_REVIEW.md
 RUN_IN_BACKGROUND.md
 
-# Process ID file
-.pid
+# Background process files
+*.pid
+transformdash.pid
+transformdash.log

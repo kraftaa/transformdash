@@ -60,7 +60,9 @@ class PostgresConnector:
             cur.execute(query, params)
             result = cur.fetchall() if fetch else None
             # Always commit for INSERT/UPDATE/DELETE queries
-            if not query.strip().upper().startswith('SELECT'):
+            # Handle both string queries and psycopg2.sql.Composed objects
+            query_str = query.as_string(self.conn) if hasattr(query, 'as_string') else str(query)
+            if not query_str.strip().upper().startswith('SELECT'):
                 self.conn.commit()
             return result
 

@@ -475,7 +475,7 @@ python -m ui.app_refactored
 ### Configuration Files
 
 - `.env` - Local environment variables
-- `models/schema.yml` - dbt-style model schemas
+- `models/schema.yml` - Model schemas and configurations
 - `ml/models/registry.json` - ML model registry metadata
 
 ---

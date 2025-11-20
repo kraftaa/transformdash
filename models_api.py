@@ -13,7 +13,7 @@ import asyncio
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent))
 
-from transformations.dbt_loader import DBTModelLoader
+from transformations.model_loader import ModelLoader
 from orchestration.engine import TransformationEngine
 
 
@@ -23,7 +23,7 @@ async def get_all_models():
         logging.info("Loading all transformation models")
 
         models_dir = Path(__file__).parent / "models"
-        loader = DBTModelLoader(models_dir=str(models_dir))
+        loader = ModelLoader(models_dir=str(models_dir))
 
         # Load all models
         models = loader.load_all_models()
@@ -73,7 +73,7 @@ async def get_model_by_name(model_name: str):
         logging.info(f"Loading model: {model_name}")
 
         models_dir = Path(__file__).parent / "models"
-        loader = DBTModelLoader(models_dir=str(models_dir))
+        loader = ModelLoader(models_dir=str(models_dir))
 
         # Load all models and find the one we want
         models = loader.load_all_models()
@@ -124,7 +124,7 @@ async def run_models(request: Request):
             logging.info("Running all transformation models")
 
         models_dir = Path(__file__).parent / "models"
-        loader = DBTModelLoader(models_dir=str(models_dir))
+        loader = ModelLoader(models_dir=str(models_dir))
 
         # Load models
         all_models = loader.load_all_models()
@@ -177,7 +177,7 @@ async def run_single_model(model_name: str):
         logging.info(f"Running single model: {model_name}")
 
         models_dir = Path(__file__).parent / "models"
-        loader = DBTModelLoader(models_dir=str(models_dir))
+        loader = ModelLoader(models_dir=str(models_dir))
 
         # Load all models (need dependencies)
         all_models = loader.load_all_models()

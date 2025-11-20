@@ -4,7 +4,7 @@
 ### 1. Core Architecture  
 - Modular layers:  
   - Extraction/Load (multi-source, including non-SQL)  
-  - Transformation (dbt-like DAG, supports SQL/Python/Spark)  
+  - Transformation (DAG-based, supports SQL/Python/Spark)  
   - Visualization (integrated interactive dashboards)
 
 ### 2. Metadata & Configuration  

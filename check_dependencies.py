@@ -5,7 +5,7 @@ Usage: python check_dependencies.py
 """
 import sys
 from pathlib import Path
-from transformations.dbt_loader import DBTModelLoader
+from transformations.model_loader import ModelLoader
 from transformations.dag import DAG
 
 def main():
@@ -16,7 +16,7 @@ def main():
     print("="*60 + "\n")
 
     # Load models
-    loader = DBTModelLoader(models_dir=str(models_dir))
+    loader = ModelLoader(models_dir=str(models_dir))
     models = loader.load_all_models()
 
     print(f"📂 Loaded {len(models)} models\n")

@@ -19,6 +19,10 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p /app/models/bronze /app/models/silver /app/models/gold /app/ml/models /app/data
 
+# Copy entrypoint script and make it executable
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
 # Create non-root user
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
@@ -39,5 +43,5 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8000/')"
 
-# Run the application
-CMD ["python", "ui/app_refactored.py"]
+# Run the application via entrypoint
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

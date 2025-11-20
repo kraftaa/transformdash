@@ -2,6 +2,7 @@
 layout: post
 title: "Building TransformDash: A Lightweight Alternative to dbt"
 date: 2025-11-18
+img: chart.avif
 categories: [data-engineering, open-source]
 ---
 
@@ -45,7 +46,7 @@ The deployment story is pretty straightforward: Docker Compose for local develop
 
 It works. I've been using it on a few projects and it does what I need. That said, there are rough edges:
 
-- The UI could use design work (it's functional but ugly)
+- The UI could use design work (it's functional :) ) 
 - Error messages aren't always helpful
 - No built-in testing framework yet
 - Performance could be better for large datasets

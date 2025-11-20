@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 
 from transformations.model import TransformationModel, ModelType
-from transformations.dbt_loader import DBTModelLoader
+from transformations.model_loader import ModelLoader
 from transformations.dag import DAG
 
 def test_circular_dependency():

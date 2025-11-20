@@ -11,13 +11,13 @@ from apscheduler.jobstores.base import JobLookupError
 import pytz
 
 from connection_manager import connection_manager
-from transformations.dbt_loader import DBTModelLoader
+from transformations.model_loader import ModelLoader
 from orchestration import TransformationEngine
 from pathlib import Path
 
 # Initialize model loader
 models_dir = Path(__file__).parent / "models"
-model_loader = DBTModelLoader(models_dir=str(models_dir))
+model_loader = ModelLoader(models_dir=str(models_dir))
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

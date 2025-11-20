@@ -89,7 +89,7 @@
 
 ✅ **Architecture:**
 - Clean separation of concerns
-- dbt-style model loader
+- SQL model loader
 - DAG-based orchestration
 - Multiple database connector support
 

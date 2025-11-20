@@ -355,7 +355,7 @@ Dashboards & ML Models
 
 ### Key Concepts
 
-**Models**: SQL files that transform your data (like dbt)
+**Models**: SQL files that transform your data with Jinja templating
 **Charts**: Visualizations of your data
 **Dashboards**: Collections of charts with filters
 **ML Models**: Trained models for predictions

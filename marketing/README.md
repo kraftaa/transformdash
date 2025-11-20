@@ -12,7 +12,7 @@ This directory contains ready-to-post content for announcing TransformDash on va
 
 **Key Points**:
 - What TransformDash does
-- Technical approach (FastAPI, dbt-style)
+- Technical approach (FastAPI backend, SQL transformations)
 - Open source announcement
 - Link to GitHub
 
@@ -106,7 +106,7 @@ If you want to add visuals to posts:
 
 1. **Dashboard View** - Show a dashboard with multiple charts
 2. **Model Lineage** - DAG visualization of model dependencies
-3. **SQL Model Example** - Code snippet of a dbt-style SQL file
+3. **SQL Model Example** - Code snippet of a SQL model with Jinja templating
 4. **Architecture Diagram** - High-level system components
 
 ---

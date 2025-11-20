@@ -352,7 +352,7 @@ docker-compose up -d
 ## Next Steps
 
 - 📖 Read the [Full Documentation](README.md)
-- 🎨 Learn about [dbt-style Transformations](README.md#dbt-compatible-features)
+- 🎨 Learn about [SQL Model Features](README.md#model-features)
 - 📊 Explore [Dashboard Examples](DASHBOARDS_CREATED.md)
 - 🚀 Set up for [Production Deployment](DEPLOYMENT.md)
 

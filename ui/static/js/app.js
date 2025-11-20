@@ -1636,6 +1636,34 @@ let editorState = {
     dashboardData: null  // Store full dashboard data
 };
 
+async function deleteDashboard(dashboardId, dashboardName) {
+    if (!confirm(`Are you sure you want to delete the dashboard "${dashboardName}"? This action cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/dashboards/${dashboardId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            showNotification('success', result.message || 'Dashboard deleted successfully!');
+            // Reload the dashboards list
+            await loadDashboards();
+        } else {
+            showNotification('error', result.detail || 'Failed to delete dashboard');
+        }
+    } catch (error) {
+        console.error('Error deleting dashboard:', error);
+        showNotification('error', 'An error occurred while deleting the dashboard');
+    }
+}
+
 async function openDashboardEditor(dashboardId, dashboardName) {
     // Initialize editor state
     editorState.dashboardId = dashboardId;
@@ -2219,7 +2247,7 @@ async function renderChartPreview(canvasId, chartConfig) {
     }
 }
 
-function addChartToEditor(chart) {
+async function addChartToEditor(chart) {
     // Add chart to the current tab
     const currentTab = editorState.tabs.find(tab => tab.id === editorState.currentTabId);
     if (currentTab) {
@@ -2231,6 +2259,9 @@ function addChartToEditor(chart) {
             editorState.currentCharts.push(chart);
         }
 
+        // Refresh available fields immediately so filters can use them
+        await fetchAvailableFields();
+
         renderEditorTabs();
         renderEditorCharts();
         renderAvailableCharts();
@@ -2238,7 +2269,7 @@ function addChartToEditor(chart) {
     }
 }
 
-function removeChartFromEditor(index) {
+async function removeChartFromEditor(index) {
     // Remove chart from current tab
     const currentTab = editorState.tabs.find(tab => tab.id === editorState.currentTabId);
     if (!currentTab || index < 0 || index >= currentTab.charts.length) {
@@ -2249,12 +2280,41 @@ function removeChartFromEditor(index) {
     const chart = currentTab.charts[index];
     currentTab.charts.splice(index, 1);
 
-    // Don't update currentCharts - it should represent all charts in this dashboard
-    // The chart is still part of the dashboard, just unassigned from tabs
+    // Check if this chart exists in any other tabs
+    const chartExistsInOtherTabs = editorState.tabs.some(tab =>
+        tab.id !== editorState.currentTabId && tab.charts.some(c => c.id === chart.id)
+    );
+
+    // If chart doesn't exist in any other tabs, remove it from currentCharts
+    if (!chartExistsInOtherTabs) {
+        const chartIndex = editorState.currentCharts.findIndex(c => c.id === chart.id);
+        if (chartIndex !== -1) {
+            editorState.currentCharts.splice(chartIndex, 1);
+        }
+
+        // Refresh available fields since we removed a chart
+        await fetchAvailableFields();
+
+        // Check if any filters reference fields from the removed chart's model
+        const removedModel = chart.model;
+        if (removedModel) {
+            const affectedFilters = editorState.currentFilters.filter(f => f.model === removedModel);
+
+            // Check if any remaining charts use this model
+            const modelStillInUse = editorState.currentCharts.some(c => c.model === removedModel);
+
+            if (!modelStillInUse && affectedFilters.length > 0) {
+                // Show warning about filters that will lose their fields
+                const filterNames = affectedFilters.map(f => f.label || f.field).join(', ');
+                showToast(`Warning: Filters (${filterNames}) reference model "${removedModel}" which is no longer in this dashboard`, 'warning');
+            }
+        }
+    }
 
     renderEditorTabs();
     renderEditorCharts();
     renderAvailableCharts();
+    renderDashboardFilters();
     showToast(`Removed "${chart.title || chart.id}" from tab`, 'info');
 }
 
@@ -2621,6 +2681,12 @@ function updateFilterField(index, selectElement) {
         const selectedOption = selectElement.options[selectElement.selectedIndex];
         editorState.currentFilters[index].field = selectElement.value;
         editorState.currentFilters[index].model = selectedOption.getAttribute('data-model') || '';
+
+        // Auto-populate label if empty
+        if (!editorState.currentFilters[index].label && selectElement.value) {
+            editorState.currentFilters[index].label = selectElement.value.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            renderDashboardFilters();
+        }
     }
 }
 
@@ -2812,6 +2878,7 @@ async function loadDashboards() {
                         <div style="display: flex; gap: 8px; justify-content: flex-end;">
                             <button class="icon-btn-small" onclick="event.stopPropagation(); openDashboardEditor('${dashboard.id}', '${dashboard.name}')" title="Edit Dashboard">✏️</button>
                             <button class="icon-btn-small" onclick="event.stopPropagation(); openDashboardInTab('${dashboard.id}')" title="Open in new tab">🔗</button>
+                            <button class="icon-btn-small" onclick="event.stopPropagation(); deleteDashboard('${dashboard.id}', '${dashboard.name}')" title="Delete Dashboard" style="color: #dc2626;">🗑️</button>
                         </div>
                     </td>
                 `;
@@ -2860,6 +2927,9 @@ async function loadDashboards() {
                 </button>
                 <button class="icon-btn" onclick="event.stopPropagation(); openDashboardInTab('${dashboard.id}')" title="Open in new tab">
                     🔗
+                </button>
+                <button class="icon-btn" onclick="event.stopPropagation(); deleteDashboard('${dashboard.id}', '${dashboard.name}')" title="Delete Dashboard" style="color: #dc2626;">
+                    🗑️
                 </button>
                 <button class="icon-btn" onclick="event.stopPropagation(); exportDashboardPDF('${dashboard.id}')" title="Export as PDF">
                     📄

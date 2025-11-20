@@ -11,14 +11,14 @@ import sys
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from transformations.dbt_loader import DBTModelLoader
+from transformations.model_loader import ModelLoader
 from transformations import DAG
 
 app = FastAPI(title="TransformDash", description="Hybrid Data Transformation Platform")
 
 # Global state
 models_dir = Path(__file__).parent.parent / "models"
-loader = DBTModelLoader(models_dir=str(models_dir))
+loader = ModelLoader(models_dir=str(models_dir))
 
 # Initialize run history
 sys.path.append(str(Path(__file__).parent.parent))

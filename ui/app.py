@@ -24,7 +24,7 @@ load_dotenv()
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from transformations.dbt_loader import DBTModelLoader
+from transformations.model_loader import ModelLoader
 from transformations import DAG
 from orchestration.history import RunHistory
 import datasets_api
@@ -120,7 +120,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 # Global state
 models_dir = Path(__file__).parent.parent / "models"
-loader = DBTModelLoader(models_dir=str(models_dir))
+loader = ModelLoader(models_dir=str(models_dir))
 run_history = RunHistory()
 
 
@@ -644,9 +644,9 @@ async def get_dashboards():
 async def create_dashboard(request: Request):
     """Create a new dashboard"""
     try:
-        import yaml
         import logging
         import re
+        from connection_manager import connection_manager
 
         body = await request.json()
         dashboard_name = body.get("name", "").strip()
@@ -658,60 +658,87 @@ async def create_dashboard(request: Request):
         # Generate dashboard ID from name (lowercase, replace spaces with hyphens)
         dashboard_id = re.sub(r'[^a-z0-9]+', '-', dashboard_name.lower()).strip('-')
 
-        dashboards_file = models_dir / "dashboards.yml"
-
-        # Load existing dashboards or create new structure
-        if dashboards_file.exists():
-            with open(dashboards_file, 'r') as f:
-                data = yaml.safe_load(f) or {}
-        else:
-            data = {}
-
-        if 'dashboards' not in data:
-            data['dashboards'] = []
-
-        # Check if dashboard with this name or ID already exists
-        existing_names = [d.get('name', '').lower() for d in data['dashboards']]
-        existing_ids = [d.get('id') for d in data['dashboards']]
-
-        if dashboard_name.lower() in existing_names:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Dashboard with name '{dashboard_name}' already exists. Please choose a different name."
+        with connection_manager.get_connection() as pg:
+            # Check if dashboard with this ID already exists
+            existing = pg.execute(
+                "SELECT id FROM dashboards WHERE id = %s",
+                (dashboard_id,),
+                fetch=True
             )
 
-        if dashboard_id in existing_ids:
-            # This shouldn't happen if name is unique, but just in case
-            raise HTTPException(
-                status_code=400,
-                detail=f"Dashboard ID conflict. Please choose a different name."
-            )
+            if existing:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Dashboard with name '{dashboard_name}' already exists. Please choose a different name."
+                )
 
-        # Create new dashboard
-        new_dashboard = {
-            "id": dashboard_id,
-            "name": dashboard_name,
-            "description": dashboard_description or f"Custom dashboard: {dashboard_name}",
-            "charts": []
-        }
+            # Create new dashboard in database
+            pg.execute("""
+                INSERT INTO dashboards (id, name, description)
+                VALUES (%s, %s, %s)
+            """, (dashboard_id, dashboard_name, dashboard_description or f"Custom dashboard: {dashboard_name}"))
 
-        data['dashboards'].append(new_dashboard)
-
-        # Save to file
-        with open(dashboards_file, 'w') as f:
-            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+            # Create default tab
+            pg.execute("""
+                INSERT INTO dashboard_tabs (id, dashboard_id, name, position)
+                VALUES (%s, %s, %s, %s)
+            """, (f"{dashboard_id}-tab-default", dashboard_id, "Main", 0))
 
         logging.info(f"Created new dashboard: {dashboard_id}")
 
         return {
             "success": True,
             "message": f"Dashboard '{dashboard_name}' created successfully!",
-            "dashboard": new_dashboard
+            "dashboard": {
+                "id": dashboard_id,
+                "name": dashboard_name,
+                "description": dashboard_description or f"Custom dashboard: {dashboard_name}",
+                "charts": []
+            }
         }
     except HTTPException:
         raise
     except Exception as e:
         logging.error(f"Error creating dashboard: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/dashboards/{dashboard_id}")
+async def delete_dashboard(dashboard_id: str, request: Request):
+    """Delete a dashboard and all its associated data"""
+    try:
+        import logging
+        from connection_manager import connection_manager
+
+        with connection_manager.get_connection() as pg:
+            # Check if dashboard exists
+            existing = pg.execute(
+                "SELECT id, name FROM dashboards WHERE id = %s",
+                (dashboard_id,),
+                fetch=True
+            )
+
+            if not existing:
+                raise HTTPException(status_code=404, detail=f"Dashboard '{dashboard_id}' not found")
+
+            dashboard_name = existing[0][1]
+
+            # Delete in order: filters, chart associations, tabs, dashboard
+            pg.execute("DELETE FROM dashboard_filters WHERE dashboard_id = %s", (dashboard_id,))
+            pg.execute("DELETE FROM dashboard_charts WHERE dashboard_id = %s", (dashboard_id,))
+            pg.execute("DELETE FROM dashboard_tabs WHERE dashboard_id = %s", (dashboard_id,))
+            pg.execute("DELETE FROM dashboards WHERE id = %s", (dashboard_id,))
+
+        logging.info(f"Deleted dashboard: {dashboard_id}")
+
+        return {
+            "success": True,
+            "message": f"Dashboard '{dashboard_name}' deleted successfully!"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error deleting dashboard: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

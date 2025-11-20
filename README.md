@@ -13,16 +13,14 @@ Run SQL transformations with dependency management and lineage tracking directly
 ## 🌟 Features
 
 ### Core Capabilities
-- **Multi-Layer Architecture**: Bronze → Silver → Gold medallion pattern (like dbt)
-- **SQL Transformations**: dbt-style SQL models with Jinja templating
-- **Python Extensibility**: Custom transformations for ML and complex logic
+- **Multi-Layer Architecture**: Bronze → Silver → Gold medallion pattern
+- **SQL & Python Models**: SQL with Jinja templating and Python transformations
 - **DAG Orchestration**: Automatic dependency resolution and parallel execution
 - **Interactive Web UI**: Real-time lineage graphs and dashboards
 - **PostgreSQL Support**: Full support for transformations
-- **MongoDB & Redis**: Basic connectors available (transformation integration in progress)
-- **Incremental Syntax**: Write incremental models with dbt syntax (full refresh for now, true incremental on roadmap)
+- **Incremental Syntax**: Write incremental models (full refresh for now, true incremental on roadmap)
 
-### dbt-Compatible Features
+### Model Features
 - `{{ source() }}` and `{{ ref() }}` macros
 - `{{ config() }}` for model configuration
 - `{% if is_incremental() %}` syntax support (currently does full refreshes)
@@ -38,7 +36,7 @@ Run SQL transformations with dependency management and lineage tracking directly
 │                      TransformDash                          │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  Raw Sources (PostgreSQL + MongoDB/Redis connectors)       │
+│  Raw Sources (PostgreSQL)                                   │
 │         ↓                                                   │
 │  Bronze Layer (stg_* models - Views)                       │
 │    • Direct extraction from raw tables                      │
@@ -64,22 +62,44 @@ Run SQL transformations with dependency management and lineage tracking directly
 
 ## 🚀 Quick Start
 
+### Fastest Way to Try It
+
+```bash
+git clone https://github.com/kraftaa/transformdash.git
+cd transformdash
+
+# Setup environment for Docker
+cp .env.docker .env
+# Generate JWT secret and add to .env
+python -c 'import secrets; print("JWT_SECRET_KEY=" + secrets.token_urlsafe(32))' >> .env
+
+# Start with Docker (includes PostgreSQL + sample e-commerce data)
+docker-compose up -d
+```
+
+Then visit http://localhost:8000 (default login: admin/admin)
+
+**What happens automatically:**
+- PostgreSQL database created with user authentication
+- Sample e-commerce dataset loaded (24 tables, 100+ customers, 500+ orders)
+- Ready to explore dashboards and create transformations
+
 ### Prerequisites
-- Python 3.9+
-- PostgreSQL 15+ (or your preferred database)
+- Docker & Docker Compose (for Quick Start)
+- OR Python 3.9+ and PostgreSQL 15+ (for manual installation)
 - Git
 
-### Installation
+### Installation Options
 
-**Option 1: Docker Compose (Fastest - Recommended)**
+**Option 1: Docker Compose (Recommended)**
 ```bash
 # Clone the repository
 git clone https://github.com/kraftaa/transformdash.git
 cd transformdash
 
 # Generate a secure JWT secret key
-python -c 'import secrets; print(secrets.token_urlsafe(32))'
-# Copy the output and set it as JWT_SECRET_KEY in docker-compose.yml
+python -c 'import secrets; print(secrets.token_urlsafe(32))' > jwt_key.txt
+export JWT_SECRET_KEY=$(cat jwt_key.txt)
 
 # Start all services (includes PostgreSQL)
 docker-compose up -d
@@ -212,7 +232,7 @@ transformdash/
 ├── connectors/              # Database connectors
 │   ├── redis.py            # Redis connector
 │   └── (mongodb, etc.)
-├── models/                  # dbt-style transformation models
+├── models/                  # SQL transformation models
 │   ├── sources.yml         # Data source definitions
 │   ├── bronze/             # Staging layer (stg_*)
 │   │   ├── stg_customers.sql
@@ -224,7 +244,7 @@ transformdash/
 ├── transformations/         # Core transformation engine
 │   ├── model.py            # Transformation model class
 │   ├── dag.py              # DAG builder and validator
-│   └── dbt_loader.py       # dbt-style model loader
+│   └── model_loader.py     # SQL model loader
 ├── orchestration/           # Execution engine
 │   └── engine.py           # DAG orchestrator
 ├── ui/                      # Web interface
@@ -404,10 +424,10 @@ pytest tests/
 python postgres.py
 
 # Test model loader
-python transformations/dbt_loader.py
+python transformations/model_loader.py
 
 # Run example pipeline
-python demo_real_dbt_style.py
+python run_transformations.py
 ```
 
 ---
@@ -442,7 +462,7 @@ def my_transformation(context):
 
 ### Adding Custom Macros
 
-Extend `DBTModelLoader` in `transformations/dbt_loader.py`:
+Extend `ModelLoader` in `transformations/model_loader.py`:
 
 ```python
 def my_custom_macro(self, arg1, arg2):
@@ -472,13 +492,13 @@ env.globals['my_macro'] = self.my_custom_macro
 - Incremental processing for efficiency
 
 ### Analytics Engineering
-- dbt-style transformations
+- SQL transformations with dependency management
 - Version-controlled SQL
 - Collaborative data modeling
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please follow these steps:
 
@@ -490,35 +510,34 @@ Contributions are welcome! Please follow these steps:
 
 ---
 
-## 📜 License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
-- Inspired by [dbt (data build tool)](https://www.getdbt.com/)
+- Built after working with dbt, Airflow, Airbyte, Superset, Tableau, and building/running custom Rust transformations in Kubernetes via CronJobs - wanted a single tool that combines transformation, orchestration, and visualization
 - Built with [FastAPI](https://fastapi.tiangolo.com/), [Pandas](https://pandas.pydata.org/), and [D3.js](https://d3js.org/)
 - Follows the [Medallion Architecture](https://www.databricks.com/glossary/medallion-architecture) pattern
 
 ---
 
-## 📞 Support
+## Support
 
-- **Documentation**: [GitHub Wiki](https://github.com/kraftaa/transformdash/wiki)
+- **Documentation**: See [GETTING_STARTED.md](GETTING_STARTED.md) and [DEPLOYMENT.md](DEPLOYMENT.md)
 - **Issues**: [GitHub Issues](https://github.com/kraftaa/transformdash/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/kraftaa/transformdash/discussions)
 
 ---
 
-## 🗺️ Roadmap
+## Roadmap
 
 - [ ] Add Spark connector for big data
 - [ ] Implement data quality testing framework
 - [ ] Add CI/CD pipeline templates
 - [ ] Create VSCode extension
-- [ ] Support for dbt packages
 - [ ] Real-time data streaming
 - [ ] Cloud deployment guides (AWS, GCP, Azure)
 - [ ] Airflow/Prefect integration

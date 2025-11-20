@@ -1,5 +1,5 @@
 """
-DBT-Style Model Loader
+Model Loader
 Loads SQL models from files with Jinja templating support
 """
 import os
@@ -14,8 +14,8 @@ except ImportError:
     from model import TransformationModel, ModelType
 
 
-class DBTModelLoader:
-    """Loads and parses DBT-style SQL models"""
+class ModelLoader:
+    """Loads and parses SQL models with Jinja templating"""
 
     def __init__(self, models_dir: str, sources_file: str = None):
         self.models_dir = Path(models_dir)
