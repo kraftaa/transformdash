@@ -10,7 +10,7 @@ Run SQL transformations with dependency management and lineage tracking directly
 
 ---
 
-## 🌟 Features
+## Features
 
 ### Core Capabilities
 - **Multi-Layer Architecture**: Bronze → Silver → Gold medallion pattern
@@ -29,7 +29,7 @@ Run SQL transformations with dependency management and lineage tracking directly
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -60,11 +60,12 @@ Run SQL transformations with dependency management and lineage tracking directly
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-### Fastest Way to Try It
+### Fastest Way to Try It (Docker - Recommended)
 
 ```bash
+# Clone the repository
 git clone https://github.com/kraftaa/transformdash.git
 cd transformdash
 
@@ -73,16 +74,65 @@ cp .env.docker .env
 # Generate JWT secret and add to .env
 python -c 'import secrets; print("JWT_SECRET_KEY=" + secrets.token_urlsafe(32))' >> .env
 
-# Start with Docker (includes PostgreSQL + sample e-commerce data)
+# Start all services (PostgreSQL + TransformDash)
 docker-compose up -d
+
+# Wait for containers to start (about 10 seconds)
+sleep 10
+
+# Run database migrations
+docker-compose exec web bash run_migrations.sh
+
+# Load sample data
+docker-compose exec web python load_sample_data.py
+
+# Train example ML model
+docker-compose exec web python ml/train_telco_churn.py
 ```
 
-Then visit http://localhost:8000 (default login: admin/admin)
+Then visit **http://localhost:8000** (default login: `admin` / `admin`)
 
-**What happens automatically:**
-- PostgreSQL database created with user authentication
-- Sample e-commerce dataset loaded (24 tables, 100+ customers, 500+ orders)
-- Ready to explore dashboards and create transformations
+**What you get:**
+- PostgreSQL database with user authentication
+- Sample e-commerce dataset (24 tables, 100+ customers, 500+ orders)
+- Trained ML model (Telco Customer Churn with realistic metrics)
+- Interactive dashboards and chart builder
+- ML Models tab with prediction capabilities
+
+### Local Development Setup (Without Docker)
+
+```bash
+# Clone the repository
+git clone https://github.com/kraftaa/transformdash.git
+cd transformdash
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Start PostgreSQL with Docker (just the database)
+docker-compose up -d db
+
+# Wait for database to start
+sleep 5
+
+# Run migrations
+bash run_migrations.sh
+
+# Load sample data
+python load_sample_data.py
+
+# Train ML model
+python ml/train_telco_churn.py
+
+# Start the application
+python ui/app.py  # Visit http://localhost:8000
+
+# Login: admin / admin
+```
 
 ### Prerequisites
 - Docker & Docker Compose (for Quick Start)
@@ -148,7 +198,23 @@ docker run -d -p 8000:8000 \
 kubectl apply -f k8s/
 ```
 
-📘 **For detailed deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md)**
+**Option 5: Testing Kubernetes Configs Locally (Minikube)**
+```bash
+# Start minikube
+minikube start
+
+# Build Docker image in minikube's Docker environment
+eval $(minikube docker-env)
+docker build -t transformdash:latest .
+
+# Deploy to minikube
+kubectl apply -f k8s/
+
+# Access the application
+minikube service transformdash-service -n transformdash
+```
+
+**For detailed deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md)**
 
 ### Configuration
 
@@ -258,7 +324,7 @@ transformdash/
 
 ---
 
-## 📝 Creating Models
+## Creating Models
 
 ### Bronze Layer (Staging)
 
@@ -340,7 +406,7 @@ select * from transformed_data
 
 ---
 
-## 🎨 Web UI Features
+## Web UI Features
 
 ### Dashboard
 - **Model Catalog**: Browse all transformation models
@@ -414,7 +480,7 @@ sources:
 
 ---
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Run unit tests
@@ -432,7 +498,7 @@ python run_transformations.py
 
 ---
 
-## 🛠️ Development
+## Development
 
 ### Adding a New Database Connector
 
@@ -474,7 +540,7 @@ env.globals['my_macro'] = self.my_custom_macro
 
 ---
 
-## 📊 Use Cases
+## Use Cases
 
 ### Data Warehousing
 - Extract data from multiple sources
@@ -535,20 +601,19 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Roadmap
 
 - [ ] Add Spark connector for big data
+- [ ] Add Netsuite connector
+- [ ] Add S3 connector
 - [ ] Implement data quality testing framework
 - [ ] Add CI/CD pipeline templates
 - [ ] Create VSCode extension
 - [ ] Real-time data streaming
 - [ ] Cloud deployment guides (AWS, GCP, Azure)
-- [ ] Airflow/Prefect integration
 - [ ] Metric computation layer
 - [ ] Row-level security
 
 ---
 
 <div align="center">
-
-**Built with ❤️ for the data community**
 
 [⭐ Star us on GitHub](https://github.com/kraftaa/transformdash)
 
