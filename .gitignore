@@ -63,6 +63,7 @@ SECURITY_REVIEW.md
 RUN_IN_BACKGROUND.md
 ns.txt
 todo_new.md
+other
 
 # Background process files
 *.pid
