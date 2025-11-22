@@ -1,8 +1,8 @@
-# 🚀 TransformDash - Future Enhancements
+# TransformDash - Future Enhancements
 
 This document tracks planned features and improvements for TransformDash.
 
-## 🔐 Priority 1: Authentication & Authorization
+## Priority 1: Authentication & Authorization
 
 ### User Management System
 - [ ] **User Registration & Login**
@@ -57,7 +57,7 @@ This document tracks planned features and improvements for TransformDash.
 
 ---
 
-## 📊 Priority 2: View Toggle (List/Table)
+## Priority 2: View Toggle (List/Table)
 
 ### List vs. Table View for All Content
 - [ ] **Run History View Toggle**
@@ -84,14 +84,14 @@ This document tracks planned features and improvements for TransformDash.
     - Columns: Title, Type, Table, Created, Actions
 
 ### Implementation
-- Add toggle button in header: `[📋 List] [📊 Table]`
+- Add toggle button in header: `[List] [Table]`
 - Save preference in localStorage
 - CSS classes: `.view-list` and `.view-table`
 - Data table library: Use DataTables.js or TanStack Table
 
 ---
 
-## 🎨 Priority 3: UI/UX Improvements
+## Priority 3: UI/UX Improvements
 
 - [ ] **Keyboard Shortcuts**
   - `Ctrl+K`: Global search
@@ -118,7 +118,7 @@ This document tracks planned features and improvements for TransformDash.
 
 ---
 
-## 📈 Priority 4: Advanced Analytics
+## Priority 4: Advanced Analytics
 
 - [ ] **Performance Metrics**
   - Model execution time trends
@@ -140,7 +140,7 @@ This document tracks planned features and improvements for TransformDash.
 
 ---
 
-## 🔧 Priority 5: Developer Experience
+## Priority 5: Developer Experience
 
 - [ ] **Model Editor**
   - In-browser SQL editor with syntax highlighting
@@ -162,7 +162,7 @@ This document tracks planned features and improvements for TransformDash.
 
 ---
 
-## 📦 Priority 6: Data Management
+## Priority 6: Data Management
 
 - [ ] **Data Catalog**
   - Browse all tables/columns
@@ -184,7 +184,7 @@ This document tracks planned features and improvements for TransformDash.
 
 ---
 
-## 🚀 Priority 7: Deployment & Ops
+## Priority 7: Deployment & Ops
 
 - [ ] **Scheduling**
   - Cron-style scheduling for transformations
@@ -206,7 +206,7 @@ This document tracks planned features and improvements for TransformDash.
 
 ---
 
-## 📱 Priority 8: Mobile & API
+## Priority 8: Mobile & API
 
 - [ ] **Mobile-Responsive Design**
   - Touch-friendly interface
@@ -228,7 +228,7 @@ This document tracks planned features and improvements for TransformDash.
 
 ---
 
-## 🎯 Quick Wins (Easy Implementation)
+## Quick Wins (Easy Implementation)
 
 - [ ] Keyboard navigation for lists
 - [ ] Bulk actions (delete multiple runs, export multiple dashboards)
@@ -243,7 +243,7 @@ This document tracks planned features and improvements for TransformDash.
 
 ---
 
-## 📝 Notes
+##  Notes
 
 - Features are prioritized based on user impact and implementation complexity
 - Authentication system should be implemented first for security
