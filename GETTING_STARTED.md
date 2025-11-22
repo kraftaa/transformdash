@@ -87,7 +87,7 @@ http://localhost:8000
 - Username: `admin`
 - Password: `admin`
 
-🎉 **You're done!** Skip to the [First Steps](#first-steps) section.
+**You're done!** Skip to the [First Steps](#first-steps) section.
 
 ---
 
@@ -351,10 +351,10 @@ docker-compose up -d
 
 ## Next Steps
 
-- 📖 Read the [Full Documentation](README.md)
-- 🎨 Learn about [SQL Model Features](README.md#model-features)
-- 📊 Explore [Dashboard Examples](DASHBOARDS_CREATED.md)
-- 🚀 Set up for [Production Deployment](DEPLOYMENT.md)
+- Read the [Full Documentation](README.md)
+- Learn about [SQL Model Features](README.md#model-features)
+- Explore [Dashboard Examples](DASHBOARDS_CREATED.md)
+- Set up for [Production Deployment](DEPLOYMENT.md)
 
 ---
 
