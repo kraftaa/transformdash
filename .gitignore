@@ -61,6 +61,8 @@ connections.local.yml
 SESSION_SUMMARY.md
 SECURITY_REVIEW.md
 RUN_IN_BACKGROUND.md
+ns.txt
+todo_new.md
 
 # Background process files
 *.pid

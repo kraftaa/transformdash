@@ -257,6 +257,9 @@ function switchView(viewName) {
             // Load available connections for chart builder
             loadChartConnections();
             break;
+        case 'ml-models':
+            loadMLModels();
+            break;
         case 'runs':
             loadRuns();
             break;
@@ -713,10 +716,10 @@ async function displayModels(models, filterLayer = null) {
 
     if (filteredModels.length === 0) {
         modelsList.innerHTML = `
-            <div style="text-align: center; padding: 60px 20px; background: white; border-radius: 12px; border: 1px solid var(--color-border);">
+            <div style="text-align: center; padding: 60px 20px; background: var(--color-bg); border-radius: 12px; border: 1px solid var(--color-border);">
                 <div style="font-size: 4em; margin-bottom: 20px;">📦</div>
-                <h3 style="margin-bottom: 10px;">No Models Found</h3>
-                <p style="color: #888;">${currentModelsSearchTerm ? 'No models match your search criteria.' : 'Add SQL or Python transformation models to the models/ directory to get started.'}</p>
+                <h3 style="margin-bottom: 10px; color: var(--color-text);">No Models Found</h3>
+                <p style="color: var(--color-text-secondary);">${currentModelsSearchTerm ? 'No models match your search criteria.' : 'Add SQL or Python transformation models to the models/ directory to get started.'}</p>
             </div>
         `;
         return;
@@ -1652,15 +1655,15 @@ async function deleteDashboard(dashboardId, dashboardName) {
         const result = await response.json();
 
         if (response.ok) {
-            showNotification('success', result.message || 'Dashboard deleted successfully!');
+            showToast( result.message || 'Dashboard deleted successfully!');
             // Reload the dashboards list
             await loadDashboards();
         } else {
-            showNotification('error', result.detail || 'Failed to delete dashboard');
+            showToast( result.detail || 'Failed to delete dashboard');
         }
     } catch (error) {
         console.error('Error deleting dashboard:', error);
-        showNotification('error', 'An error occurred while deleting the dashboard');
+        showToast( 'An error occurred while deleting the dashboard');
     }
 }
 
@@ -3318,6 +3321,10 @@ async function renderDashboardChart(chartConfig, container, filters = {}, filter
         const titleContainer = document.createElement('div');
         titleContainer.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;';
 
+        // Left side: title + edit button
+        const leftSide = document.createElement('div');
+        leftSide.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+
         const title = document.createElement('h4');
         title.style.cssText = 'margin: 0; color: #333; font-size: 1.1em;';
         title.textContent = chartConfig.title;
@@ -3333,10 +3340,16 @@ async function renderDashboardChart(chartConfig, container, filters = {}, filter
         editBtn.onmouseover = function() { this.style.background = '#f0f0f0'; };
         editBtn.onmouseout = function() { this.style.background = 'none'; };
 
-        // Add View Query button
+        leftSide.appendChild(title);
+        leftSide.appendChild(editBtn);
+
+        // Right side: View Query + Copy Query buttons
+        const rightSide = document.createElement('div');
+        rightSide.style.cssText = 'display: flex; align-items: center; gap: 4px;';
+
         const viewQueryBtn = document.createElement('button');
-        viewQueryBtn.style.cssText = 'background: none; border: none; cursor: pointer; color: #667eea; font-size: 1.2em; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;';
-        viewQueryBtn.innerHTML = '🔍';
+        viewQueryBtn.style.cssText = 'background: none; border: none; cursor: pointer; color: #667eea; font-size: 1em; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;';
+        viewQueryBtn.innerHTML = '🔍 Show Query';
         viewQueryBtn.title = 'View SQL Query';
         viewQueryBtn.onclick = (e) => {
             e.stopPropagation();
@@ -3345,9 +3358,29 @@ async function renderDashboardChart(chartConfig, container, filters = {}, filter
         viewQueryBtn.onmouseover = function() { this.style.background = '#f0f0f0'; };
         viewQueryBtn.onmouseout = function() { this.style.background = 'none'; };
 
-        titleContainer.appendChild(title);
-        titleContainer.appendChild(editBtn);
-        titleContainer.appendChild(viewQueryBtn);
+        const copyQueryBtn = document.createElement('button');
+        copyQueryBtn.style.cssText = 'background: none; border: none; cursor: pointer; color: #667eea; font-size: 1.2em; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;';
+        copyQueryBtn.innerHTML = '📋';
+        copyQueryBtn.title = 'Copy SQL Query';
+        copyQueryBtn.onclick = async (e) => {
+            e.stopPropagation();
+            const query = generateChartQuery(chartConfig);
+            try {
+                await navigator.clipboard.writeText(query);
+                showToast('SQL query copied to clipboard!', 'success');
+            } catch (err) {
+                console.error('Failed to copy:', err);
+                showToast('Failed to copy query', 'error');
+            }
+        };
+        copyQueryBtn.onmouseover = function() { this.style.background = '#f0f0f0'; };
+        copyQueryBtn.onmouseout = function() { this.style.background = 'none'; };
+
+        rightSide.appendChild(viewQueryBtn);
+        rightSide.appendChild(copyQueryBtn);
+
+        titleContainer.appendChild(leftSide);
+        titleContainer.appendChild(rightSide);
         chartWrapper.appendChild(titleContainer);
 
         // Chart description (if available)
@@ -8860,5 +8893,459 @@ async function exportChartAsPDF(chart) {
     } catch (error) {
         console.error('Error exporting chart as PDF:', error);
         throw error;
+    }
+}
+
+// ============================================================================
+// ML MODELS FUNCTIONS
+// ============================================================================
+
+async function loadMLModels() {
+    try {
+        const response = await fetch('/api/ml/models');
+        const data = await response.json();
+
+        const modelsGrid = document.getElementById('ml-models-grid');
+
+        if (!data.models || data.models.length === 0) {
+            modelsGrid.innerHTML = `
+                <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🤖</div>
+                    <h3 style="color: #374151; margin-bottom: 0.5rem;">No ML Models Yet</h3>
+                    <p style="color: #6b7280; margin-bottom: 1.5rem;">Train your first machine learning model to get started</p>
+                    <button onclick="openMLTrainingDialog()" class="btn btn-primary">
+                        Train Your First Model
+                    </button>
+                </div>
+            `;
+            return;
+        }
+
+        modelsGrid.innerHTML = '';
+
+        data.models.forEach(model => {
+            const card = document.createElement('div');
+            card.className = 'model-card';
+            card.style.cssText = `
+                background: white;
+                border: 1px solid #e5e7eb;
+                border-radius: 8px;
+                padding: 20px;
+                cursor: pointer;
+                transition: all 0.2s;
+            `;
+
+            card.onmouseover = () => card.style.borderColor = '#3b82f6';
+            card.onmouseout = () => card.style.borderColor = '#e5e7eb';
+
+            const typeColor = {
+                'classification': '#10b981',
+                'regression': '#3b82f6',
+                'clustering': '#8b5cf6',
+                'other': '#6b7280'
+            }[model.model_type] || '#6b7280';
+
+            const metricsHTML = Object.keys(model.metrics || {}).length > 0
+                ? Object.entries(model.metrics).slice(0, 3).map(([key, value]) =>
+                    `<div style="display: flex; justify-content: space-between; padding: 4px 0;">
+                        <span style="color: #6b7280; font-size: 0.875rem;">${key}:</span>
+                        <span style="font-weight: 600; font-size: 0.875rem;">${typeof value === 'number' ? value.toFixed(4) : value}</span>
+                    </div>`
+                  ).join('')
+                : '<div style="color: #9ca3af; font-size: 0.875rem; font-style: italic;">No metrics available</div>';
+
+            card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                    <div>
+                        <h3 style="margin: 0 0 4px 0; font-size: 1.125rem; color: #111827;">${model.model_name}</h3>
+                        <span style="display: inline-block; padding: 2px 8px; background: ${typeColor}20; color: ${typeColor}; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
+                            ${model.model_type.toUpperCase()}
+                        </span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="event.stopPropagation(); openPredictionDialog('${model.model_name}')" class="icon-btn-small" title="Make Prediction">
+                            <span title="Make Prediction">🎯</span>
+                        </button>
+                        <button onclick="event.stopPropagation(); viewModelVersions('${model.model_name}')" class="icon-btn-small" title="View Versions">
+                            <span title="View Versions">🔢</span>
+                        </button>
+                        <button onclick="event.stopPropagation(); deleteMLModel('${model.model_name}')" class="icon-btn-small" title="Delete Model" style="color: #dc2626;">
+                            <span title="Delete Model">🗑️</span>
+                        </button>
+                    </div>
+                </div>
+
+                <p style="color: #6b7280; font-size: 0.875rem; margin-bottom: 12px; line-height: 1.5;">
+                    ${model.description || 'No description available'}
+                </p>
+
+                <div style="margin-bottom: 12px; padding: 12px; background: #f9fafb; border-radius: 6px;">
+                    <div style="font-size: 0.75rem; font-weight: 600; color: #6b7280; margin-bottom: 8px;">METRICS</div>
+                    ${metricsHTML}
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid #e5e7eb; font-size: 0.875rem; color: #6b7280;">
+                    <div>
+                        <span style="font-weight: 600;">${model.feature_columns?.length || 0}</span> features
+                    </div>
+                    <div>
+                        v${model.latest_version} • ${model.total_versions} version(s)
+                    </div>
+                </div>
+            `;
+
+            card.onclick = () => viewModelDetails(model.model_name);
+
+            modelsGrid.appendChild(card);
+        });
+
+    } catch (error) {
+        console.error('Error loading ML models:', error);
+        document.getElementById('ml-models-grid').innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #ef4444;">
+                <h3>Error Loading Models</h3>
+                <p>${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+async function viewModelDetails(modelName) {
+    try {
+        const response = await fetch(`/api/ml/models/${modelName}`);
+        const model = await response.json();
+
+        const featuresHTML = model.features?.feature_columns?.length > 0
+            ? model.features.feature_columns.map(feat => `<li style="padding: 4px 0;">${feat}</li>`).join('')
+            : '<li style="color: #9ca3af;">No features defined</li>';
+
+        const metricsHTML = Object.keys(model.metrics || {}).length > 0
+            ? Object.entries(model.metrics).map(([key, value]) =>
+                `<tr>
+                    <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${key}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">${typeof value === 'number' ? value.toFixed(4) : value}</td>
+                </tr>`
+              ).join('')
+            : '<tr><td colspan="2" style="padding: 8px; color: #9ca3af; text-align: center;">No metrics available</td></tr>';
+
+        const tagsHTML = model.tags?.length > 0
+            ? model.tags.map(tag => `<span style="display: inline-block; padding: 4px 12px; background: #e5e7eb; border-radius: 12px; font-size: 0.875rem; margin-right: 8px;">${tag}</span>`).join('')
+            : '<span style="color: #9ca3af;">No tags</span>';
+
+        // Hyperparameters HTML
+        const hyperparamsHTML = Object.keys(model.hyperparameters || {}).length > 0
+            ? Object.entries(model.hyperparameters).map(([key, value]) => {
+                const displayValue = typeof value === 'object' ? JSON.stringify(value) : value;
+                return `<tr>
+                    <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-family: monospace; color: #6b7280;">${key}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: 600; font-family: monospace;">${displayValue}</td>
+                </tr>`;
+              }).join('')
+            : '<tr><td colspan="2" style="padding: 8px; color: #9ca3af; text-align: center;">No hyperparameters recorded</td></tr>';
+
+        // Training Config HTML
+        const trainingConfigHTML = Object.keys(model.training_config || {}).length > 0
+            ? Object.entries(model.training_config).map(([key, value]) => {
+                let displayValue = value;
+                if (typeof value === 'number') {
+                    displayValue = value % 1 === 0 ? value : value.toFixed(4);
+                } else if (typeof value === 'boolean') {
+                    displayValue = value ? 'Yes' : 'No';
+                }
+                return `<tr>
+                    <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">${displayValue}</td>
+                </tr>`;
+              }).join('')
+            : '<tr><td colspan="2" style="padding: 8px; color: #9ca3af; text-align: center;">No training configuration recorded</td></tr>';
+
+        const modalHTML = `
+            <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;" onclick="this.remove()">
+                <div style="background: white; border-radius: 12px; padding: 32px; max-width: 800px; width: 90%; max-height: 85vh; overflow-y: auto;" onclick="event.stopPropagation()">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 24px;">
+                        <div>
+                            <h2 style="margin: 0 0 8px 0; font-size: 1.5rem;">${model.model_name}</h2>
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                <span style="display: inline-block; padding: 4px 12px; background: #3b82f620; color: #3b82f6; border-radius: 4px; font-size: 0.875rem; font-weight: 600;">
+                                    ${model.model_type.toUpperCase()}
+                                </span>
+                                ${model.model_class ? `<span style="display: inline-block; padding: 4px 12px; background: #f3f4f6; color: #374151; border-radius: 4px; font-size: 0.875rem; font-family: monospace;">
+                                    ${model.model_class}
+                                </span>` : ''}
+                                ${model.model_size_mb ? `<span style="display: inline-block; padding: 4px 12px; background: #fef3c7; color: #92400e; border-radius: 4px; font-size: 0.875rem;">
+                                    ${model.model_size_mb} MB
+                                </span>` : ''}
+                            </div>
+                        </div>
+                        <button onclick="this.closest('div[style*=fixed]').remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b7280; padding: 0; width: 32px; height: 32px;">×</button>
+                    </div>
+
+                    <!-- Tabs -->
+                    <div style="border-bottom: 2px solid #e5e7eb; margin-bottom: 20px;">
+                        <div style="display: flex; gap: 8px;">
+                            <button class="model-tab-btn" data-tab="overview" onclick="switchModelTab(this, 'overview')" style="padding: 12px 20px; border: none; background: none; font-weight: 600; color: #3b82f6; border-bottom: 2px solid #3b82f6; margin-bottom: -2px; cursor: pointer;">
+                                Overview
+                            </button>
+                            <button class="model-tab-btn" data-tab="hyperparams" onclick="switchModelTab(this, 'hyperparams')" style="padding: 12px 20px; border: none; background: none; font-weight: 600; color: #6b7280; cursor: pointer;">
+                                Hyperparameters
+                            </button>
+                            <button class="model-tab-btn" data-tab="training" onclick="switchModelTab(this, 'training')" style="padding: 12px 20px; border: none; background: none; font-weight: 600; color: #6b7280; cursor: pointer;">
+                                Training Config
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Overview Tab -->
+                    <div id="tab-overview" class="model-tab-content" style="display: block;">
+                        <div style="margin-bottom: 20px;">
+                            <h3 style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: 8px;">DESCRIPTION</h3>
+                            <p style="color: #374151; line-height: 1.6;">${model.description}</p>
+                        </div>
+
+                        <div style="margin-bottom: 20px;">
+                            <h3 style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: 8px;">TAGS</h3>
+                            <div>${tagsHTML}</div>
+                        </div>
+
+                        <div style="margin-bottom: 20px;">
+                            <h3 style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: 8px;">METRICS</h3>
+                            <table style="width: 100%; border-collapse: collapse;">
+                                ${metricsHTML}
+                            </table>
+                        </div>
+
+                        <div style="margin-bottom: 20px;">
+                            <h3 style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: 8px;">FEATURES (${model.features?.num_features || 0})</h3>
+                            <ul style="max-height: 200px; overflow-y: auto; padding-left: 20px; margin: 0; color: #374151;">
+                                ${featuresHTML}
+                            </ul>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; background: #f9fafb; border-radius: 8px;">
+                            <div>
+                                <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 4px;">VERSION</div>
+                                <div style="font-weight: 600; color: #111827;">v${model.version}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 4px;">STATUS</div>
+                                <div style="font-weight: 600; color: #10b981;">${model.status.toUpperCase()}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 4px;">TARGET</div>
+                                <div style="font-weight: 600; color: #111827;">${model.features?.target_column || 'N/A'}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 4px;">REGISTERED</div>
+                                <div style="font-weight: 600; color: #111827;">${new Date(model.registered_at).toLocaleDateString()}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hyperparameters Tab -->
+                    <div id="tab-hyperparams" class="model-tab-content" style="display: none;">
+                        <div style="padding: 16px; background: #eff6ff; border-left: 4px solid #3b82f6; margin-bottom: 16px;">
+                            <div style="font-weight: 600; color: #1e40af; margin-bottom: 4px;">Model Architecture</div>
+                            <div style="color: #1e40af; font-size: 0.875rem;">
+                                ${model.model_class || 'Not specified'} with ${Object.keys(model.hyperparameters || {}).length} hyperparameters
+                            </div>
+                        </div>
+                        <table style="width: 100%; border-collapse: collapse;">
+                            ${hyperparamsHTML}
+                        </table>
+                    </div>
+
+                    <!-- Training Config Tab -->
+                    <div id="tab-training" class="model-tab-content" style="display: none;">
+                        <div style="padding: 16px; background: #f0fdf4; border-left: 4px solid #10b981; margin-bottom: 16px;">
+                            <div style="font-weight: 600; color: #065f46; margin-bottom: 4px;">Training Configuration</div>
+                            <div style="color: #065f46; font-size: 0.875rem;">
+                                Details about how this model was trained
+                            </div>
+                        </div>
+                        <table style="width: 100%; border-collapse: collapse;">
+                            ${trainingConfigHTML}
+                        </table>
+                    </div>
+
+                    <div style="display: flex; gap: 12px; margin-top: 24px;">
+                        <button onclick="openPredictionDialog('${model.model_name}')" class="btn btn-primary" style="flex: 1;">
+                            Make Prediction
+                        </button>
+                        <button onclick="viewModelVersions('${model.model_name}')" class="btn btn-secondary" style="flex: 1;">
+                            View All Versions
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    } catch (error) {
+        console.error('Error loading model details:', error);
+        showToast( 'Failed to load model details');
+    }
+}
+
+function switchModelTab(button, tabName) {
+    // Hide all tabs
+    document.querySelectorAll('.model-tab-content').forEach(tab => {
+        tab.style.display = 'none';
+    });
+
+    // Remove active styling from all buttons
+    document.querySelectorAll('.model-tab-btn').forEach(btn => {
+        btn.style.color = '#6b7280';
+        btn.style.borderBottom = 'none';
+        btn.style.marginBottom = '0';
+    });
+
+    // Show selected tab
+    document.getElementById(`tab-${tabName}`).style.display = 'block';
+
+    // Add active styling to clicked button
+    button.style.color = '#3b82f6';
+    button.style.borderBottom = '2px solid #3b82f6';
+    button.style.marginBottom = '-2px';
+}
+
+async function viewModelVersions(modelName) {
+    try {
+        const response = await fetch(`/api/ml/models/${modelName}/versions`);
+        const data = await response.json();
+
+        const versionsHTML = data.versions.map(version => `
+            <div style="padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                    <div>
+                        <h4 style="margin: 0 0 4px 0;">Version ${version.version}</h4>
+                        <span style="display: inline-block; padding: 2px 8px; background: ${version.status === 'active' ? '#10b98120' : '#6b728020'}; color: ${version.status === 'active' ? '#10b981' : '#6b7280'}; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
+                            ${version.status.toUpperCase()}
+                        </span>
+                    </div>
+                    <div style="font-size: 0.875rem; color: #6b7280;">
+                        ${new Date(version.registered_at).toLocaleDateString()}
+                    </div>
+                </div>
+                <p style="color: #6b7280; font-size: 0.875rem; margin: 8px 0;">
+                    ${version.description || 'No description'}
+                </p>
+                <div style="font-size: 0.875rem; color: #6b7280;">
+                    <strong>${Object.keys(version.metrics || {}).length}</strong> metrics •
+                    <strong>${version.feature_columns?.length || 0}</strong> features
+                </div>
+            </div>
+        `).join('');
+
+        const modalHTML = `
+            <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;" onclick="this.remove()">
+                <div style="background: white; border-radius: 12px; padding: 32px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;" onclick="event.stopPropagation()">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <h2 style="margin: 0;">Versions: ${modelName}</h2>
+                        <button onclick="this.closest('div[style*=fixed]').remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b7280; padding: 0;">×</button>
+                    </div>
+
+                    <div style="margin-bottom: 16px; padding: 12px; background: #f9fafb; border-radius: 6px;">
+                        <strong>${data.versions.length}</strong> version(s) registered
+                    </div>
+
+                    ${versionsHTML}
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    } catch (error) {
+        console.error('Error loading model versions:', error);
+        showToast( 'Failed to load model versions');
+    }
+}
+
+function openMLTrainingDialog() {
+    const modalHTML = `
+        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;" onclick="this.remove()">
+            <div style="background: white; border-radius: 12px; padding: 32px; max-width: 500px; width: 90%;" onclick="event.stopPropagation()">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h2 style="margin: 0;">Train ML Model</h2>
+                    <button onclick="this.closest('div[style*=fixed]').remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b7280; padding: 0;">×</button>
+                </div>
+
+                <div style="padding: 20px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="font-weight: 600; color: #92400e; margin-bottom: 8px;">Training via Python Script</div>
+                    <p style="margin: 0; color: #92400e; font-size: 0.875rem; line-height: 1.5;">
+                        ML models are currently trained via Python scripts. Use the command line to train models:
+                    </p>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <h3 style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: 12px;">AVAILABLE TRAINING SCRIPTS</h3>
+
+                    <div style="margin-bottom: 16px; padding: 16px; background: #f9fafb; border-radius: 6px;">
+                        <div style="font-weight: 600; margin-bottom: 8px;">Customer Segmentation</div>
+                        <code style="display: block; padding: 12px; background: #1f2937; color: #10b981; border-radius: 4px; font-size: 0.875rem; margin-bottom: 8px; overflow-x: auto;">
+                            python ml/train_customer_segmentation.py
+                        </code>
+                        <div style="font-size: 0.875rem; color: #6b7280;">
+                            Creates customer segments using KMeans clustering on RFM metrics
+                        </div>
+                    </div>
+
+                    <div style="padding: 16px; background: #f9fafb; border-radius: 6px;">
+                        <div style="font-weight: 600; margin-bottom: 8px;">Custom Model Training</div>
+                        <code style="display: block; padding: 12px; background: #1f2937; color: #10b981; border-radius: 4px; font-size: 0.875rem; margin-bottom: 8px; overflow-x: auto;">
+                            python ml/examples/train_example_model.py
+                        </code>
+                        <div style="font-size: 0.875rem; color: #6b7280;">
+                            Example template for training custom models
+                        </div>
+                    </div>
+                </div>
+
+                <div style="padding: 16px; background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="font-weight: 600; color: #1e40af; margin-bottom: 4px;">Tip</div>
+                    <div style="color: #1e40af; font-size: 0.875rem;">
+                        After training, refresh this page to see your new models
+                    </div>
+                </div>
+
+                <button onclick="this.closest('div[style*=fixed]').remove()" class="btn btn-secondary" style="width: 100%;">
+                    Close
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function openPredictionDialog(modelName) {
+    showToast('Prediction UI coming soon! Use POST /api/ml/predict endpoint for now.', 'info');
+}
+
+async function deleteMLModel(modelName) {
+    if (!confirm(`Are you sure you want to delete the model "${modelName}"? This will remove all versions. This action cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/ml/models/${modelName}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            showToast(`Model "${modelName}" deleted successfully!`, 'success');
+            // Reload the models list
+            await loadMLModels();
+        } else {
+            const error = await response.json();
+            showToast(error.detail || 'Failed to delete model', 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting model:', error);
+        showToast('An error occurred while deleting the model', 'error');
     }
 }

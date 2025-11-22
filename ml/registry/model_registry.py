@@ -47,7 +47,9 @@ class ModelRegistry:
         feature_columns: Optional[List[str]] = None,
         target_column: Optional[str] = None,
         description: Optional[str] = None,
-        tags: Optional[List[str]] = None
+        tags: Optional[List[str]] = None,
+        hyperparameters: Optional[Dict] = None,
+        training_config: Optional[Dict] = None
     ) -> str:
         """
         Register a trained model in the registry
@@ -62,6 +64,8 @@ class ModelRegistry:
             target_column: Target column name
             description: Model description
             tags: Tags for categorization
+            hyperparameters: Model hyperparameters (from model.get_params())
+            training_config: Training configuration (split ratio, CV, data stats, etc.)
 
         Returns:
             model_id: Unique identifier for the registered model
@@ -76,19 +80,37 @@ class ModelRegistry:
         model_path = self.registry_dir / f"{model_id}.pkl"
         joblib.dump(model, model_path)
 
+        # Get model size
+        model_size_bytes = model_path.stat().st_size if model_path.exists() else 0
+        model_size_mb = model_size_bytes / (1024 * 1024)
+
+        # Extract hyperparameters from model if not provided
+        if hyperparameters is None and hasattr(model, 'get_params'):
+            try:
+                hyperparameters = model.get_params()
+            except:
+                hyperparameters = {}
+
+        # Get model class name
+        model_class = type(model).__name__
+
         # Create metadata entry
         metadata_entry = {
             "model_name": model_name,
             "model_id": model_id,
             "version": version,
             "model_type": model_type,
+            "model_class": model_class,
             "model_path": str(model_path),
+            "model_size_mb": round(model_size_mb, 2),
             "registered_at": datetime.now().isoformat(),
             "metrics": metrics or {},
             "feature_columns": feature_columns or [],
             "target_column": target_column,
             "description": description or "",
             "tags": tags or [],
+            "hyperparameters": hyperparameters or {},
+            "training_config": training_config or {},
             "status": "active"
         }
 

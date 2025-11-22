@@ -532,6 +532,25 @@ async def ml_predict(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.delete("/api/ml/models/{model_name}")
+async def delete_ml_model(model_name: str):
+    """Delete an ML model and all its versions"""
+    try:
+        from ml.registry.model_registry import model_registry
+
+        # Delete model (this deletes all versions)
+        model_registry.delete_model(model_name)
+
+        return {
+            "success": True,
+            "message": f"Model '{model_name}' deleted successfully"
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/exposures")
 async def get_exposures():
     """Get dashboards/exposures that depend on models"""

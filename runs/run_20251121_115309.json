@@ -1,0 +1,328 @@
+{
+  "run_id": "run_20251121_115309",
+  "timestamp": "2025-11-21T11:53:10.433994",
+  "summary": {
+    "total_models": 34,
+    "successes": 34,
+    "failures": 0,
+    "total_execution_time": 0.674478,
+    "models": {
+      "stg_products": {
+        "execution_time": 0.058857,
+        "timestamp": "2025-11-21T11:53:09.818395",
+        "status": "success"
+      },
+      "stg_customers": {
+        "execution_time": 0.020816,
+        "timestamp": "2025-11-21T11:53:09.839258",
+        "status": "success"
+      },
+      "stg_stock_levels": {
+        "execution_time": 0.019495,
+        "timestamp": "2025-11-21T11:53:09.858784",
+        "status": "success"
+      },
+      "stg_shipments": {
+        "execution_time": 0.014295,
+        "timestamp": "2025-11-21T11:53:09.873110",
+        "status": "success"
+      },
+      "stg_returns": {
+        "execution_time": 0.01182,
+        "timestamp": "2025-11-21T11:53:09.884964",
+        "status": "success"
+      },
+      "stg_suppliers": {
+        "execution_time": 0.010756,
+        "timestamp": "2025-11-21T11:53:09.895764",
+        "status": "success"
+      },
+      "stg_orders": {
+        "execution_time": 0.01066,
+        "timestamp": "2025-11-21T11:53:09.906458",
+        "status": "success"
+      },
+      "stg_promotions": {
+        "execution_time": 0.011058,
+        "timestamp": "2025-11-21T11:53:09.917544",
+        "status": "success"
+      },
+      "stg_commissions": {
+        "execution_time": 0.013193,
+        "timestamp": "2025-11-21T11:53:09.930766",
+        "status": "success"
+      },
+      "stg_order_items": {
+        "execution_time": 0.023716,
+        "timestamp": "2025-11-21T11:53:09.954512",
+        "status": "success"
+      },
+      "stg_purchase_orders": {
+        "execution_time": 0.011615,
+        "timestamp": "2025-11-21T11:53:09.966159",
+        "status": "success"
+      },
+      "stg_warehouses": {
+        "execution_time": 0.011204,
+        "timestamp": "2025-11-21T11:53:09.977392",
+        "status": "success"
+      },
+      "stg_employees": {
+        "execution_time": 0.007308,
+        "timestamp": "2025-11-21T11:53:09.984729",
+        "status": "success"
+      },
+      "stg_campaigns": {
+        "execution_time": 0.008073,
+        "timestamp": "2025-11-21T11:53:09.992834",
+        "status": "success"
+      },
+      "stg_payment_transactions": {
+        "execution_time": 0.009347,
+        "timestamp": "2025-11-21T11:53:10.002213",
+        "status": "success"
+      },
+      "stg_carriers": {
+        "execution_time": 0.00966,
+        "timestamp": "2025-11-21T11:53:10.011908",
+        "status": "success"
+      },
+      "int_products_enriched": {
+        "execution_time": 0.150381,
+        "timestamp": "2025-11-21T11:53:10.162323",
+        "status": "success"
+      },
+      "int_return_analysis": {
+        "execution_time": 0.037163,
+        "timestamp": "2025-11-21T11:53:10.199516",
+        "status": "success"
+      },
+      "int_customer_orders": {
+        "execution_time": 0.025485,
+        "timestamp": "2025-11-21T11:53:10.225032",
+        "status": "success"
+      },
+      "int_promo_utilization": {
+        "execution_time": 0.010569,
+        "timestamp": "2025-11-21T11:53:10.235632",
+        "status": "success"
+      },
+      "int_order_details": {
+        "execution_time": 0.022543,
+        "timestamp": "2025-11-21T11:53:10.258202",
+        "status": "success"
+      },
+      "int_supplier_orders": {
+        "execution_time": 0.010009,
+        "timestamp": "2025-11-21T11:53:10.268240",
+        "status": "success"
+      },
+      "int_inventory_summary": {
+        "execution_time": 0.016142,
+        "timestamp": "2025-11-21T11:53:10.284410",
+        "status": "success"
+      },
+      "int_sales_commissions": {
+        "execution_time": 0.013365,
+        "timestamp": "2025-11-21T11:53:10.297803",
+        "status": "success"
+      },
+      "int_employee_performance": {
+        "execution_time": 0.012954,
+        "timestamp": "2025-11-21T11:53:10.310785",
+        "status": "success"
+      },
+      "int_campaign_performance": {
+        "execution_time": 0.013543,
+        "timestamp": "2025-11-21T11:53:10.324354",
+        "status": "success"
+      },
+      "int_payment_reconciliation": {
+        "execution_time": 0.011326,
+        "timestamp": "2025-11-21T11:53:10.335711",
+        "status": "success"
+      },
+      "int_shipment_tracking": {
+        "execution_time": 0.012727,
+        "timestamp": "2025-11-21T11:53:10.348467",
+        "status": "success"
+      },
+      "fct_customer_returns": {
+        "execution_time": 0.012198,
+        "timestamp": "2025-11-21T11:53:10.360693",
+        "status": "success"
+      },
+      "fct_orders": {
+        "execution_time": 0.014627,
+        "timestamp": "2025-11-21T11:53:10.375350",
+        "status": "success"
+      },
+      "fct_sales_performance": {
+        "execution_time": 0.012138,
+        "timestamp": "2025-11-21T11:53:10.387517",
+        "status": "success"
+      },
+      "fct_inventory_metrics": {
+        "execution_time": 0.022336,
+        "timestamp": "2025-11-21T11:53:10.409884",
+        "status": "success"
+      },
+      "fct_marketing_roi": {
+        "execution_time": 0.012114,
+        "timestamp": "2025-11-21T11:53:10.422030",
+        "status": "success"
+      },
+      "fct_shipping_logistics": {
+        "execution_time": 0.011888,
+        "timestamp": "2025-11-21T11:53:10.433945",
+        "status": "success"
+      }
+    },
+    "logs": [
+      "[2025-11-21 11:53:09.759] [INFO] Starting transformation pipeline",
+      "[2025-11-21 11:53:09.759] [INFO] Execution order: stg_products \u2192 stg_customers \u2192 stg_stock_levels \u2192 stg_shipments \u2192 stg_returns \u2192 stg_suppliers \u2192 stg_orders \u2192 stg_promotions \u2192 stg_commissions \u2192 stg_order_items \u2192 stg_purchase_orders \u2192 stg_warehouses \u2192 stg_employees \u2192 stg_campaigns \u2192 stg_payment_transactions \u2192 stg_carriers \u2192 int_products_enriched \u2192 int_return_analysis \u2192 int_customer_orders \u2192 int_promo_utilization \u2192 int_order_details \u2192 int_supplier_orders \u2192 int_inventory_summary \u2192 int_sales_commissions \u2192 int_employee_performance \u2192 int_campaign_performance \u2192 int_payment_reconciliation \u2192 int_shipment_tracking \u2192 fct_customer_returns \u2192 fct_orders \u2192 fct_sales_performance \u2192 fct_inventory_metrics \u2192 fct_marketing_roi \u2192 fct_shipping_logistics",
+      "[2025-11-21 11:53:09.759] [INFO] Executing: stg_products [sql]",
+      "[2025-11-21 11:53:09.818] [SUCCESS] Completed: stg_products in 0.059s",
+      "[2025-11-21 11:53:09.818] [INFO] Executing: stg_customers [sql]",
+      "[2025-11-21 11:53:09.839] [SUCCESS] Completed: stg_customers in 0.021s",
+      "[2025-11-21 11:53:09.839] [INFO] Executing: stg_stock_levels [sql]",
+      "[2025-11-21 11:53:09.858] [SUCCESS] Completed: stg_stock_levels in 0.019s",
+      "[2025-11-21 11:53:09.858] [INFO] Executing: stg_shipments [sql]",
+      "[2025-11-21 11:53:09.873] [SUCCESS] Completed: stg_shipments in 0.014s",
+      "[2025-11-21 11:53:09.873] [INFO] Executing: stg_returns [sql]",
+      "[2025-11-21 11:53:09.884] [SUCCESS] Completed: stg_returns in 0.012s",
+      "[2025-11-21 11:53:09.885] [INFO] Executing: stg_suppliers [sql]",
+      "[2025-11-21 11:53:09.895] [SUCCESS] Completed: stg_suppliers in 0.011s",
+      "[2025-11-21 11:53:09.895] [INFO] Executing: stg_orders [sql]",
+      "[2025-11-21 11:53:09.906] [SUCCESS] Completed: stg_orders in 0.011s",
+      "[2025-11-21 11:53:09.906] [INFO] Executing: stg_promotions [sql]",
+      "[2025-11-21 11:53:09.917] [SUCCESS] Completed: stg_promotions in 0.011s",
+      "[2025-11-21 11:53:09.917] [INFO] Executing: stg_commissions [sql]",
+      "[2025-11-21 11:53:09.930] [SUCCESS] Completed: stg_commissions in 0.013s",
+      "[2025-11-21 11:53:09.930] [INFO] Executing: stg_order_items [sql]",
+      "[2025-11-21 11:53:09.954] [SUCCESS] Completed: stg_order_items in 0.024s",
+      "[2025-11-21 11:53:09.954] [INFO] Executing: stg_purchase_orders [sql]",
+      "[2025-11-21 11:53:09.966] [SUCCESS] Completed: stg_purchase_orders in 0.012s",
+      "[2025-11-21 11:53:09.966] [INFO] Executing: stg_warehouses [sql]",
+      "[2025-11-21 11:53:09.977] [SUCCESS] Completed: stg_warehouses in 0.011s",
+      "[2025-11-21 11:53:09.977] [INFO] Executing: stg_employees [sql]",
+      "[2025-11-21 11:53:09.984] [SUCCESS] Completed: stg_employees in 0.007s",
+      "[2025-11-21 11:53:09.984] [INFO] Executing: stg_campaigns [sql]",
+      "[2025-11-21 11:53:09.992] [SUCCESS] Completed: stg_campaigns in 0.008s",
+      "[2025-11-21 11:53:09.992] [INFO] Executing: stg_payment_transactions [sql]",
+      "[2025-11-21 11:53:10.002] [SUCCESS] Completed: stg_payment_transactions in 0.009s",
+      "[2025-11-21 11:53:10.002] [INFO] Executing: stg_carriers [sql]",
+      "[2025-11-21 11:53:10.011] [SUCCESS] Completed: stg_carriers in 0.010s",
+      "[2025-11-21 11:53:10.011] [INFO] Executing: int_products_enriched [python]",
+      "[2025-11-21 11:53:10.162] [SUCCESS] Completed: int_products_enriched in 0.150s",
+      "[2025-11-21 11:53:10.162] [INFO] Executing: int_return_analysis [sql]",
+      "[2025-11-21 11:53:10.199] [SUCCESS] Completed: int_return_analysis in 0.037s",
+      "[2025-11-21 11:53:10.199] [INFO] Executing: int_customer_orders [sql]",
+      "[2025-11-21 11:53:10.225] [SUCCESS] Completed: int_customer_orders in 0.025s",
+      "[2025-11-21 11:53:10.225] [INFO] Executing: int_promo_utilization [sql]",
+      "[2025-11-21 11:53:10.235] [SUCCESS] Completed: int_promo_utilization in 0.011s",
+      "[2025-11-21 11:53:10.235] [INFO] Executing: int_order_details [sql]",
+      "[2025-11-21 11:53:10.258] [SUCCESS] Completed: int_order_details in 0.023s",
+      "[2025-11-21 11:53:10.258] [INFO] Executing: int_supplier_orders [sql]",
+      "[2025-11-21 11:53:10.268] [SUCCESS] Completed: int_supplier_orders in 0.010s",
+      "[2025-11-21 11:53:10.268] [INFO] Executing: int_inventory_summary [sql]",
+      "[2025-11-21 11:53:10.284] [SUCCESS] Completed: int_inventory_summary in 0.016s",
+      "[2025-11-21 11:53:10.284] [INFO] Executing: int_sales_commissions [sql]",
+      "[2025-11-21 11:53:10.297] [SUCCESS] Completed: int_sales_commissions in 0.013s",
+      "[2025-11-21 11:53:10.297] [INFO] Executing: int_employee_performance [sql]",
+      "[2025-11-21 11:53:10.310] [SUCCESS] Completed: int_employee_performance in 0.013s",
+      "[2025-11-21 11:53:10.310] [INFO] Executing: int_campaign_performance [sql]",
+      "[2025-11-21 11:53:10.324] [SUCCESS] Completed: int_campaign_performance in 0.014s",
+      "[2025-11-21 11:53:10.324] [INFO] Executing: int_payment_reconciliation [sql]",
+      "[2025-11-21 11:53:10.335] [SUCCESS] Completed: int_payment_reconciliation in 0.011s",
+      "[2025-11-21 11:53:10.335] [INFO] Executing: int_shipment_tracking [sql]",
+      "[2025-11-21 11:53:10.348] [SUCCESS] Completed: int_shipment_tracking in 0.013s",
+      "[2025-11-21 11:53:10.348] [INFO] Executing: fct_customer_returns [sql]",
+      "[2025-11-21 11:53:10.360] [SUCCESS] Completed: fct_customer_returns in 0.012s",
+      "[2025-11-21 11:53:10.360] [INFO] Executing: fct_orders [sql]",
+      "[2025-11-21 11:53:10.375] [SUCCESS] Completed: fct_orders in 0.015s",
+      "[2025-11-21 11:53:10.375] [INFO] Executing: fct_sales_performance [sql]",
+      "[2025-11-21 11:53:10.387] [SUCCESS] Completed: fct_sales_performance in 0.012s",
+      "[2025-11-21 11:53:10.387] [INFO] Executing: fct_inventory_metrics [sql]",
+      "[2025-11-21 11:53:10.409] [SUCCESS] Completed: fct_inventory_metrics in 0.022s",
+      "[2025-11-21 11:53:10.409] [INFO] Executing: fct_marketing_roi [sql]",
+      "[2025-11-21 11:53:10.422] [SUCCESS] Completed: fct_marketing_roi in 0.012s",
+      "[2025-11-21 11:53:10.422] [INFO] Executing: fct_shipping_logistics [sql]",
+      "[2025-11-21 11:53:10.433] [SUCCESS] Completed: fct_shipping_logistics in 0.012s",
+      "[2025-11-21 11:53:10.433] [INFO] Pipeline completed in 0.674s"
+    ]
+  },
+  "logs": [
+    "[2025-11-21 11:53:09.759] [INFO] Starting transformation pipeline",
+    "[2025-11-21 11:53:09.759] [INFO] Execution order: stg_products \u2192 stg_customers \u2192 stg_stock_levels \u2192 stg_shipments \u2192 stg_returns \u2192 stg_suppliers \u2192 stg_orders \u2192 stg_promotions \u2192 stg_commissions \u2192 stg_order_items \u2192 stg_purchase_orders \u2192 stg_warehouses \u2192 stg_employees \u2192 stg_campaigns \u2192 stg_payment_transactions \u2192 stg_carriers \u2192 int_products_enriched \u2192 int_return_analysis \u2192 int_customer_orders \u2192 int_promo_utilization \u2192 int_order_details \u2192 int_supplier_orders \u2192 int_inventory_summary \u2192 int_sales_commissions \u2192 int_employee_performance \u2192 int_campaign_performance \u2192 int_payment_reconciliation \u2192 int_shipment_tracking \u2192 fct_customer_returns \u2192 fct_orders \u2192 fct_sales_performance \u2192 fct_inventory_metrics \u2192 fct_marketing_roi \u2192 fct_shipping_logistics",
+    "[2025-11-21 11:53:09.759] [INFO] Executing: stg_products [sql]",
+    "[2025-11-21 11:53:09.818] [SUCCESS] Completed: stg_products in 0.059s",
+    "[2025-11-21 11:53:09.818] [INFO] Executing: stg_customers [sql]",
+    "[2025-11-21 11:53:09.839] [SUCCESS] Completed: stg_customers in 0.021s",
+    "[2025-11-21 11:53:09.839] [INFO] Executing: stg_stock_levels [sql]",
+    "[2025-11-21 11:53:09.858] [SUCCESS] Completed: stg_stock_levels in 0.019s",
+    "[2025-11-21 11:53:09.858] [INFO] Executing: stg_shipments [sql]",
+    "[2025-11-21 11:53:09.873] [SUCCESS] Completed: stg_shipments in 0.014s",
+    "[2025-11-21 11:53:09.873] [INFO] Executing: stg_returns [sql]",
+    "[2025-11-21 11:53:09.884] [SUCCESS] Completed: stg_returns in 0.012s",
+    "[2025-11-21 11:53:09.885] [INFO] Executing: stg_suppliers [sql]",
+    "[2025-11-21 11:53:09.895] [SUCCESS] Completed: stg_suppliers in 0.011s",
+    "[2025-11-21 11:53:09.895] [INFO] Executing: stg_orders [sql]",
+    "[2025-11-21 11:53:09.906] [SUCCESS] Completed: stg_orders in 0.011s",
+    "[2025-11-21 11:53:09.906] [INFO] Executing: stg_promotions [sql]",
+    "[2025-11-21 11:53:09.917] [SUCCESS] Completed: stg_promotions in 0.011s",
+    "[2025-11-21 11:53:09.917] [INFO] Executing: stg_commissions [sql]",
+    "[2025-11-21 11:53:09.930] [SUCCESS] Completed: stg_commissions in 0.013s",
+    "[2025-11-21 11:53:09.930] [INFO] Executing: stg_order_items [sql]",
+    "[2025-11-21 11:53:09.954] [SUCCESS] Completed: stg_order_items in 0.024s",
+    "[2025-11-21 11:53:09.954] [INFO] Executing: stg_purchase_orders [sql]",
+    "[2025-11-21 11:53:09.966] [SUCCESS] Completed: stg_purchase_orders in 0.012s",
+    "[2025-11-21 11:53:09.966] [INFO] Executing: stg_warehouses [sql]",
+    "[2025-11-21 11:53:09.977] [SUCCESS] Completed: stg_warehouses in 0.011s",
+    "[2025-11-21 11:53:09.977] [INFO] Executing: stg_employees [sql]",
+    "[2025-11-21 11:53:09.984] [SUCCESS] Completed: stg_employees in 0.007s",
+    "[2025-11-21 11:53:09.984] [INFO] Executing: stg_campaigns [sql]",
+    "[2025-11-21 11:53:09.992] [SUCCESS] Completed: stg_campaigns in 0.008s",
+    "[2025-11-21 11:53:09.992] [INFO] Executing: stg_payment_transactions [sql]",
+    "[2025-11-21 11:53:10.002] [SUCCESS] Completed: stg_payment_transactions in 0.009s",
+    "[2025-11-21 11:53:10.002] [INFO] Executing: stg_carriers [sql]",
+    "[2025-11-21 11:53:10.011] [SUCCESS] Completed: stg_carriers in 0.010s",
+    "[2025-11-21 11:53:10.011] [INFO] Executing: int_products_enriched [python]",
+    "[2025-11-21 11:53:10.162] [SUCCESS] Completed: int_products_enriched in 0.150s",
+    "[2025-11-21 11:53:10.162] [INFO] Executing: int_return_analysis [sql]",
+    "[2025-11-21 11:53:10.199] [SUCCESS] Completed: int_return_analysis in 0.037s",
+    "[2025-11-21 11:53:10.199] [INFO] Executing: int_customer_orders [sql]",
+    "[2025-11-21 11:53:10.225] [SUCCESS] Completed: int_customer_orders in 0.025s",
+    "[2025-11-21 11:53:10.225] [INFO] Executing: int_promo_utilization [sql]",
+    "[2025-11-21 11:53:10.235] [SUCCESS] Completed: int_promo_utilization in 0.011s",
+    "[2025-11-21 11:53:10.235] [INFO] Executing: int_order_details [sql]",
+    "[2025-11-21 11:53:10.258] [SUCCESS] Completed: int_order_details in 0.023s",
+    "[2025-11-21 11:53:10.258] [INFO] Executing: int_supplier_orders [sql]",
+    "[2025-11-21 11:53:10.268] [SUCCESS] Completed: int_supplier_orders in 0.010s",
+    "[2025-11-21 11:53:10.268] [INFO] Executing: int_inventory_summary [sql]",
+    "[2025-11-21 11:53:10.284] [SUCCESS] Completed: int_inventory_summary in 0.016s",
+    "[2025-11-21 11:53:10.284] [INFO] Executing: int_sales_commissions [sql]",
+    "[2025-11-21 11:53:10.297] [SUCCESS] Completed: int_sales_commissions in 0.013s",
+    "[2025-11-21 11:53:10.297] [INFO] Executing: int_employee_performance [sql]",
+    "[2025-11-21 11:53:10.310] [SUCCESS] Completed: int_employee_performance in 0.013s",
+    "[2025-11-21 11:53:10.310] [INFO] Executing: int_campaign_performance [sql]",
+    "[2025-11-21 11:53:10.324] [SUCCESS] Completed: int_campaign_performance in 0.014s",
+    "[2025-11-21 11:53:10.324] [INFO] Executing: int_payment_reconciliation [sql]",
+    "[2025-11-21 11:53:10.335] [SUCCESS] Completed: int_payment_reconciliation in 0.011s",
+    "[2025-11-21 11:53:10.335] [INFO] Executing: int_shipment_tracking [sql]",
+    "[2025-11-21 11:53:10.348] [SUCCESS] Completed: int_shipment_tracking in 0.013s",
+    "[2025-11-21 11:53:10.348] [INFO] Executing: fct_customer_returns [sql]",
+    "[2025-11-21 11:53:10.360] [SUCCESS] Completed: fct_customer_returns in 0.012s",
+    "[2025-11-21 11:53:10.360] [INFO] Executing: fct_orders [sql]",
+    "[2025-11-21 11:53:10.375] [SUCCESS] Completed: fct_orders in 0.015s",
+    "[2025-11-21 11:53:10.375] [INFO] Executing: fct_sales_performance [sql]",
+    "[2025-11-21 11:53:10.387] [SUCCESS] Completed: fct_sales_performance in 0.012s",
+    "[2025-11-21 11:53:10.387] [INFO] Executing: fct_inventory_metrics [sql]",
+    "[2025-11-21 11:53:10.409] [SUCCESS] Completed: fct_inventory_metrics in 0.022s",
+    "[2025-11-21 11:53:10.409] [INFO] Executing: fct_marketing_roi [sql]",
+    "[2025-11-21 11:53:10.422] [SUCCESS] Completed: fct_marketing_roi in 0.012s",
+    "[2025-11-21 11:53:10.422] [INFO] Executing: fct_shipping_logistics [sql]",
+    "[2025-11-21 11:53:10.433] [SUCCESS] Completed: fct_shipping_logistics in 0.012s",
+    "[2025-11-21 11:53:10.433] [INFO] Pipeline completed in 0.674s"
+  ]
+}

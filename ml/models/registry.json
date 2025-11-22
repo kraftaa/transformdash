@@ -67,6 +67,185 @@
         ],
         "status": "active"
       }
+    ],
+    "telco_customer_churn": [
+      {
+        "model_name": "telco_customer_churn",
+        "model_id": "telco_customer_churn_v20251120_193052",
+        "version": "20251120_193052",
+        "model_type": "classification",
+        "model_path": "ml/models/telco_customer_churn_v20251120_193052.pkl",
+        "registered_at": "2025-11-20T19:30:52.927749",
+        "metrics": {
+          "accuracy": 0.7920511000709723,
+          "precision": 0.6345514950166113,
+          "recall": 0.5106951871657754,
+          "f1_score": 0.5659259259259259,
+          "roc_auc": 0.8351533235164947
+        },
+        "feature_columns": [
+          "tenure",
+          "MonthlyCharges",
+          "TotalCharges",
+          "Contract",
+          "InternetService",
+          "OnlineSecurity",
+          "TechSupport",
+          "PaymentMethod"
+        ],
+        "target_column": "Churn",
+        "description": "Predicts telecom customer churn using Random Forest. Trained on real Telco dataset with proper train/test split.",
+        "tags": [
+          "telecom",
+          "churn",
+          "classification",
+          "random-forest",
+          "real-data"
+        ],
+        "status": "active"
+      },
+      {
+        "model_name": "telco_customer_churn",
+        "model_id": "telco_customer_churn_v20251120_194837",
+        "version": "20251120_194837",
+        "model_type": "classification",
+        "model_class": "RandomForestClassifier",
+        "model_path": "ml/models/telco_customer_churn_v20251120_194837.pkl",
+        "model_size_mb": 4.64,
+        "registered_at": "2025-11-20T19:48:37.592036",
+        "metrics": {
+          "accuracy": 0.7920511000709723,
+          "precision": 0.6345514950166113,
+          "recall": 0.5106951871657754,
+          "f1_score": 0.5659259259259259,
+          "roc_auc": 0.8351533235164947
+        },
+        "feature_columns": [
+          "tenure",
+          "MonthlyCharges",
+          "TotalCharges",
+          "Contract",
+          "InternetService",
+          "OnlineSecurity",
+          "TechSupport",
+          "PaymentMethod"
+        ],
+        "target_column": "Churn",
+        "description": "Predicts telecom customer churn using Random Forest. Trained on real Telco dataset with proper train/test split.",
+        "tags": [
+          "telecom",
+          "churn",
+          "classification",
+          "random-forest",
+          "real-data"
+        ],
+        "hyperparameters": {
+          "bootstrap": true,
+          "ccp_alpha": 0.0,
+          "class_weight": null,
+          "criterion": "gini",
+          "max_depth": 10,
+          "max_features": "sqrt",
+          "max_leaf_nodes": null,
+          "max_samples": null,
+          "min_impurity_decrease": 0.0,
+          "min_samples_leaf": 1,
+          "min_samples_split": 5,
+          "min_weight_fraction_leaf": 0.0,
+          "monotonic_cst": null,
+          "n_estimators": 100,
+          "n_jobs": -1,
+          "oob_score": false,
+          "random_state": 42,
+          "verbose": 0,
+          "warm_start": false
+        },
+        "training_config": {
+          "dataset": "IBM Telco Customer Churn",
+          "dataset_size": 7043,
+          "train_samples": 5634,
+          "test_samples": 1409,
+          "test_split_ratio": 0.2,
+          "churn_rate": 0.2653698707936959,
+          "train_churn_rate": 0.2653532126375577,
+          "test_churn_rate": 0.2654364797728886,
+          "scaling": "StandardScaler",
+          "random_seed": 42,
+          "stratified_split": true
+        },
+        "status": "active"
+      },
+      {
+        "model_name": "telco_customer_churn",
+        "model_id": "telco_customer_churn_v20251120_200355",
+        "version": "20251120_200355",
+        "model_type": "classification",
+        "model_class": "RandomForestClassifier",
+        "model_path": "ml/models/telco_customer_churn_v20251120_200355.pkl",
+        "model_size_mb": 4.64,
+        "registered_at": "2025-11-20T20:03:55.170768",
+        "metrics": {
+          "accuracy": 0.7920511000709723,
+          "precision": 0.6345514950166113,
+          "recall": 0.5106951871657754,
+          "f1_score": 0.5659259259259259,
+          "roc_auc": 0.8351533235164947
+        },
+        "feature_columns": [
+          "tenure",
+          "MonthlyCharges",
+          "TotalCharges",
+          "Contract",
+          "InternetService",
+          "OnlineSecurity",
+          "TechSupport",
+          "PaymentMethod"
+        ],
+        "target_column": "Churn",
+        "description": "Predicts telecom customer churn using Random Forest. Trained on real Telco dataset with proper train/test split.",
+        "tags": [
+          "telecom",
+          "churn",
+          "classification",
+          "random-forest",
+          "real-data"
+        ],
+        "hyperparameters": {
+          "bootstrap": true,
+          "ccp_alpha": 0.0,
+          "class_weight": null,
+          "criterion": "gini",
+          "max_depth": 10,
+          "max_features": "sqrt",
+          "max_leaf_nodes": null,
+          "max_samples": null,
+          "min_impurity_decrease": 0.0,
+          "min_samples_leaf": 1,
+          "min_samples_split": 5,
+          "min_weight_fraction_leaf": 0.0,
+          "monotonic_cst": null,
+          "n_estimators": 100,
+          "n_jobs": -1,
+          "oob_score": false,
+          "random_state": 42,
+          "verbose": 0,
+          "warm_start": false
+        },
+        "training_config": {
+          "dataset": "IBM Telco Customer Churn",
+          "dataset_size": 7043,
+          "train_samples": 5634,
+          "test_samples": 1409,
+          "test_split_ratio": 0.2,
+          "churn_rate": 0.2653698707936959,
+          "train_churn_rate": 0.2653532126375577,
+          "test_churn_rate": 0.2654364797728886,
+          "scaling": "StandardScaler",
+          "random_seed": 42,
+          "stratified_split": true
+        },
+        "status": "active"
+      }
     ]
   }
 }

@@ -119,6 +119,11 @@ spec:
             secretKeyRef:
               name: transformdash-secret
               key: POSTGRES_PASSWORD
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: transformdash-secret
+              key: JWT_SECRET_KEY
 
         volumeMounts:
         - name: models

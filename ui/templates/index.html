@@ -83,6 +83,14 @@
                     </svg>
                     <span class="nav-text">Charts</span>
                 </a>
+                <a href="#" class="nav-item" data-view="ml-models" onclick="event.preventDefault(); event.stopPropagation(); switchView('ml-models'); return false;">
+                    <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M12 1v6m0 6v6"/>
+                        <circle cx="12" cy="12" r="10"/>
+                    </svg>
+                    <span class="nav-text">ML Models</span>
+                </a>
                 <a href="#" class="nav-item" data-view="datasets" onclick="event.preventDefault(); event.stopPropagation(); switchView('datasets'); return false;">
                     <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
@@ -117,7 +125,9 @@
                 <div class="nav-section-title">System</div>
                 <a href="#" class="nav-item" data-view="monitor" onclick="event.preventDefault(); event.stopPropagation(); switchView('monitor'); return false;">
                     <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                        <line x1="8" y1="21" x2="16" y2="21"></line>
+                        <line x1="12" y1="17" x2="12" y2="21"></line>
                     </svg>
                     <span class="nav-text">System Monitor</span>
                 </a>
@@ -790,26 +800,70 @@
                         <p class="page-subtitle">Manage reusable data sources</p>
                     </div>
                     <button onclick="openDatasetBuilder()" class="btn btn-primary">
-                        ✨ Create New Dataset
+                        Create New Dataset
                     </button>
                 </div>
 
-                <!-- Search Box -->
-                <div class="search-container" style="margin-bottom: 1rem; max-width: 400px;">
-                    <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-                    </svg>
-                    <input type="text" id="datasets-search" class="search-input" placeholder="Search datasets by name, source type, description..." oninput="handleDatasetsSearch(this.value)">
-                    <button onclick="clearDatasetsSearch()" style="position: absolute; right: 10px; background: none; border: none; color: #6b7280; cursor: pointer; display: none;" id="datasets-search-clear">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M18 6L6 18M6 6l12 12"/>
+                <!-- Search and View Toggle -->
+                <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
+                    <div class="search-container" style="flex: 1; max-width: 400px;">
+                        <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
                         </svg>
-                    </button>
+                        <input type="text" id="datasets-search" class="search-input" placeholder="Search datasets by name, source type, description..." oninput="handleDatasetsSearch(this.value)">
+                        <button onclick="clearDatasetsSearch()" style="position: absolute; right: 10px; background: none; border: none; color: #6b7280; cursor: pointer; display: none;" id="datasets-search-clear">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 6L6 18M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- View Toggle -->
+                    <div class="view-toggle">
+                        <button class="view-toggle-btn active" data-view="grid" onclick="toggleDatasetsView('grid')" title="Grid view">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="7" height="7"></rect>
+                                <rect x="14" y="3" width="7" height="7"></rect>
+                                <rect x="14" y="14" width="7" height="7"></rect>
+                                <rect x="3" y="14" width="7" height="7"></rect>
+                            </svg>
+                        </button>
+                        <button class="view-toggle-btn" data-view="list" onclick="toggleDatasetsView('list')" title="List view">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="8" y1="6" x2="21" y2="6"></line>
+                                <line x1="8" y1="12" x2="21" y2="12"></line>
+                                <line x1="8" y1="18" x2="21" y2="18"></line>
+                                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
                 <div id="datasets-list" class="content-section">
                     <div id="datasets-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
                         <!-- Datasets will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- ML Models View -->
+            <div id="ml-models-view" class="view-content">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">ML Models</h1>
+                        <p class="page-subtitle">Train, manage, and deploy machine learning models</p>
+                    </div>
+                    <button onclick="openMLTrainingDialog()" class="btn btn-primary">
+                        Train New Model
+                    </button>
+                </div>
+
+                <!-- Models List -->
+                <div id="ml-models-list" class="content-section">
+                    <div id="ml-models-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px;">
+                        <!-- ML Models will be loaded here -->
                     </div>
                 </div>
             </div>

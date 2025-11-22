@@ -34,6 +34,7 @@ function clearDatasetsSearch() {
 
 function renderFilteredDatasets() {
     const grid = document.getElementById('datasets-grid');
+    const viewMode = window.currentDatasetsView || 'grid';
 
     if (!allDatasetsData || allDatasetsData.length === 0) {
         grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: #9ca3af;"><p>No datasets yet. Create your first dataset to get started!</p></div>';
@@ -51,33 +52,63 @@ function renderFilteredDatasets() {
         return;
     }
 
+    // Update grid style based on view mode
+    if (viewMode === 'list') {
+        grid.style.display = 'flex';
+        grid.style.flexDirection = 'column';
+        grid.style.gap = '12px';
+    } else {
+        grid.style.display = 'grid';
+        grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(300px, 1fr))';
+        grid.style.gap = '20px';
+    }
+
     grid.innerHTML = filteredDatasets.map(dataset => {
-        const sourceIcon = dataset.source_type === 'sql' ? '⚡' : '📊';
         const sourceLabel = dataset.source_type === 'sql' ? 'Custom SQL' : 'Table';
 
-        return `
-            <div class="card" style="padding: 1.5rem; border: 1px solid #e5e7eb; border-radius: 12px; background: white; transition: box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow=''">
-                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <span style="font-size: 1.5rem;">${sourceIcon}</span>
-                        <h3 style="margin: 0; font-size: 1.125rem; font-weight: 600; color: #1a202c;">${dataset.name}</h3>
+        if (viewMode === 'list') {
+            return `
+                <div class="card" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; border: 1px solid #e5e7eb; border-radius: 8px; background: white; transition: box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'" onmouseout="this.style.boxShadow=''">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.25rem;">
+                            <h3 style="margin: 0; font-size: 1rem; font-weight: 600; color: #1a202c;">${dataset.name}</h3>
+                            <span style="padding: 2px 8px; background: #e0e7ff; color: #667eea; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">${sourceLabel}</span>
+                        </div>
+                        <p style="margin: 0; color: #6b7280; font-size: 0.875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${dataset.description || 'No description'}</p>
                     </div>
-                    <div class="dropdown" style="position: relative;">
+                    <div class="dropdown" style="position: relative; flex-shrink: 0;">
                         <button onclick="toggleDatasetMenu('${dataset.id}')" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; color: #6b7280; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">⋮</button>
                         <div id="dataset-menu-${dataset.id}" class="dropdown-menu" style="display: none; position: absolute; right: 0; top: 100%; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 150px; z-index: 1000;">
-                            <button onclick="editDataset('${dataset.id}')" style="width: 100%; text-align: left; padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 0.875rem; color: #374151; transition: background 0.2s; border-radius: 8px 8px 0 0;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">✏️ Edit</button>
-                            <button onclick="deleteDataset('${dataset.id}', '${dataset.name}')" style="width: 100%; text-align: left; padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 0.875rem; color: #dc2626; transition: background 0.2s; border-radius: 0 0 8px 8px;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='none'">🗑️ Delete</button>
+                            <button onclick="editDataset('${dataset.id}')" style="width: 100%; text-align: left; padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 0.875rem; color: #374151; transition: background 0.2s; border-radius: 8px 8px 0 0;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">Edit</button>
+                            <button onclick="deleteDataset('${dataset.id}', '${dataset.name}')" style="width: 100%; text-align: left; padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 0.875rem; color: #dc2626; transition: background 0.2s; border-radius: 0 0 8px 8px;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='none'">Delete</button>
                         </div>
                     </div>
                 </div>
-                <div style="display: inline-block; padding: 4px 10px; background: #e0e7ff; color: #667eea; border-radius: 6px; font-size: 0.75rem; font-weight: 500; margin-bottom: 0.75rem;">${sourceLabel}</div>
-                <p style="margin: 0.75rem 0 0 0; color: #6b7280; font-size: 0.875rem; line-height: 1.5;">${dataset.description || 'No description'}</p>
-                ${dataset.source_type === 'table' ?
-                    `<p style="margin: 0.5rem 0 0 0; color: #9ca3af; font-size: 0.75rem; font-family: monospace;">${dataset.schema_name || 'public'}.${dataset.table_name}</p>` :
-                    `<p style="margin: 0.5rem 0 0 0; color: #9ca3af; font-size: 0.75rem;">Custom SQL Query</p>`
-                }
-            </div>
-        `;
+            `;
+        } else {
+            return `
+                <div class="card" style="padding: 1.5rem; border: 1px solid #e5e7eb; border-radius: 12px; background: white; transition: box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow=''">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.125rem; font-weight: 600; color: #1a202c;">${dataset.name}</h3>
+                        </div>
+                        <div class="dropdown" style="position: relative;">
+                            <button onclick="toggleDatasetMenu('${dataset.id}')" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; color: #6b7280; padding: 4px 8px; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">⋮</button>
+                            <div id="dataset-menu-${dataset.id}" class="dropdown-menu" style="display: none; position: absolute; right: 0; top: 100%; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 150px; z-index: 1000;">
+                                <button onclick="editDataset('${dataset.id}')" style="width: 100%; text-align: left; padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 0.875rem; color: #374151; transition: background 0.2s; border-radius: 8px 8px 0 0;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">Edit</button>
+                                <button onclick="deleteDataset('${dataset.id}', '${dataset.name}')" style="width: 100%; text-align: left; padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 0.875rem; color: #dc2626; transition: background 0.2s; border-radius: 0 0 8px 8px;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='none'">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: inline-block; padding: 4px 10px; background: #e0e7ff; color: #667eea; border-radius: 6px; font-size: 0.75rem; font-weight: 500; margin-bottom: 0.75rem;">${sourceLabel}</div>
+                    <p style="margin: 0.75rem 0 0 0; color: #6b7280; font-size: 0.875rem; line-height: 1.5;">${dataset.description || 'No description'}</p>
+                    ${dataset.source_type === 'table' ?
+                        `<p style="margin: 0.5rem 0 0 0; color: #9ca3af; font-size: 0.75rem; font-family: monospace;">${dataset.schema_name || 'public'}.${dataset.table_name}</p>` :
+                        `<p style="margin: 0.5rem 0 0 0; color: #9ca3af; font-size: 0.75rem;">Custom SQL Query</p>`
+                    }
+                </div>
+            `;
+        }
     }).join('');
 }
 
@@ -814,3 +845,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 });
+
+// Datasets view toggle
+window.currentDatasetsView = 'grid';
+
+function toggleDatasetsView(view) {
+    window.currentDatasetsView = view;
+
+    // Update button states
+    document.querySelectorAll('#datasets-view .view-toggle-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === view);
+    });
+
+    // Reload datasets with new view
+    renderFilteredDatasets();
+}
