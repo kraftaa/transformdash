@@ -108,7 +108,7 @@ Repository = "https://github.com/kraftaa/transformdash"
 transformdash = "ui.app_refactored:main"
 
 [tool.setuptools]
-packages = ["transformdash", "ui", "ml", "models", "postgres"]
+packages = ["ui", "ml", "models", "transformations", "orchestration", "connectors"]
 
 [tool.setuptools.package-data]
 "*" = ["*.sql", "*.yml", "*.yaml"]
