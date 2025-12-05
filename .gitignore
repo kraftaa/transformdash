@@ -55,7 +55,9 @@ htmlcov/
 
 # Credentials
 .env
+.env.docker
 connections.local.yml
+jwt_key.txt
 
 # Internal documentation (not for public repos)
 SESSION_SUMMARY.md
@@ -64,7 +66,7 @@ RUN_IN_BACKGROUND.md
 ns.txt
 todo_new.md
 other
-
+others
 # Background process files
 *.pid
 transformdash.pid
