@@ -167,8 +167,8 @@ cd transformdash
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install with ML support
-pip install -e ".[ml]"
+# Install all dependencies (including ML support)
+pip install -r requirements.txt
 
 # Set up environment variables
 cp .env.example .env
@@ -177,9 +177,7 @@ python -c 'import secrets; print(secrets.token_urlsafe(32))'
 # Add the key to .env as: JWT_SECRET_KEY=<generated-key>
 
 # Run the web UI
-python ui/app_refactored.py
-# Or use the command
-transformdash
+python ui/app.py
 ```
 
 **Option 3: Docker Only**
@@ -436,7 +434,7 @@ select * from transformed_data
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
 ### Environment Variables (`.env`)
 
@@ -615,6 +613,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 <div align="center">
 
-[⭐ Star us on GitHub](https://github.com/kraftaa/transformdash)
+[Star us on GitHub](https://github.com/kraftaa/transformdash)
 
 </div>

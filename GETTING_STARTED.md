@@ -117,11 +117,11 @@ venv\Scripts\activate     # On Windows
 ### Step 3: Install Dependencies
 
 ```bash
-# Install TransformDash with ML support
-pip install -e ".[ml]"
+# Install all dependencies (including ML support)
+pip install -r requirements.txt
 
 # Verify installation
-pip list | grep -i transformdash
+pip list | grep -i scikit-learn
 ```
 
 ### Step 4: Configure Environment
