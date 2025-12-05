@@ -126,7 +126,7 @@ bash run_migrations.sh
 python load_sample_data.py
 
 # Train ML model
-python ml/train_telco_churn.py
+PYTHONPATH=. python ml/train_telco_churn.py
 
 # Start the application
 python ui/app.py  # Visit http://localhost:8000
@@ -265,10 +265,10 @@ python ui/app_refactored.py
 **Method 3: Train ML Models**
 ```bash
 # Train an example model
-python ml/examples/train_example_model.py
+PYTHONPATH=. python ml/examples/train_example_model.py
 
 # View registered models
-python ml/registry/model_registry.py
+PYTHONPATH=. python ml/registry/model_registry.py
 
 # Use models in SQL transformations (see ml/README.md)
 ```

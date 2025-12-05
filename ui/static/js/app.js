@@ -9284,7 +9284,7 @@ function openMLTrainingDialog() {
                     <div style="margin-bottom: 16px; padding: 16px; background: #f9fafb; border-radius: 6px;">
                         <div style="font-weight: 600; margin-bottom: 8px;">Customer Segmentation</div>
                         <code style="display: block; padding: 12px; background: #1f2937; color: #10b981; border-radius: 4px; font-size: 0.875rem; margin-bottom: 8px; overflow-x: auto;">
-                            python ml/train_customer_segmentation.py
+                            PYTHONPATH=. python ml/train_customer_segmentation.py
                         </code>
                         <div style="font-size: 0.875rem; color: #6b7280;">
                             Creates customer segments using KMeans clustering on RFM metrics
@@ -9294,7 +9294,7 @@ function openMLTrainingDialog() {
                     <div style="padding: 16px; background: #f9fafb; border-radius: 6px;">
                         <div style="font-weight: 600; margin-bottom: 8px;">Custom Model Training</div>
                         <code style="display: block; padding: 12px; background: #1f2937; color: #10b981; border-radius: 4px; font-size: 0.875rem; margin-bottom: 8px; overflow-x: auto;">
-                            python ml/examples/train_example_model.py
+                            PYTHONPATH=. python ml/examples/train_example_model.py
                         </code>
                         <div style="font-size: 0.875rem; color: #6b7280;">
                             Example template for training custom models

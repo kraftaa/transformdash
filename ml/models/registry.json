@@ -66,6 +66,63 @@
           "rf"
         ],
         "status": "active"
+      },
+      {
+        "model_name": "customer_churn",
+        "model_id": "customer_churn_v20251205_174129",
+        "version": "20251205_174129",
+        "model_type": "classification",
+        "model_class": "RandomForestClassifier",
+        "model_path": "ml/models/customer_churn_v20251205_174129.pkl",
+        "model_size_mb": 0.41,
+        "registered_at": "2025-12-05T17:41:29.554106",
+        "metrics": {
+          "accuracy": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1_score": 1.0
+        },
+        "feature_columns": [
+          "customer_id",
+          "recency",
+          "frequency",
+          "monetary",
+          "avg_order_value",
+          "days_since_signup",
+          "avg_spend_per_order",
+          "engagement_score"
+        ],
+        "target_column": "churned",
+        "description": "Predicts customer churn probability using Random Forest",
+        "tags": [
+          "customer",
+          "churn",
+          "classification",
+          "rf"
+        ],
+        "hyperparameters": {
+          "bootstrap": true,
+          "ccp_alpha": 0.0,
+          "class_weight": null,
+          "criterion": "gini",
+          "max_depth": 10,
+          "max_features": "sqrt",
+          "max_leaf_nodes": null,
+          "max_samples": null,
+          "min_impurity_decrease": 0.0,
+          "min_samples_leaf": 1,
+          "min_samples_split": 5,
+          "min_weight_fraction_leaf": 0.0,
+          "monotonic_cst": null,
+          "n_estimators": 100,
+          "n_jobs": null,
+          "oob_score": false,
+          "random_state": 42,
+          "verbose": 0,
+          "warm_start": false
+        },
+        "training_config": {},
+        "status": "active"
       }
     ],
     "telco_customer_churn": [
