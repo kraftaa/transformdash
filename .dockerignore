@@ -83,6 +83,4 @@ logs/
 *.temp
 .cache/
 
-# Claude
-.claude/
 runs/

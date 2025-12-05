@@ -51,7 +51,6 @@ prune venv
 prune env
 prune .idea
 prune .vscode
-prune .claude
 
 # Exclude data files
 prune data/*.csv
