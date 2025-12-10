@@ -601,7 +601,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [ ] Add Spark connector for big data
 - [ ] Add Netsuite connector
 - [ ] Add S3 connector
-- [ ] Building pip package
+- [ ] Building transformdash pip package
 - [ ] Implement data quality testing framework
 - [ ] Add CI/CD pipeline templates
 - [ ] Create VSCode extension
