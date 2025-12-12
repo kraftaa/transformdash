@@ -18,7 +18,7 @@ requires-python = ">=3.9"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "Intended Audience :: Data Scientists",
+    "Intended Audience :: Science/Research",
     "Topic :: Database",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -54,6 +54,8 @@ dependencies = [
     "fastapi>=0.95.2",
     "uvicorn>=0.23.1",
     "python-multipart>=0.0.20",
+    "python-jose[cryptography]>=3.3.0",
+    "bcrypt>=4.0.1",
     "jinja2>=3.1.0",
     "pyyaml>=6.0",
     "pandas>=2.0.2",
