@@ -7,6 +7,7 @@ Run SQL transformations with dependency management and lineage tracking directly
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
+[![PyPI](https://img.shields.io/pypi/v/transformdash)](https://pypi.org/project/transformdash/)
 
 ---
 
@@ -98,6 +99,56 @@ Then visit **http://localhost:8000** (default login: `admin` / `admin`)
 - Trained ML model (Telco Customer Churn with realistic metrics)
 - Interactive dashboards and chart builder
 - ML Models tab with prediction capabilities
+
+### Install from PyPI (Simplest)
+
+```bash
+# Install the package
+pip install transformdash
+
+# Set up PostgreSQL (required - choose one option):
+
+# Option A: Use Docker for PostgreSQL
+docker run -d --name transformdash-db \
+  -p 5432:5432 \
+  -e POSTGRES_PASSWORD=mypassword \
+  -e POSTGRES_DB=transformdash \
+  postgres:15
+
+# Option B: Use your existing PostgreSQL server
+# (Make sure you have PostgreSQL 15+ running)
+
+# Create .env file with your database credentials
+cat > .env << 'EOF'
+# Generate this: python -c 'import secrets; print(secrets.token_urlsafe(32))'
+JWT_SECRET_KEY=your-secret-key-here
+
+# Main TransformDash database (stores dashboards, charts, users)
+TRANSFORMDASH_HOST=localhost
+TRANSFORMDASH_PORT=5432
+TRANSFORMDASH_DB=transformdash
+TRANSFORMDASH_USER=postgres
+TRANSFORMDASH_PASSWORD=mypassword
+
+# Your analytics database (the data you want to analyze)
+APP_HOST=localhost
+APP_PORT=5432
+APP_DB=production
+APP_USER=postgres
+APP_PASSWORD=mypassword
+EOF
+
+# Start the application
+python -m ui.app
+
+# Visit http://localhost:8000 (login: admin / admin)
+```
+
+**Important Notes:**
+- **PostgreSQL is required** - TransformDash is a PostgreSQL-based platform
+- CSV upload is available through the UI, but files are loaded into PostgreSQL tables
+- You cannot use TransformDash without a PostgreSQL database
+- The app provides dbt-like transformations + interactive dashboards for PostgreSQL
 
 ### Local Development Setup (Without Docker)
 
@@ -598,10 +649,10 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Roadmap
 
+- [x] Building transformdash pip package
 - [ ] Add Spark connector for big data
 - [ ] Add Netsuite connector
 - [ ] Add S3 connector
-- [ ] Building transformdash pip package
 - [ ] Implement data quality testing framework
 - [ ] Add CI/CD pipeline templates
 - [ ] Create VSCode extension
