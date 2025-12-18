@@ -1,6 +1,6 @@
 # TransformDash Examples
 
-Quick examples to get you started with TransformDash.
+Quick examples to get started with TransformDash.
 
 ## Quick Start
 
