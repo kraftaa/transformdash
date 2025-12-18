@@ -1,6 +1,6 @@
 # Simple Transformation Example
 
-A basic example showing how to create a three-layer transformation pipeline in TransformDash.
+A basic example showing TransformDash's three-layer transformation pipeline with real e-commerce data.
 
 ## What This Example Does
 
@@ -9,44 +9,41 @@ Transforms raw e-commerce data through three layers:
 - **Silver**: Join customers with orders
 - **Gold**: Create analytics-ready fact table with metrics
 
-## Setup
+## Quick Start
 
 1. **Load sample data**:
 ```bash
-psql -h localhost -U postgres -d production -f sample_data.sql
+python seed_fake_data_expanded.py
 ```
 
-2. **Copy models to your project**:
+2. **Run transformations**:
 ```bash
-cp -r models/* /path/to/your/transformdash/models/
+python run_transformations.py
 ```
 
-3. **Run transformations**:
+Or via UI:
 - Visit http://localhost:8000
 - Click "▶️ Run Models"
 - View results in the Models or Lineage tabs
 
-## File Structure
+## Example Models
 
-```
-simple_transformation/
-├── README.md                    # This file
-├── sample_data.sql              # Sample data setup
-└── models/
-    ├── sources.yml              # Define raw data sources
-    ├── bronze/
-    │   ├── stg_customers.sql    # Stage customers
-    │   └── stg_orders.sql       # Stage orders
-    ├── silver/
-    │   └── int_customer_orders.sql  # Join customers + orders
-    └── gold/
-        └── fct_orders.sql       # Analytics fact table
-```
+The transformation pipeline uses these models from the main project:
+
+**Bronze Layer** (in `models/bronze/`):
+- `stg_customers.sql` - Stage customers with minimal transformation
+- `stg_orders.sql` - Stage orders with minimal transformation
+
+**Silver Layer** (in `models/silver/`):
+- `int_customer_orders.sql` - Join customers with orders
+
+**Gold Layer** (in `models/gold/`):
+- `fct_orders.sql` - Analytics-ready fact table with metrics
 
 ## Expected Output
 
-After running, you'll have:
+After running transformations with the seeded data:
 - `stg_customers` (view) - 100 customers
 - `stg_orders` (view) - 500 orders
 - `int_customer_orders` (table) - 500 joined records
-- `fct_orders` (table) - 500 records with order metrics
+- `fct_orders` (table) - Analytics fact table with order metrics, year/month breakdowns
