@@ -1,0 +1,55 @@
+services:
+  - type: web
+    name: transformdash-demo
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: DEMO_MODE
+        value: "true"
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: TRANSFORMDASH_HOST
+        fromDatabase:
+          name: transformdash-db
+          property: host
+      - key: TRANSFORMDASH_PORT
+        fromDatabase:
+          name: transformdash-db
+          property: port
+      - key: TRANSFORMDASH_DB
+        fromDatabase:
+          name: transformdash-db
+          property: database
+      - key: TRANSFORMDASH_USER
+        fromDatabase:
+          name: transformdash-db
+          property: user
+      - key: TRANSFORMDASH_PASSWORD
+        fromDatabase:
+          name: transformdash-db
+          property: password
+      - key: APP_HOST
+        fromDatabase:
+          name: transformdash-db
+          property: host
+      - key: APP_PORT
+        fromDatabase:
+          name: transformdash-db
+          property: port
+      - key: APP_DB
+        value: production
+      - key: APP_USER
+        fromDatabase:
+          name: transformdash-db
+          property: user
+      - key: APP_PASSWORD
+        fromDatabase:
+          name: transformdash-db
+          property: password
+
+databases:
+  - name: transformdash-db
+    databaseName: transformdash
+    plan: free
