@@ -20,7 +20,9 @@ services:
           name: transformdash-db
           property: port
       - key: POSTGRES_DB
-        value: production
+        fromDatabase:
+          name: transformdash-db
+          property: database
       - key: POSTGRES_USER
         fromDatabase:
           name: transformdash-db
@@ -59,7 +61,9 @@ services:
           name: transformdash-db
           property: port
       - key: APP_DB
-        value: production
+        fromDatabase:
+          name: transformdash-db
+          property: database
       - key: APP_USER
         fromDatabase:
           name: transformdash-db
