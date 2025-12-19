@@ -11,6 +11,24 @@ Run SQL transformations with dependency management and lineage tracking directly
 
 ---
 
+## Try the Live Demo
+
+**[Live Demo](https://transformdash-demo.onrender.com)** • Login: `demo` / `demo`
+
+Experience TransformDash without installing anything:
+- Pre-loaded with 100 customers, 500 orders across 24 tables
+- Run transformations and see Bronze → Silver → Gold pipeline in action
+- Build interactive dashboards and explore data visualizations
+- Test ML model predictions on sample data
+
+**Demo Notes:**
+- Shared demo environment - source data is protected (read-only)
+- You can run transformations and create dashboards
+- First load takes 30-60 seconds if the server is sleeping (free tier)
+- Demo data maintained automatically
+
+---
+
 ## Features
 
 ### Core Capabilities
