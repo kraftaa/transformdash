@@ -10,6 +10,26 @@ services:
         value: "true"
       - key: JWT_SECRET_KEY
         generateValue: true
+      # Legacy POSTGRES_* vars for seed scripts
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: transformdash-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: transformdash-db
+          property: port
+      - key: POSTGRES_DB
+        value: production
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: transformdash-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: transformdash-db
+          property: password
+      # TransformDash specific vars
       - key: TRANSFORMDASH_HOST
         fromDatabase:
           name: transformdash-db
