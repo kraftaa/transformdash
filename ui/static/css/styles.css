@@ -1914,6 +1914,22 @@ body.dark-mode #lineage-graph svg .node.gold rect {
     color: var(--color-info);
 }
 
+/* Dark mode badge overrides */
+body.dark-mode .badge-bronze {
+    background: rgba(205, 127, 50, 0.2);
+    color: #f4a460;
+}
+
+body.dark-mode .badge-silver {
+    background: rgba(192, 192, 192, 0.2);
+    color: #d1d5db;
+}
+
+body.dark-mode .badge-gold {
+    background: rgba(255, 215, 0, 0.2);
+    color: #fbbf24;
+}
+
 .model-dependencies {
     font-size: 0.875rem;
     color: var(--color-text-secondary);
