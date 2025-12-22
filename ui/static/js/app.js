@@ -1268,11 +1268,11 @@ async function highlightModel(modelName) {
         const metaInfo = `
             <div class="model-meta-info">
                 <p><strong>Type:</strong> ${data.config.materialized || 'view'}</p>
-                <p><strong>Depends on:</strong> ${data.depends_on.length > 0 ? data.depends_on.map(dep => `<span style="background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 4px; margin: 2px; display: inline-block; font-size: 0.875rem;">${dep}</span>`).join(' ') : '<span style="color: #9ca3af;">None</span>'}</p>
-                <p><strong>Used by:</strong> ${usedBy.length > 0 ? usedBy.map(model => `<span style="background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 4px; margin: 2px; display: inline-block; font-size: 0.875rem;">${model}</span>`).join(' ') : '<span style="color: #9ca3af;">None</span>'}</p>
-                <p><strong>File:</strong> <code style="background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-size: 0.875rem;">${data.file_path}</code></p>
+                <p><strong>Depends on:</strong> ${data.depends_on.length > 0 ? data.depends_on.map(dep => `<span style="background: var(--color-info-light); color: var(--color-info); padding: 2px 8px; border-radius: 4px; margin: 2px; display: inline-block; font-size: 0.875rem;">${dep}</span>`).join(' ') : '<span style="color: var(--color-text-muted);">None</span>'}</p>
+                <p><strong>Used by:</strong> ${usedBy.length > 0 ? usedBy.map(model => `<span style="background: var(--color-success-light); color: var(--color-success); padding: 2px 8px; border-radius: 4px; margin: 2px; display: inline-block; font-size: 0.875rem;">${model}</span>`).join(' ') : '<span style="color: var(--color-text-muted);">None</span>'}</p>
+                <p><strong>File:</strong> <code style="background: var(--color-bg-page); color: var(--color-text-primary); padding: 2px 6px; border-radius: 3px; font-size: 0.875rem; border: 1px solid var(--color-border);">${data.file_path}</code></p>
             </div>
-            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--color-border);">
                 <button onclick="goToModelView('${modelName}')" class="btn btn-primary" style="margin-right: 8px;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
                         <path d="M9 18l6-6-6-6"/>
@@ -1286,7 +1286,7 @@ async function highlightModel(modelName) {
         `;
 
         const code = `
-            <h3 style="margin-top: 24px; margin-bottom: 12px; color: #111827; font-size: 1.125rem;">SQL Code:</h3>
+            <h3 style="margin-top: 24px; margin-bottom: 12px; color: var(--color-text-primary); font-size: 1.125rem;">SQL Code:</h3>
             <pre class="code-block"><code>${escapeHtml(data.code)}</code></pre>
         `;
 
@@ -8911,8 +8911,8 @@ async function loadMLModels() {
             modelsGrid.innerHTML = `
                 <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px;">
                     <div style="font-size: 3rem; margin-bottom: 1rem;">🤖</div>
-                    <h3 style="color: #374151; margin-bottom: 0.5rem;">No ML Models Yet</h3>
-                    <p style="color: #6b7280; margin-bottom: 1.5rem;">Train your first machine learning model to get started</p>
+                    <h3 style="color: var(--color-text-primary); margin-bottom: 0.5rem;">No ML Models Yet</h3>
+                    <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">Train your first machine learning model to get started</p>
                     <button onclick="openMLTrainingDialog()" class="btn btn-primary">
                         Train Your First Model
                     </button>
@@ -8927,16 +8927,16 @@ async function loadMLModels() {
             const card = document.createElement('div');
             card.className = 'model-card';
             card.style.cssText = `
-                background: white;
-                border: 1px solid #e5e7eb;
+                background: var(--color-bg-surface);
+                border: 1px solid var(--color-border);
                 border-radius: 8px;
                 padding: 20px;
                 cursor: pointer;
                 transition: all 0.2s;
             `;
 
-            card.onmouseover = () => card.style.borderColor = '#3b82f6';
-            card.onmouseout = () => card.style.borderColor = '#e5e7eb';
+            card.onmouseover = () => card.style.borderColor = 'var(--color-primary)';
+            card.onmouseout = () => card.style.borderColor = 'var(--color-border)';
 
             const typeColor = {
                 'classification': '#10b981',
@@ -8948,16 +8948,16 @@ async function loadMLModels() {
             const metricsHTML = Object.keys(model.metrics || {}).length > 0
                 ? Object.entries(model.metrics).slice(0, 3).map(([key, value]) =>
                     `<div style="display: flex; justify-content: space-between; padding: 4px 0;">
-                        <span style="color: #6b7280; font-size: 0.875rem;">${key}:</span>
-                        <span style="font-weight: 600; font-size: 0.875rem;">${typeof value === 'number' ? value.toFixed(4) : value}</span>
+                        <span style="color: var(--color-text-secondary); font-size: 0.875rem;">${key}:</span>
+                        <span style="font-weight: 600; font-size: 0.875rem; color: var(--color-text-primary);">${typeof value === 'number' ? value.toFixed(4) : value}</span>
                     </div>`
                   ).join('')
-                : '<div style="color: #9ca3af; font-size: 0.875rem; font-style: italic;">No metrics available</div>';
+                : '<div style="color: var(--color-text-muted); font-size: 0.875rem; font-style: italic;">No metrics available</div>';
 
             card.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
                     <div>
-                        <h3 style="margin: 0 0 4px 0; font-size: 1.125rem; color: #111827;">${model.model_name}</h3>
+                        <h3 style="margin: 0 0 4px 0; font-size: 1.125rem; color: var(--color-text-primary);">${model.model_name}</h3>
                         <span style="display: inline-block; padding: 2px 8px; background: ${typeColor}20; color: ${typeColor}; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
                             ${model.model_type.toUpperCase()}
                         </span>
@@ -8975,18 +8975,18 @@ async function loadMLModels() {
                     </div>
                 </div>
 
-                <p style="color: #6b7280; font-size: 0.875rem; margin-bottom: 12px; line-height: 1.5;">
+                <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: 12px; line-height: 1.5;">
                     ${model.description || 'No description available'}
                 </p>
 
-                <div style="margin-bottom: 12px; padding: 12px; background: #f9fafb; border-radius: 6px;">
-                    <div style="font-size: 0.75rem; font-weight: 600; color: #6b7280; margin-bottom: 8px;">METRICS</div>
+                <div style="margin-bottom: 12px; padding: 12px; background: var(--color-bg-page); border-radius: 6px;">
+                    <div style="font-size: 0.75rem; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 8px;">METRICS</div>
                     ${metricsHTML}
                 </div>
 
-                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid #e5e7eb; font-size: 0.875rem; color: #6b7280;">
+                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--color-border); font-size: 0.875rem; color: var(--color-text-secondary);">
                     <div>
-                        <span style="font-weight: 600;">${model.feature_columns?.length || 0}</span> features
+                        <span style="font-weight: 600; color: var(--color-text-primary);">${model.feature_columns?.length || 0}</span> features
                     </div>
                     <div>
                         v${model.latest_version} • ${model.total_versions} version(s)
@@ -9016,32 +9016,32 @@ async function viewModelDetails(modelName) {
         const model = await response.json();
 
         const featuresHTML = model.features?.feature_columns?.length > 0
-            ? model.features.feature_columns.map(feat => `<li style="padding: 4px 0;">${feat}</li>`).join('')
-            : '<li style="color: #9ca3af;">No features defined</li>';
+            ? model.features.feature_columns.map(feat => `<li style="padding: 4px 0; color: var(--color-text-primary);">${feat}</li>`).join('')
+            : '<li style="color: var(--color-text-muted);">No features defined</li>';
 
         const metricsHTML = Object.keys(model.metrics || {}).length > 0
             ? Object.entries(model.metrics).map(([key, value]) =>
                 `<tr>
-                    <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${key}</td>
-                    <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">${typeof value === 'number' ? value.toFixed(4) : value}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid var(--color-border); color: var(--color-text-primary);">${key}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-primary);">${typeof value === 'number' ? value.toFixed(4) : value}</td>
                 </tr>`
               ).join('')
-            : '<tr><td colspan="2" style="padding: 8px; color: #9ca3af; text-align: center;">No metrics available</td></tr>';
+            : '<tr><td colspan="2" style="padding: 8px; color: var(--color-text-muted); text-align: center;">No metrics available</td></tr>';
 
         const tagsHTML = model.tags?.length > 0
-            ? model.tags.map(tag => `<span style="display: inline-block; padding: 4px 12px; background: #e5e7eb; border-radius: 12px; font-size: 0.875rem; margin-right: 8px;">${tag}</span>`).join('')
-            : '<span style="color: #9ca3af;">No tags</span>';
+            ? model.tags.map(tag => `<span style="display: inline-block; padding: 4px 12px; background: var(--color-bg-page); border: 1px solid var(--color-border); color: var(--color-text-primary); border-radius: 12px; font-size: 0.875rem; margin-right: 8px;">${tag}</span>`).join('')
+            : '<span style="color: var(--color-text-muted);">No tags</span>';
 
         // Hyperparameters HTML
         const hyperparamsHTML = Object.keys(model.hyperparameters || {}).length > 0
             ? Object.entries(model.hyperparameters).map(([key, value]) => {
                 const displayValue = typeof value === 'object' ? JSON.stringify(value) : value;
                 return `<tr>
-                    <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-family: monospace; color: #6b7280;">${key}</td>
-                    <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: 600; font-family: monospace;">${displayValue}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid var(--color-border); font-family: monospace; color: var(--color-text-secondary);">${key}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid var(--color-border); font-weight: 600; font-family: monospace; color: var(--color-text-primary);">${displayValue}</td>
                 </tr>`;
               }).join('')
-            : '<tr><td colspan="2" style="padding: 8px; color: #9ca3af; text-align: center;">No hyperparameters recorded</td></tr>';
+            : '<tr><td colspan="2" style="padding: 8px; color: var(--color-text-muted); text-align: center;">No hyperparameters recorded</td></tr>';
 
         // Training Config HTML
         const trainingConfigHTML = Object.keys(model.training_config || {}).length > 0
@@ -9053,23 +9053,23 @@ async function viewModelDetails(modelName) {
                     displayValue = value ? 'Yes' : 'No';
                 }
                 return `<tr>
-                    <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</td>
-                    <td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">${displayValue}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid var(--color-border); color: var(--color-text-secondary);">${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid var(--color-border); font-weight: 600; color: var(--color-text-primary);">${displayValue}</td>
                 </tr>`;
               }).join('')
-            : '<tr><td colspan="2" style="padding: 8px; color: #9ca3af; text-align: center;">No training configuration recorded</td></tr>';
+            : '<tr><td colspan="2" style="padding: 8px; color: var(--color-text-muted); text-align: center;">No training configuration recorded</td></tr>';
 
         const modalHTML = `
             <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;" onclick="this.remove()">
-                <div style="background: white; border-radius: 12px; padding: 32px; max-width: 800px; width: 90%; max-height: 85vh; overflow-y: auto;" onclick="event.stopPropagation()">
+                <div style="background: var(--color-bg-surface); border-radius: 12px; padding: 32px; max-width: 800px; width: 90%; max-height: 85vh; overflow-y: auto;" onclick="event.stopPropagation()">
                     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 24px;">
                         <div>
-                            <h2 style="margin: 0 0 8px 0; font-size: 1.5rem;">${model.model_name}</h2>
+                            <h2 style="margin: 0 0 8px 0; font-size: 1.5rem; color: var(--color-text-primary);">${model.model_name}</h2>
                             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                                 <span style="display: inline-block; padding: 4px 12px; background: #3b82f620; color: #3b82f6; border-radius: 4px; font-size: 0.875rem; font-weight: 600;">
                                     ${model.model_type.toUpperCase()}
                                 </span>
-                                ${model.model_class ? `<span style="display: inline-block; padding: 4px 12px; background: #f3f4f6; color: #374151; border-radius: 4px; font-size: 0.875rem; font-family: monospace;">
+                                ${model.model_class ? `<span style="display: inline-block; padding: 4px 12px; background: var(--color-bg-page); color: var(--color-text-primary); border: 1px solid var(--color-border); border-radius: 4px; font-size: 0.875rem; font-family: monospace;">
                                     ${model.model_class}
                                 </span>` : ''}
                                 ${model.model_size_mb ? `<span style="display: inline-block; padding: 4px 12px; background: #fef3c7; color: #92400e; border-radius: 4px; font-size: 0.875rem;">
@@ -9077,19 +9077,19 @@ async function viewModelDetails(modelName) {
                                 </span>` : ''}
                             </div>
                         </div>
-                        <button onclick="this.closest('div[style*=fixed]').remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b7280; padding: 0; width: 32px; height: 32px;">×</button>
+                        <button onclick="this.closest('div[style*=fixed]').remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--color-text-secondary); padding: 0; width: 32px; height: 32px;">×</button>
                     </div>
 
                     <!-- Tabs -->
-                    <div style="border-bottom: 2px solid #e5e7eb; margin-bottom: 20px;">
+                    <div style="border-bottom: 2px solid var(--color-border); margin-bottom: 20px;">
                         <div style="display: flex; gap: 8px;">
-                            <button class="model-tab-btn" data-tab="overview" onclick="switchModelTab(this, 'overview')" style="padding: 12px 20px; border: none; background: none; font-weight: 600; color: #3b82f6; border-bottom: 2px solid #3b82f6; margin-bottom: -2px; cursor: pointer;">
+                            <button class="model-tab-btn" data-tab="overview" onclick="switchModelTab(this, 'overview')" style="padding: 12px 20px; border: none; background: none; font-weight: 600; color: var(--color-primary); border-bottom: 2px solid var(--color-primary); margin-bottom: -2px; cursor: pointer;">
                                 Overview
                             </button>
-                            <button class="model-tab-btn" data-tab="hyperparams" onclick="switchModelTab(this, 'hyperparams')" style="padding: 12px 20px; border: none; background: none; font-weight: 600; color: #6b7280; cursor: pointer;">
+                            <button class="model-tab-btn" data-tab="hyperparams" onclick="switchModelTab(this, 'hyperparams')" style="padding: 12px 20px; border: none; background: none; font-weight: 600; color: var(--color-text-secondary); cursor: pointer;">
                                 Hyperparameters
                             </button>
-                            <button class="model-tab-btn" data-tab="training" onclick="switchModelTab(this, 'training')" style="padding: 12px 20px; border: none; background: none; font-weight: 600; color: #6b7280; cursor: pointer;">
+                            <button class="model-tab-btn" data-tab="training" onclick="switchModelTab(this, 'training')" style="padding: 12px 20px; border: none; background: none; font-weight: 600; color: var(--color-text-secondary); cursor: pointer;">
                                 Training Config
                             </button>
                         </div>
@@ -9098,45 +9098,45 @@ async function viewModelDetails(modelName) {
                     <!-- Overview Tab -->
                     <div id="tab-overview" class="model-tab-content" style="display: block;">
                         <div style="margin-bottom: 20px;">
-                            <h3 style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: 8px;">DESCRIPTION</h3>
-                            <p style="color: #374151; line-height: 1.6;">${model.description}</p>
+                            <h3 style="font-size: 0.875rem; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 8px;">DESCRIPTION</h3>
+                            <p style="color: var(--color-text-primary); line-height: 1.6;">${model.description}</p>
                         </div>
 
                         <div style="margin-bottom: 20px;">
-                            <h3 style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: 8px;">TAGS</h3>
+                            <h3 style="font-size: 0.875rem; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 8px;">TAGS</h3>
                             <div>${tagsHTML}</div>
                         </div>
 
                         <div style="margin-bottom: 20px;">
-                            <h3 style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: 8px;">METRICS</h3>
+                            <h3 style="font-size: 0.875rem; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 8px;">METRICS</h3>
                             <table style="width: 100%; border-collapse: collapse;">
                                 ${metricsHTML}
                             </table>
                         </div>
 
                         <div style="margin-bottom: 20px;">
-                            <h3 style="font-size: 0.875rem; font-weight: 600; color: #6b7280; margin-bottom: 8px;">FEATURES (${model.features?.num_features || 0})</h3>
-                            <ul style="max-height: 200px; overflow-y: auto; padding-left: 20px; margin: 0; color: #374151;">
+                            <h3 style="font-size: 0.875rem; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 8px;">FEATURES (${model.features?.num_features || 0})</h3>
+                            <ul style="max-height: 200px; overflow-y: auto; padding-left: 20px; margin: 0; color: var(--color-text-primary);">
                                 ${featuresHTML}
                             </ul>
                         </div>
 
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; background: #f9fafb; border-radius: 8px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; background: var(--color-bg-page); border-radius: 8px; border: 1px solid var(--color-border);">
                             <div>
-                                <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 4px;">VERSION</div>
-                                <div style="font-weight: 600; color: #111827;">v${model.version}</div>
+                                <div style="font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 4px;">VERSION</div>
+                                <div style="font-weight: 600; color: var(--color-text-primary);">v${model.version}</div>
                             </div>
                             <div>
-                                <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 4px;">STATUS</div>
+                                <div style="font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 4px;">STATUS</div>
                                 <div style="font-weight: 600; color: #10b981;">${model.status.toUpperCase()}</div>
                             </div>
                             <div>
-                                <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 4px;">TARGET</div>
-                                <div style="font-weight: 600; color: #111827;">${model.features?.target_column || 'N/A'}</div>
+                                <div style="font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 4px;">TARGET</div>
+                                <div style="font-weight: 600; color: var(--color-text-primary);">${model.features?.target_column || 'N/A'}</div>
                             </div>
                             <div>
-                                <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 4px;">REGISTERED</div>
-                                <div style="font-weight: 600; color: #111827;">${new Date(model.registered_at).toLocaleDateString()}</div>
+                                <div style="font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 4px;">REGISTERED</div>
+                                <div style="font-weight: 600; color: var(--color-text-primary);">${new Date(model.registered_at).toLocaleDateString()}</div>
                             </div>
                         </div>
                     </div>
@@ -9215,37 +9215,37 @@ async function viewModelVersions(modelName) {
         const data = await response.json();
 
         const versionsHTML = data.versions.map(version => `
-            <div style="padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 12px;">
+            <div style="padding: 16px; border: 1px solid var(--color-border); border-radius: 8px; margin-bottom: 12px; background: var(--color-bg-page);">
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
                     <div>
-                        <h4 style="margin: 0 0 4px 0;">Version ${version.version}</h4>
-                        <span style="display: inline-block; padding: 2px 8px; background: ${version.status === 'active' ? '#10b98120' : '#6b728020'}; color: ${version.status === 'active' ? '#10b981' : '#6b7280'}; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
+                        <h4 style="margin: 0 0 4px 0; color: var(--color-text-primary);">Version ${version.version}</h4>
+                        <span style="display: inline-block; padding: 2px 8px; background: ${version.status === 'active' ? '#10b98120' : 'var(--color-bg-surface)'}; color: ${version.status === 'active' ? '#10b981' : 'var(--color-text-secondary)'}; border: 1px solid var(--color-border); border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
                             ${version.status.toUpperCase()}
                         </span>
                     </div>
-                    <div style="font-size: 0.875rem; color: #6b7280;">
+                    <div style="font-size: 0.875rem; color: var(--color-text-secondary);">
                         ${new Date(version.registered_at).toLocaleDateString()}
                     </div>
                 </div>
-                <p style="color: #6b7280; font-size: 0.875rem; margin: 8px 0;">
+                <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin: 8px 0;">
                     ${version.description || 'No description'}
                 </p>
-                <div style="font-size: 0.875rem; color: #6b7280;">
-                    <strong>${Object.keys(version.metrics || {}).length}</strong> metrics •
-                    <strong>${version.feature_columns?.length || 0}</strong> features
+                <div style="font-size: 0.875rem; color: var(--color-text-secondary);">
+                    <strong style="color: var(--color-text-primary);">${Object.keys(version.metrics || {}).length}</strong> metrics •
+                    <strong style="color: var(--color-text-primary);">${version.feature_columns?.length || 0}</strong> features
                 </div>
             </div>
         `).join('');
 
         const modalHTML = `
             <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;" onclick="this.remove()">
-                <div style="background: white; border-radius: 12px; padding: 32px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;" onclick="event.stopPropagation()">
+                <div style="background: var(--color-bg-surface); border-radius: 12px; padding: 32px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;" onclick="event.stopPropagation()">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                        <h2 style="margin: 0;">Versions: ${modelName}</h2>
-                        <button onclick="this.closest('div[style*=fixed]').remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b7280; padding: 0;">×</button>
+                        <h2 style="margin: 0; color: var(--color-text-primary);">Versions: ${modelName}</h2>
+                        <button onclick="this.closest('div[style*=fixed]').remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--color-text-secondary); padding: 0;">×</button>
                     </div>
 
-                    <div style="margin-bottom: 16px; padding: 12px; background: #f9fafb; border-radius: 6px;">
+                    <div style="margin-bottom: 16px; padding: 12px; background: var(--color-bg-page); border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text-primary);">
                         <strong>${data.versions.length}</strong> version(s) registered
                     </div>
 
@@ -9319,8 +9319,180 @@ function openMLTrainingDialog() {
     document.body.insertAdjacentHTML('beforeend', modalHTML);
 }
 
-function openPredictionDialog(modelName) {
-    showToast('Prediction UI coming soon! Use POST /api/ml/predict endpoint for now.', 'info');
+async function openPredictionDialog(modelName) {
+    console.log('openPredictionDialog called with:', modelName);
+    try {
+        // Fetch model info to get feature columns
+        console.log('Fetching model info...');
+        const response = await fetch(`/api/ml/models/${modelName}`);
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            throw new Error('Failed to fetch model info');
+        }
+        const model = await response.json();
+        console.log('Model data:', model);
+
+        const features = model.features?.feature_columns || [];
+        console.log('Features:', features);
+        if (features.length === 0) {
+            showToast('No feature columns defined for this model', 'error');
+            return;
+        }
+
+        console.log('Creating form fields...');
+        // Create form fields for each feature
+        const formFields = features.map(feature => `
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; margin-bottom: 4px; font-weight: 600; color: var(--color-text-primary);">
+                    ${feature}
+                </label>
+                <input
+                    type="text"
+                    id="feature-${feature}"
+                    placeholder="Enter ${feature}"
+                    style="width: 100%; padding: 8px; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-bg-surface); color: var(--color-text-primary);"
+                />
+            </div>
+        `).join('');
+
+        const modalHTML = `
+            <div id="predictionModal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;" onclick="closePredictionDialog()">
+                <div style="background: var(--color-bg-surface); border-radius: 12px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);" onclick="event.stopPropagation()">
+                    <div class="modal-header">
+                        <h3 style="margin: 0; color: var(--color-text-primary);">Make Prediction - ${modelName}</h3>
+                        <button onclick="closePredictionDialog()" class="close-btn">&times;</button>
+                    </div>
+                    <div class="modal-body" style="max-height: 500px; overflow-y: auto;">
+                        <form id="predictionForm">
+                            ${formFields}
+                            <div style="margin-top: 16px; padding: 12px; background: var(--color-bg-page); border-radius: 6px; border: 1px solid var(--color-border);">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="returnProba" style="cursor: pointer;">
+                                    <span style="color: var(--color-text-secondary); font-size: 0.875rem;">Return probability scores</span>
+                                </label>
+                            </div>
+                        </form>
+                        <div id="predictionResult" style="margin-top: 16px; display: none;"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button onclick="closePredictionDialog()" class="btn btn-secondary">Cancel</button>
+                        <button onclick="submitPrediction('${modelName}')" class="btn btn-primary">Predict</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        console.log('Modal HTML created, length:', modalHTML.length);
+        console.log('Inserting modal into DOM...');
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        console.log('Modal inserted successfully');
+    } catch (error) {
+        console.error('Error opening prediction dialog:', error);
+        showToast('Failed to open prediction dialog: ' + error.message, 'error');
+    }
+}
+
+function closePredictionDialog() {
+    const modal = document.getElementById('predictionModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+async function submitPrediction(modelName) {
+    try {
+        // Get model info to get feature list
+        const modelResponse = await fetch(`/api/ml/models/${modelName}`);
+        const model = await modelResponse.json();
+        const features = model.features?.feature_columns || [];
+
+        // Collect feature values from form
+        const featureValues = {};
+        let hasEmptyFields = false;
+
+        features.forEach(feature => {
+            const input = document.getElementById(`feature-${feature}`);
+            const value = input.value.trim();
+
+            if (!value) {
+                hasEmptyFields = true;
+                input.style.borderColor = 'var(--color-error)';
+            } else {
+                input.style.borderColor = 'var(--color-border)';
+                // Try to parse as number, otherwise keep as string
+                featureValues[feature] = isNaN(value) ? value : parseFloat(value);
+            }
+        });
+
+        if (hasEmptyFields) {
+            showToast('Please fill in all feature values', 'error');
+            return;
+        }
+
+        const returnProba = document.getElementById('returnProba').checked;
+
+        // Make prediction request
+        const response = await fetch('/api/ml/predict', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model_name: modelName,
+                features: featureValues,
+                return_proba: returnProba
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Prediction failed');
+        }
+
+        const result = await response.json();
+
+        // Display result
+        const resultDiv = document.getElementById('predictionResult');
+        let resultHTML = `
+            <div style="padding: 16px; background: var(--color-bg-surface); border: 2px solid var(--color-success); border-radius: 8px;">
+                <h4 style="margin: 0 0 12px 0; color: var(--color-success);">✓ Prediction Result</h4>
+        `;
+
+        if (returnProba && Array.isArray(result.prediction)) {
+            // Show probabilities
+            resultHTML += `
+                <div style="color: var(--color-text-primary); font-weight: 600; margin-bottom: 8px;">
+                    Probabilities:
+                </div>
+            `;
+            result.prediction.forEach((prob, idx) => {
+                const percentage = (prob * 100).toFixed(2);
+                resultHTML += `
+                    <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--color-border);">
+                        <span style="color: var(--color-text-secondary);">Class ${idx}:</span>
+                        <span style="color: var(--color-text-primary); font-weight: 600;">${percentage}%</span>
+                    </div>
+                `;
+            });
+        } else {
+            // Show single prediction
+            resultHTML += `
+                <div style="font-size: 1.5rem; font-weight: 700; color: var(--color-text-primary); text-align: center;">
+                    ${result.prediction}
+                </div>
+            `;
+        }
+
+        resultHTML += `</div>`;
+        resultDiv.innerHTML = resultHTML;
+        resultDiv.style.display = 'block';
+
+        showToast('Prediction completed successfully!', 'success');
+
+    } catch (error) {
+        console.error('Prediction error:', error);
+        showToast('Prediction failed: ' + error.message, 'error');
+    }
 }
 
 async function deleteMLModel(modelName) {

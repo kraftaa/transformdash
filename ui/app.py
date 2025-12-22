@@ -2,7 +2,7 @@
 TransformDash Web UI - FastAPI Application (Refactored)
 Interactive lineage graphs and dashboard with separated concerns
 """
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -3900,11 +3900,13 @@ async def login(request: Request):
         })
 
         # Set cookie with security flags
+        # secure=True only for production (HTTPS), False for local development
+        is_production = os.getenv("DEMO_MODE") == "true" or os.getenv("ENV") == "production"
         response.set_cookie(
             key="access_token",
             value=access_token,
             httponly=True,
-            secure=True,  # Only send over HTTPS
+            secure=is_production,  # Only send over HTTPS in production
             max_age=480 * 60,  # 8 hours in seconds
             samesite="lax"
         )
