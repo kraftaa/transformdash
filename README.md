@@ -13,7 +13,11 @@ Run SQL transformations with dependency management and lineage tracking directly
 
 ## Try the Live Demo
 
-**[Live Demo](https://transformdash-demo.onrender.com)** • Login: `demo` / `demo`
+**[Live Demo](https://transformdash-demo.onrender.com)**
+
+Login options:
+- **Viewer**: `demo` / `demo` (read-only on source data, can run transformations)
+- **Admin**: `admin` / `admin` (full access)
 
 Experience TransformDash without installing anything:
 - Pre-loaded with 100 customers, 500 orders across 24 tables
@@ -38,6 +42,14 @@ Experience TransformDash without installing anything:
 - **Interactive Web UI**: Real-time lineage graphs and dashboards
 - **PostgreSQL Support**: Full support for transformations
 - **Incremental Syntax**: Write incremental models (full refresh for now, true incremental on roadmap)
+
+### AI-Powered Search (Optional)
+- **Semantic Search**: Natural language queries to find models (e.g., "customer revenue models")
+- **FAISS Vector Search**: Fast similarity search using sentence embeddings
+- **Smart Model Discovery**: Search by meaning, not just keywords
+- **Graceful Degradation**: Optional feature - install dependencies only if needed
+- **Installation**: `pip install -r dbt_assistant/requirements.txt`
+- See [dbt_assistant/README.md](dbt_assistant/README.md) for details
 
 ### Model Features
 - `{{ source() }}` and `{{ ref() }}` macros
@@ -365,6 +377,12 @@ transformdash/
 ├── connectors/              # Database connectors
 │   ├── redis.py            # Redis connector
 │   └── (mongodb, etc.)
+├── dbt_assistant/          # Optional AI search module
+│   ├── core.py            # AI search assistant
+│   ├── parser.py          # SQL model parser
+│   ├── embed_search.py    # FAISS semantic search
+│   ├── requirements.txt   # Optional dependencies
+│   └── README.md          # AI search documentation
 ├── models/                  # SQL transformation models
 │   ├── sources.yml         # Data source definitions
 │   ├── bronze/             # Staging layer (stg_*)
