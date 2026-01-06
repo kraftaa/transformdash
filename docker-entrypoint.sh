@@ -98,7 +98,7 @@ except:
     VALUES (
         'demo',
         'demo@transformdash.demo',
-        '\$2b\$12\$ImFo6oeEwDkPfgJOtm3Mdux055Rn6rUXfUZu64XY01t9mSwSaBNQa',
+        '\$2b\$12\$gVK0OQ.3dfqKaTZFicqP.OwWHsgAaMoMFLZY4Vlluv4Shm3gWQWFm',
         'Demo User',
         TRUE,
         FALSE
