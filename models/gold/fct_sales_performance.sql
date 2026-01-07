@@ -1,7 +1,8 @@
 {{ config(materialized='table') }}
 
--- Gold: Sales Performance Fact Table
--- Comprehensive sales metrics aggregated by multiple dimensions
+-- Gold: Sales performance fact table
+-- Daily sales metrics with multi-dimensional analysis for revenue tracking and forecasting
+-- Includes revenue, units sold, average order value, and product performance by date and category
 
 WITH daily_sales AS (
     SELECT

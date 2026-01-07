@@ -1,7 +1,8 @@
 {{ config(materialized='incremental') }}
 
--- Silver: Campaign Performance
--- Marketing campaign metrics with spend analysis
+-- Silver: Marketing campaign performance
+-- Tracks campaign effectiveness with budget utilization and completion status
+-- Includes spend analysis, duration metrics, and channel performance by campaign
 
 SELECT
     c.campaign_id,

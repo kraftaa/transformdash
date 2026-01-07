@@ -1,7 +1,8 @@
 {{ config(materialized='incremental') }}
 
--- Silver: Supplier Purchase Orders
--- Enrich purchase orders with supplier details
+-- Silver: Supplier purchase orders
+-- Enriches purchase order data with supplier information for procurement analysis
+-- Includes order quantities, costs, delivery dates, and supplier contact details
 
 SELECT
     po.purchase_order_id,
