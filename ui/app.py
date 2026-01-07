@@ -35,6 +35,15 @@ from auth import get_current_user, require_permission, require_role
 # Import rate limiting
 from rate_limiter import RateLimitMiddleware, check_rate_limit
 
+# Import AI assistant (optional)
+try:
+    from dbt_assistant import DbtAssistant, AVAILABLE as AI_SEARCH_AVAILABLE
+    if not AI_SEARCH_AVAILABLE:
+        logger.info("dbt_assistant dependencies not installed - AI search disabled")
+except ImportError as e:
+    AI_SEARCH_AVAILABLE = False
+    logger.info(f"dbt_assistant not available: {e} - AI search disabled")
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -123,6 +132,17 @@ models_dir = Path(__file__).parent.parent / "models"
 loader = ModelLoader(models_dir=str(models_dir))
 run_history = RunHistory()
 
+# Initialize AI assistant if available
+ai_assistant = None
+if AI_SEARCH_AVAILABLE:
+    try:
+        logger.info("Initializing AI search assistant...")
+        ai_assistant = DbtAssistant(models_dir=str(models_dir))
+        logger.info("✅ AI search assistant ready")
+    except Exception as e:
+        logger.warning(f"Failed to initialize AI assistant: {e}")
+        ai_assistant = None
+
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
@@ -202,6 +222,39 @@ async def get_models(
         } for model in models]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ai/search")
+async def ai_search_models(
+    q: str,
+    top_k: int = 5,
+    request: Request = None,
+    user: dict = Depends(require_models_read())
+):
+    """
+    AI-powered semantic search for models using natural language
+
+    Args:
+        q: Natural language search query (e.g., 'customer revenue models')
+        top_k: Number of results to return (default: 5)
+
+    Returns:
+        Search results with similarity scores
+
+    Requires view_models permission
+    """
+    if not AI_SEARCH_AVAILABLE or ai_assistant is None:
+        raise HTTPException(
+            status_code=503,
+            detail="AI search is not available. Install dependencies with: pip install -r dbt_assistant/requirements.txt"
+        )
+
+    try:
+        results = ai_assistant.search(q, top_k=top_k)
+        return results
+    except Exception as e:
+        logger.error(f"AI search failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
 @app.get("/api/lineage")
