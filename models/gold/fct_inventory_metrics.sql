@@ -5,8 +5,9 @@
     ])
 }}
 
--- Gold: Inventory Metrics Fact Table
--- Warehouse and product inventory KPIs
+-- Gold: Inventory metrics fact table
+-- Aggregates warehouse inventory levels and valuation for stock management decisions
+-- Includes total units, inventory value, turnover rates, and stock levels by warehouse and category
 
 SELECT
     warehouse_id,

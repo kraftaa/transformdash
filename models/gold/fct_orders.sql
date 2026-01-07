@@ -1,7 +1,8 @@
 {{ config(materialized='table') }}
 
--- Gold layer: Final fact table for order analytics
--- Pattern: Business-ready fact table with all dimensions
+-- Gold: Orders fact table
+-- Complete order analytics with customer details and temporal dimensions for sales reporting
+-- Includes order totals, customer information, order dates, and year/month breakdowns
 
 with transformed_data as (
     select

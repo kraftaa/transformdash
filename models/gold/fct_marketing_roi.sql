@@ -1,7 +1,8 @@
 {{ config(materialized='table') }}
 
--- Gold: Marketing ROI Fact Table
--- Campaign and promotion effectiveness metrics
+-- Gold: Marketing ROI fact table
+-- Measures campaign and promotion effectiveness with revenue attribution and ROI calculations
+-- Includes budget utilization, conversion rates, revenue impact, and performance by channel
 
 WITH campaign_stats AS (
     SELECT

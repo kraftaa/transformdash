@@ -1,7 +1,8 @@
 {{ config(materialized='incremental') }}
 
--- Silver: Return Analysis
--- Combine return data with order and product information
+-- Silver: Product return analysis
+-- Analyzes return patterns with order and product details for quality insights
+-- Includes return reasons, refund amounts, product categories, and return rates
 
 SELECT
     r.return_id,
