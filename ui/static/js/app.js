@@ -254,6 +254,16 @@ function switchView(viewName) {
             loadAllCharts();
             break;
         case 'chart-builder':
+            // Reset buttons for new chart creation (unless editing)
+            if (!currentEditingChartId) {
+                const createBtn = document.getElementById('createChartBtn');
+                const saveBtn = document.getElementById('saveChartBtn');
+                if (createBtn) createBtn.style.display = 'block';
+                if (saveBtn) {
+                    saveBtn.style.display = 'none';
+                    saveBtn.disabled = true;
+                }
+            }
             // Load available connections for chart builder
             loadChartConnections();
             break;
@@ -649,6 +659,9 @@ async function loadModels() {
         // Display models list (if we're in models view)
         displayModels(modelsData, currentModelFilter);
 
+        // Check if AI search is available
+        checkAISearchAvailability();
+
     } catch (error) {
         console.error('Error loading models:', error);
         const modelsList = document.getElementById('models-list');
@@ -787,7 +800,7 @@ async function displayModels(models, filterLayer = null) {
 
         layerModels.forEach(model => {
             html += `
-                <div class="model-card" id="model-${model.name}">
+                <div class="model-card" id="model-${model.name}" data-model-name="${model.name}">
                     <div class="model-card-content">
                         <div class="model-info">
                             <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
@@ -908,16 +921,175 @@ function handleModelsSearch(searchTerm) {
     if (clearBtn) {
         clearBtn.style.display = searchTerm ? 'block' : 'none';
     }
-    debounceSearch(() => {
-        displayModels(modelsData, currentModelFilter);
-    });
+
+    // If AI search is enabled, use AI search instead
+    if (aiSearchEnabled && searchTerm) {
+        debounceSearch(() => {
+            performAISearch(searchTerm);
+        });
+    } else {
+        debounceSearch(() => {
+            displayModels(modelsData, currentModelFilter);
+        });
+    }
 }
 
 function clearModelsSearch() {
     document.getElementById('models-search').value = '';
     currentModelsSearchTerm = '';
     document.getElementById('models-search-clear').style.display = 'none';
+
+    // Also clear AI search mode
+    if (aiSearchEnabled) {
+        aiSearchEnabled = false;
+        document.getElementById('ai-search-results').style.display = 'none';
+        document.getElementById('ai-search-label').textContent = 'AI Search';
+        const toggle = document.getElementById('ai-search-toggle');
+        if (toggle) toggle.classList.remove('btn-primary');
+        if (toggle) toggle.classList.add('btn-secondary');
+    }
+
     displayModels(modelsData, currentModelFilter);
+}
+
+// AI Search functionality
+let aiSearchEnabled = false;
+let aiSearchAvailable = false;
+
+// Check if AI search is available on the server
+async function checkAISearchAvailability() {
+    try {
+        const response = await fetch('/api/ai/search?q=test&top_k=1');
+        aiSearchAvailable = response.ok;
+
+        if (aiSearchAvailable) {
+            // Show the AI search toggle button
+            const toggle = document.getElementById('ai-search-toggle');
+            if (toggle) toggle.style.display = 'flex';
+        }
+    } catch (error) {
+        aiSearchAvailable = false;
+    }
+}
+
+function toggleAISearch() {
+    aiSearchEnabled = !aiSearchEnabled;
+    const toggle = document.getElementById('ai-search-toggle');
+    const label = document.getElementById('ai-search-label');
+    const searchInput = document.getElementById('models-search');
+
+    if (aiSearchEnabled) {
+        toggle.classList.remove('btn-secondary');
+        toggle.classList.add('btn-primary');
+        label.textContent = 'AI On';
+        searchInput.placeholder = 'Ask in natural language (e.g., "customer revenue models")...';
+
+        // Trigger search if there's already text
+        if (currentModelsSearchTerm) {
+            performAISearch(currentModelsSearchTerm);
+        }
+    } else {
+        toggle.classList.remove('btn-primary');
+        toggle.classList.add('btn-secondary');
+        label.textContent = 'AI Search';
+        searchInput.placeholder = 'Search models by name, description, layer...';
+
+        // Hide AI results and show normal view
+        document.getElementById('ai-search-results').style.display = 'none';
+        displayModels(modelsData, currentModelFilter);
+    }
+}
+
+async function performAISearch(query) {
+    if (!query || !aiSearchEnabled) return;
+
+    const resultsDiv = document.getElementById('ai-search-results');
+    resultsDiv.style.display = 'block';
+    resultsDiv.innerHTML = '<div style="padding: 1rem; color: var(--color-text-secondary);">Searching with AI...</div>';
+
+    try {
+        const response = await fetch(`/api/ai/search?q=${encodeURIComponent(query)}&top_k=10`);
+
+        if (!response.ok) {
+            throw new Error(`Search failed: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        displayAISearchResults(data);
+    } catch (error) {
+        console.error('AI search error:', error);
+        resultsDiv.innerHTML = `
+            <div style="padding: 1rem; color: var(--color-error);">
+                AI search failed: ${error.message}
+                <br><small>Make sure dependencies are installed: pip install -r dbt_assistant/requirements.txt</small>
+            </div>
+        `;
+    }
+}
+
+function displayAISearchResults(data) {
+    const resultsDiv = document.getElementById('ai-search-results');
+    const matches = data.embedding_matches || [];
+
+    if (matches.length === 0) {
+        resultsDiv.innerHTML = '<div style="padding: 1rem; color: var(--color-text-secondary);">No models found matching your query.</div>';
+        return;
+    }
+
+    let html = `
+        <div style="background: var(--color-bg-secondary); border: 1px solid var(--color-border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+            <div style="font-weight: 600; margin-bottom: 0.5rem; color: var(--color-text-primary);">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+                    <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
+                </svg>
+                AI Search Results (${matches.length})
+            </div>
+            <div style="display: grid; gap: 0.75rem;">
+    `;
+
+    matches.forEach(model => {
+        const score = (model.similarity_score * 100).toFixed(1);
+        const scoreColor = model.similarity_score > 0.7 ? '#10b981' : model.similarity_score > 0.5 ? '#f59e0b' : '#6b7280';
+
+        html += `
+            <div style="background: var(--color-bg-primary); border: 1px solid var(--color-border); border-radius: 6px; padding: 0.75rem; cursor: pointer;" onclick="highlightModel('${model.name}')">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.25rem;">
+                    <div style="font-weight: 600; color: var(--color-primary);">${model.name}</div>
+                    <div style="font-size: 0.75rem; color: ${scoreColor}; font-weight: 600;">${score}% match</div>
+                </div>
+                ${model.description ? `<div style="font-size: 0.875rem; color: var(--color-text-secondary); margin-bottom: 0.25rem;">${model.description}</div>` : ''}
+                <div style="display: flex; gap: 0.5rem; font-size: 0.75rem; color: var(--color-text-secondary);">
+                    <span>Layer: ${model.layer}</span>
+                    <span>•</span>
+                    <span>Type: ${model.materialized}</span>
+                    ${model.depends_on && model.depends_on.length > 0 ? `<span>•</span><span>Depends on: ${model.depends_on.length}</span>` : ''}
+                </div>
+            </div>
+        `;
+    });
+
+    html += `
+            </div>
+        </div>
+    `;
+
+    resultsDiv.innerHTML = html;
+}
+
+function highlightModel(modelName) {
+    // Scroll to the model in the main list and highlight it
+    const modelElements = document.querySelectorAll('[data-model-name]');
+    modelElements.forEach(el => {
+        if (el.getAttribute('data-model-name') === modelName) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.style.transition = 'background-color 0.3s';
+            const originalBg = el.style.backgroundColor;
+            el.style.backgroundColor = 'var(--color-primary-alpha)';
+            setTimeout(() => {
+                el.style.backgroundColor = originalBg;
+            }, 2000);
+        }
+    });
 }
 
 // 2. Dashboards Search
@@ -4896,7 +5068,7 @@ function renderFilters() {
                         onchange="updateFilter('${filter.id}', this.value, undefined, undefined); renderFilters();">
                     <option value="">Field...</option>
                     ${filter.columns.map(col => `
-                        <option value="${col}" ${filter.field === col ? 'selected' : ''}>${col}</option>
+                        <option value="${col.name}" ${filter.field === col.name ? 'selected' : ''}>${col.name} (${col.type})</option>
                     `).join('')}
                 </select>
 
@@ -6024,6 +6196,15 @@ async function editChart(chartConfig) {
 
     // Wait for view to render and load dashboards
     await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Toggle buttons for edit mode
+    const createBtn = document.getElementById('createChartBtn');
+    const saveBtn = document.getElementById('saveChartBtn');
+    if (createBtn) createBtn.style.display = 'none';
+    if (saveBtn) {
+        saveBtn.style.display = 'block';
+        saveBtn.disabled = false;
+    }
 
     // Ensure dashboards are loaded before trying to set the value
     await loadChartDashboards();
