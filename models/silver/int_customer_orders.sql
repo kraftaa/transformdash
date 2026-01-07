@@ -3,8 +3,9 @@
     unique_key='order_id'
 ) }}
 
--- Silver layer: Join customers with their orders
--- Pattern: Multi-table join with incremental processing
+-- Silver: Customer order history
+-- Combines customer details with order data for purchase analysis
+-- Includes order totals, status, and customer contact information with incremental updates
 
 with transformed_data as (
     select

@@ -1,7 +1,8 @@
 {{ config(materialized='incremental') }}
 
--- Silver: Inventory Summary
--- Combine stock levels with product and warehouse details
+-- Silver: Inventory levels by location
+-- Current stock quantities with product details and warehouse information
+-- Includes on-hand inventory, unit prices, and product categories across all warehouses
 
 SELECT
     sl.stock_id,

@@ -1,7 +1,8 @@
 {{ config(materialized='incremental') }}
 
--- Silver: Order Details
--- Join orders with line items and product information
+-- Silver: Order line item details
+-- Complete order breakdown with product information and pricing at line-item level
+-- Includes quantities, unit prices, discounts, and product categories for each order item
 
 SELECT
     oi.order_item_id,

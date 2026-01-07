@@ -1,7 +1,8 @@
 {{ config(materialized='incremental') }}
 
--- Silver: Sales Commission Tracking
--- Join commission data with employee and order details
+-- Silver: Sales commission tracking
+-- Calculates earned commissions by linking employee performance to order revenue
+-- Includes commission rates, earned amounts, order values, and employee information
 
 SELECT
     c.commission_id,

@@ -1,7 +1,8 @@
 {{ config(materialized='table') }}
 
--- Gold: Shipping & Logistics Fact Table
--- Delivery performance metrics by carrier and warehouse
+-- Gold: Shipping and logistics fact table
+-- Tracks delivery performance and shipping costs for carrier and warehouse optimization
+-- Includes on-time delivery rates, average costs, shipment volumes, and performance by carrier
 
 SELECT
     carrier_id,

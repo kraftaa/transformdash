@@ -1,7 +1,8 @@
 {{ config(materialized='incremental') }}
 
--- Silver: Payment Reconciliation
--- Join successful payments with order details
+-- Silver: Payment transaction reconciliation
+-- Matches successful payments with order details for financial reporting
+-- Includes transaction IDs, payment amounts, methods, and order totals for audit trails
 
 SELECT
     pt.transaction_id,

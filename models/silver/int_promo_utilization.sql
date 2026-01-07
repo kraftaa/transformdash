@@ -1,7 +1,8 @@
 {{ config(materialized='incremental') }}
 
--- Silver: Promotion Utilization
--- Track promotion effectiveness and capacity
+-- Silver: Promotion usage and effectiveness
+-- Tracks promo code utilization against capacity with discount performance
+-- Includes redemption rates, remaining capacity, and discount amounts by promotion
 
 SELECT
     p.promotion_id,

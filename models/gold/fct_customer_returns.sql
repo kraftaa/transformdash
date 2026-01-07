@@ -1,7 +1,8 @@
 {{ config(materialized='table') }}
 
--- Gold: Customer Returns Fact Table
--- Return metrics and patterns analysis
+-- Gold: Customer returns fact table
+-- Analyzes return patterns and trends for product quality and customer satisfaction insights
+-- Includes return volumes, refund amounts, return reasons, and product categories by date
 
 SELECT
     DATE(return_date) as return_date,
