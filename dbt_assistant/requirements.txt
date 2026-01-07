@@ -1,0 +1,10 @@
+# dbt_assistant optional dependencies
+# Install with: pip install -r dbt_assistant/requirements.txt
+
+sentence-transformers>=2.2.0
+faiss-cpu>=1.7.4
+numpy>=1.21.0
+
+# Optional: for LLM re-ranking
+# openai>=1.0.0
+# transformers>=4.30.0
