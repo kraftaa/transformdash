@@ -1064,6 +1064,9 @@ function displayAISearchResults(data) {
                     <span>Type: ${model.materialized}</span>
                     ${model.depends_on && model.depends_on.length > 0 ? `<span>•</span><span>Depends on: ${model.depends_on.length}</span>` : ''}
                 </div>
+                <div id="ai-usage-${model.name}" style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--color-text-secondary);">
+                    <em>Loading usage...</em>
+                </div>
             </div>
         `;
     });
@@ -1074,6 +1077,44 @@ function displayAISearchResults(data) {
     `;
 
     resultsDiv.innerHTML = html;
+
+    // Load usage information for each model
+    matches.forEach(async (model) => {
+        const usage = await findModelUsage(model.name);
+        const usageEl = document.getElementById(`ai-usage-${model.name}`);
+
+        if (usageEl) {
+            if (usage.length === 0) {
+                usageEl.innerHTML = '<em style="color: #888;">Not used in any dashboards</em>';
+            } else {
+                const dashboardMap = {};
+                usage.forEach(u => {
+                    if (!dashboardMap[u.dashboardId]) {
+                        dashboardMap[u.dashboardId] = {
+                            id: u.dashboardId,
+                            name: u.dashboardName,
+                            charts: []
+                        };
+                    }
+                    dashboardMap[u.dashboardId].charts.push(u.chartTitle);
+                });
+
+                const dashboards = Object.values(dashboardMap);
+                usageEl.innerHTML = `
+                    <strong>Used in:</strong>
+                    ${dashboards.map(d => `
+                        <a href="#" onclick="event.stopPropagation(); openDashboard('${d.id}'); return false;"
+                           style="color: #667eea; text-decoration: none; margin-left: 4px;"
+                           onmouseover="this.style.textDecoration='underline'"
+                           onmouseout="this.style.textDecoration='none'"
+                           title="${d.charts.join(', ')}">
+                            📊 ${d.name} (${d.charts.length})
+                        </a>
+                    `).join(' ')}
+                `;
+            }
+        }
+    });
 }
 
 function highlightModel(modelName) {

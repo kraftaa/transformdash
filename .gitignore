@@ -71,3 +71,4 @@ others
 *.pid
 transformdash.pid
 transformdash.log
+generate_password_hash.py
