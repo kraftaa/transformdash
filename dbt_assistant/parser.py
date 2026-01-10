@@ -74,17 +74,25 @@ class ModelParser:
         }
 
     def _extract_description(self, content: str) -> str:
-        """Extract description from SQL comments"""
-        # Look for comment block at top of file
-        comment_match = re.search(r'^(?:--\s*(.+)\n)+', content, re.MULTILINE)
-        if comment_match:
-            lines = [
-                line.strip().lstrip('--').strip()
-                for line in comment_match.group(0).split('\n')
-                if line.strip().startswith('--')
-            ]
-            return ' '.join(lines)
-        return ""
+        """Extract description from SQL comments, skipping config blocks"""
+        lines = content.split('\n')
+        description_lines = []
+
+        for line in lines:
+            stripped = line.strip()
+            # Skip config blocks and empty lines
+            if stripped.startswith('{{') or not stripped:
+                continue
+            # Collect comment lines
+            if stripped.startswith('--'):
+                desc_text = stripped.lstrip('-').strip()
+                if desc_text:
+                    description_lines.append(desc_text)
+            else:
+                # Stop at first non-comment SQL line
+                break
+
+        return ' '.join(description_lines)
 
     def _extract_config(self, content: str) -> Dict[str, str]:
         """Extract {{ config(...) }} from SQL"""

@@ -79,16 +79,17 @@ class EmbeddingSearch:
         self.index = faiss.IndexFlatIP(dim)
         self.index.add(embeddings.astype('float32'))
 
-    def search(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
+    def search(self, query: str, top_k: int = 5, min_score: float = 0.25) -> List[Dict[str, Any]]:
         """
         Search for models using natural language query
 
         Args:
             query: Natural language search query
             top_k: Number of results to return
+            min_score: Minimum similarity score threshold (0-1), default 0.25
 
         Returns:
-            List of matching models with similarity scores
+            List of matching models with similarity scores above threshold
         """
         if self.index is None or len(self.id_to_key) == 0:
             return []
@@ -98,13 +99,14 @@ class EmbeddingSearch:
         query_vec = query_vec / np.linalg.norm(query_vec)  # Normalize
         query_vec = query_vec.astype('float32').reshape(1, -1)
 
-        # Search FAISS index
-        scores, indices = self.index.search(query_vec, min(top_k, len(self.id_to_key)))
+        # Search FAISS index (search more to account for filtering)
+        search_k = min(top_k * 2, len(self.id_to_key))
+        scores, indices = self.index.search(query_vec, search_k)
 
-        # Build results
+        # Build results, filtering by minimum score
         results = []
         for idx, score in zip(indices[0], scores[0]):
-            if idx >= 0 and idx < len(self.id_to_key):
+            if idx >= 0 and idx < len(self.id_to_key) and score >= min_score:
                 key = self.id_to_key[idx]
                 model_info = self.knowledge[key]
 
@@ -118,5 +120,9 @@ class EmbeddingSearch:
                     "file_path": model_info.get("file_path", ""),
                     "similarity_score": float(score)
                 })
+
+                # Stop after getting enough results
+                if len(results) >= top_k:
+                    break
 
         return results
