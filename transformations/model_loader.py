@@ -71,7 +71,7 @@ class ModelLoader:
 
     def parse_sql_file(self, file_path: Path) -> Dict[str, Any]:
         """
-        Parse a SQL model file and extract config and dependencies
+        Parse a SQL model file and extract config, dependencies, and description
         """
         with open(file_path, 'r') as f:
             content = f.read()
@@ -86,6 +86,25 @@ class ModelLoader:
                 key, value = match.groups()
                 config[key] = value
 
+        # Extract description from leading comments
+        description = ""
+        lines = content.split('\n')
+        description_lines = []
+        for line in lines:
+            line = line.strip()
+            # Skip config line
+            if line.startswith('{{') or not line:
+                continue
+            # Collect comment lines
+            if line.startswith('--'):
+                desc_text = line.lstrip('-').strip()
+                if desc_text:
+                    description_lines.append(desc_text)
+            else:
+                # Stop at first non-comment, non-empty, non-config line
+                break
+        description = ' '.join(description_lines)
+
         # Extract dependencies from {{ ref('model_name') }}
         ref_pattern = r"\{\{\s*ref\(['\"]([^'\"]+)['\"]\)\s*\}\}"
         depends_on = list(set(re.findall(ref_pattern, content)))
@@ -99,7 +118,8 @@ class ModelLoader:
             'depends_on': depends_on,
             'source_refs': source_refs,
             'content': content,
-            'file_path': str(file_path)
+            'file_path': str(file_path),
+            'description': description
         }
 
     def parse_python_file(self, file_path: Path) -> Dict[str, Any]:
@@ -144,7 +164,8 @@ class ModelLoader:
             'depends_on': depends_on,
             'source_refs': source_refs,
             'content': content,
-            'file_path': str(file_path)
+            'file_path': str(file_path),
+            'description': ''  # TODO: Extract from Python docstrings
         }
 
     def render_sql(self, content: str, context: Dict[str, Any] = None) -> str:
@@ -202,9 +223,10 @@ class ModelLoader:
                     depends_on=parsed['depends_on']
                 )
 
-                # Store config for later use
+                # Store config and metadata for later use
                 model.config = parsed['config']
                 model.file_path = parsed['file_path']
+                model.description = parsed.get('description', '')
 
                 models.append(model)
 
@@ -228,9 +250,10 @@ class ModelLoader:
                     depends_on=parsed['depends_on']
                 )
 
-                # Store config for later use
+                # Store config and metadata for later use
                 model.config = parsed['config']
                 model.file_path = parsed['file_path']
+                model.description = parsed.get('description', '')
 
                 models.append(model)
 

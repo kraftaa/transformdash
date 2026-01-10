@@ -218,7 +218,8 @@ async def get_models(
             "type": model.model_type.value,
             "depends_on": model.depends_on,
             "config": getattr(model, 'config', {}),
-            "file_path": getattr(model, 'file_path', '')
+            "file_path": getattr(model, 'file_path', ''),
+            "description": getattr(model, 'description', '')
         } for model in models]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
