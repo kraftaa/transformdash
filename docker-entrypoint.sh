@@ -76,7 +76,7 @@ except:
     $$;
 
     -- Grant basic connection
-    GRANT CONNECT ON DATABASE transformdash TO demo;
+    GRANT CONNECT ON DATABASE $TRANSFORMDASH_DB TO demo;
 
     -- Grant schema usage
     GRANT USAGE ON SCHEMA raw, public TO demo;
