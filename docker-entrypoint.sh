@@ -11,16 +11,9 @@ done
 echo "PostgreSQL is ready"
 
 # Check if this is first startup by checking if visualization tables exist
+# Using psql instead of Python to avoid loading heavy dependencies (pandas ~100MB)
 echo "Checking if database is initialized..."
-if ! python -c "
-from postgres import PostgresConnector
-try:
-    with PostgresConnector() as pg:
-        pg.execute('SELECT 1 FROM data_connections LIMIT 1')
-    print('already_initialized')
-except:
-    print('needs_initialization')
-" | grep -q "already_initialized"; then
+if ! PGPASSWORD=$TRANSFORMDASH_PASSWORD psql -h $TRANSFORMDASH_HOST -p $TRANSFORMDASH_PORT -U $TRANSFORMDASH_USER -d $TRANSFORMDASH_DB -tAc "SELECT 1 FROM data_connections LIMIT 1" 2>/dev/null | grep -q "1"; then
     echo "First startup detected - initializing database..."
 
     # Run visualization setup (creates data_connections table)
@@ -52,16 +45,7 @@ if [ "$DEMO_MODE" = "true" ]; then
     echo "Demo mode detected - checking if sample data exists..."
     if [ "$SKIP_AUTO_SEED" = "true" ]; then
         echo "Skipping auto-seed check (SKIP_AUTO_SEED=true, assuming data pre-seeded)"
-    elif ! python -c "
-from postgres import PostgresConnector
-try:
-    with PostgresConnector() as pg:
-        result = pg.execute('SELECT COUNT(*) FROM raw.customers')
-        count = result[0][0] if result else 0
-        print('has_data' if count > 0 else 'needs_data')
-except:
-    print('needs_data')
-" | grep -q "has_data"; then
+    elif ! PGPASSWORD=$TRANSFORMDASH_PASSWORD psql -h $TRANSFORMDASH_HOST -p $TRANSFORMDASH_PORT -U $TRANSFORMDASH_USER -d $TRANSFORMDASH_DB -tAc "SELECT COUNT(*) FROM raw.customers" 2>/dev/null | grep -qE "^[1-9]"; then
         echo "No sample data found - seeding now..."
         python seed_fake_data_expanded.py
         echo "Sample data seeding complete!"
