@@ -65,15 +65,15 @@ except:
 
     # Set up read-only permissions for demo safety
     echo "Configuring read-only protections for raw schema..."
-    PGPASSWORD=$TRANSFORMDASH_PASSWORD psql -h $TRANSFORMDASH_HOST -p $TRANSFORMDASH_PORT -U $TRANSFORMDASH_USER -d $TRANSFORMDASH_DB << 'EOF'
+    PGPASSWORD=$TRANSFORMDASH_PASSWORD psql -h $TRANSFORMDASH_HOST -p $TRANSFORMDASH_PORT -U $TRANSFORMDASH_USER -d $TRANSFORMDASH_DB << EOF
     -- Create demo database user if not exists
-    DO $$
+    DO \$\$
     BEGIN
         IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'demo') THEN
             CREATE USER demo WITH PASSWORD 'demo';
         END IF;
     END
-    $$;
+    \$\$;
 
     -- Grant basic connection
     GRANT CONNECT ON DATABASE $TRANSFORMDASH_DB TO demo;
