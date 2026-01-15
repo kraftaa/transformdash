@@ -34,38 +34,40 @@ except:
         PGPASSWORD=$TRANSFORMDASH_PASSWORD psql -h $TRANSFORMDASH_HOST -p $TRANSFORMDASH_PORT -U $TRANSFORMDASH_USER -d $TRANSFORMDASH_DB -f "$migration" 2>&1 | grep -v "already exists" || true
     done
 
-    # Run sample data seeding (commented out to avoid OOM on Render with 512MB limit)
-    # Uncomment if deploying to fresh database that needs initial data
-    # echo "Seeding sample e-commerce data..."
-    # python seed_fake_data_expanded.py
+    # Run sample data seeding (skip if SKIP_AUTO_SEED=true to avoid OOM on low-memory hosts)
+    if [ "$SKIP_AUTO_SEED" != "true" ]; then
+        echo "Seeding sample e-commerce data..."
+        python seed_fake_data_expanded.py
+    else
+        echo "Skipping auto-seed (SKIP_AUTO_SEED=true)"
+    fi
 
     echo "Database initialization complete"
 else
     echo "Database already initialized, skipping setup"
 fi
 
-# In demo mode, always ensure sample data is loaded
-# NOTE: Seeding disabled to avoid OOM on Render's 512MB limit
-# Data should be pre-seeded in the database before deploying
+# In demo mode, ensure sample data is loaded (unless SKIP_AUTO_SEED=true)
 if [ "$DEMO_MODE" = "true" ]; then
-    echo "Demo mode detected - assuming sample data already exists in database"
-    # Uncomment below to enable automatic seeding if data is missing
-    # if ! python -c "
-# from postgres import PostgresConnector
-# try:
-#     with PostgresConnector() as pg:
-#         result = pg.execute('SELECT COUNT(*) FROM raw.customers')
-#         count = result[0][0] if result else 0
-#         print('has_data' if count > 0 else 'needs_data')
-# except:
-#     print('needs_data')
-# " | grep -q "has_data"; then
-#         echo "No sample data found - seeding now..."
-#         python seed_fake_data_expanded.py
-#         echo "Sample data seeding complete!"
-#     else
-#         echo "Sample data already exists, skipping seeding"
-#     fi
+    echo "Demo mode detected - checking if sample data exists..."
+    if [ "$SKIP_AUTO_SEED" = "true" ]; then
+        echo "Skipping auto-seed check (SKIP_AUTO_SEED=true, assuming data pre-seeded)"
+    elif ! python -c "
+from postgres import PostgresConnector
+try:
+    with PostgresConnector() as pg:
+        result = pg.execute('SELECT COUNT(*) FROM raw.customers')
+        count = result[0][0] if result else 0
+        print('has_data' if count > 0 else 'needs_data')
+except:
+    print('needs_data')
+" | grep -q "has_data"; then
+        echo "No sample data found - seeding now..."
+        python seed_fake_data_expanded.py
+        echo "Sample data seeding complete!"
+    else
+        echo "Sample data already exists, skipping seeding"
+    fi
 
     # Set up read-only permissions for demo safety
     echo "Configuring read-only protections for raw schema..."
