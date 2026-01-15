@@ -34,9 +34,10 @@ except:
         PGPASSWORD=$TRANSFORMDASH_PASSWORD psql -h $TRANSFORMDASH_HOST -p $TRANSFORMDASH_PORT -U $TRANSFORMDASH_USER -d $TRANSFORMDASH_DB -f "$migration" 2>&1 | grep -v "already exists" || true
     done
 
-    # Run sample data seeding
-    echo "Seeding sample e-commerce data..."
-    python seed_fake_data_expanded.py
+    # Run sample data seeding (commented out to avoid OOM on Render with 512MB limit)
+    # Uncomment if deploying to fresh database that needs initial data
+    # echo "Seeding sample e-commerce data..."
+    # python seed_fake_data_expanded.py
 
     echo "Database initialization complete"
 else
