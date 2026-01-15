@@ -134,7 +134,10 @@ run_history = RunHistory()
 
 # Initialize AI assistant if available
 ai_assistant = None
-if AI_SEARCH_AVAILABLE:
+# Check if AI search is explicitly disabled (useful for low-memory environments like Render free tier)
+disable_ai_search = os.getenv('DISABLE_AI_SEARCH', 'false').lower() == 'true'
+
+if AI_SEARCH_AVAILABLE and not disable_ai_search:
     try:
         logger.info("Initializing AI search assistant...")
         ai_assistant = DbtAssistant(models_dir=str(models_dir))
@@ -142,6 +145,8 @@ if AI_SEARCH_AVAILABLE:
     except Exception as e:
         logger.warning(f"Failed to initialize AI assistant: {e}")
         ai_assistant = None
+elif disable_ai_search:
+    logger.info("AI search disabled via DISABLE_AI_SEARCH environment variable")
 
 
 @app.get("/login", response_class=HTMLResponse)
