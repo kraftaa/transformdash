@@ -130,7 +130,8 @@ def create_visualization_schema():
         pg.execute("CREATE INDEX IF NOT EXISTS idx_dashboard_charts_chart ON dashboard_charts(chart_id)")
         pg.execute("CREATE INDEX IF NOT EXISTS idx_dashboard_charts_tab ON dashboard_charts(tab_id)")
         pg.execute("CREATE INDEX IF NOT EXISTS idx_dashboard_filters_dashboard ON dashboard_filters(dashboard_id)")
-        pg.execute("CREATE INDEX IF NOT EXISTS idx_charts_connection ON charts(connection_id)")
+        # Note: connection_id index skipped - column may not exist if charts table created by migrations
+        # pg.execute("CREATE INDEX IF NOT EXISTS idx_charts_connection ON charts(connection_id)")
         print("   ✅ All indexes created")
 
         # ============================================================
