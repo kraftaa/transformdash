@@ -7441,11 +7441,16 @@ async function runTransformations() {
     const statusDiv = document.getElementById('execution-status');
     const runBtn = document.getElementById('runBtn');
 
+    // Show toast immediately so user knows something is happening
+    showToast('⏳ Running pipeline... Please wait', 'info');
+
     try {
-        // Disable button and show running status
-        runBtn.disabled = true;
-        statusDiv.className = 'execution-status running';
-        statusDiv.innerHTML = '<strong>⏳ Running transformations...</strong><br>Executing models in DAG order';
+        // Disable button and show running status (if elements exist)
+        if (runBtn) runBtn.disabled = true;
+        if (statusDiv) {
+            statusDiv.className = 'execution-status running';
+            statusDiv.innerHTML = '<strong>⏳ Running transformations...</strong><br>Executing models in DAG order';
+        }
 
         // Execute transformations
         const response = await fetch('/api/execute', {
@@ -7458,39 +7463,47 @@ async function runTransformations() {
         const data = await response.json();
 
         if (response.ok) {
-            // Show success
-            statusDiv.className = 'execution-status success';
+            // Show success toast
+            const successMsg = data.summary.failures > 0
+                ? `✅ Pipeline completed: ${data.summary.successes} succeeded, ${data.summary.failures} failed`
+                : `✅ Pipeline completed successfully! ${data.summary.successes} models in ${data.summary.total_execution_time.toFixed(2)}s`;
+            showToast(successMsg, data.summary.failures > 0 ? 'warning' : 'success');
 
-            // Build failed models list if any
-            let failedModelsHtml = '';
-            if (data.summary.failures > 0 && data.summary.model_results) {
-                const failedModels = data.summary.model_results.filter(m => m.status === 'failed');
-                failedModelsHtml = `
-                    <div style="margin-top: 12px; padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px;">
-                        <strong style="color: #dc2626;">Failed Models:</strong>
-                        <ul style="margin: 8px 0 0 0; padding-left: 20px;">
-                            ${failedModels.map(m => `
-                                <li style="margin: 4px 0;">
-                                    <a href="#" onclick="scrollToModel('${m.name}'); return false;"
-                                       style="color: #dc2626; text-decoration: underline; cursor: pointer;">
-                                        ${m.name}
-                                    </a>
-                                    ${m.error ? `<br><span style="font-size: 0.85em; color: #991b1b;">Error: ${m.error}</span>` : ''}
-                                </li>
-                            `).join('')}
-                        </ul>
-                    </div>
+            // Update status div if it exists
+            if (statusDiv) {
+                statusDiv.className = 'execution-status success';
+
+                // Build failed models list if any
+                let failedModelsHtml = '';
+                if (data.summary.failures > 0 && data.summary.model_results) {
+                    const failedModels = data.summary.model_results.filter(m => m.status === 'failed');
+                    failedModelsHtml = `
+                        <div style="margin-top: 12px; padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px;">
+                            <strong style="color: #dc2626;">Failed Models:</strong>
+                            <ul style="margin: 8px 0 0 0; padding-left: 20px;">
+                                ${failedModels.map(m => `
+                                    <li style="margin: 4px 0;">
+                                        <a href="#" onclick="scrollToModel('${m.name}'); return false;"
+                                           style="color: #dc2626; text-decoration: underline; cursor: pointer;">
+                                            ${m.name}
+                                        </a>
+                                        ${m.error ? `<br><span style="font-size: 0.85em; color: #991b1b;">Error: ${m.error}</span>` : ''}
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    `;
+                }
+
+                statusDiv.innerHTML = `
+                    <strong>✅ Transformations completed successfully!</strong><br>
+                    <p>Total Models: ${data.summary.total_models}</p>
+                    <p>✓ Successes: ${data.summary.successes}</p>
+                    <p>✗ Failures: ${data.summary.failures}</p>
+                    <p>⏱️ Total Time: ${data.summary.total_execution_time.toFixed(3)}s</p>
+                    ${failedModelsHtml}
                 `;
             }
-
-            statusDiv.innerHTML = `
-                <strong>✅ Transformations completed successfully!</strong><br>
-                <p>Total Models: ${data.summary.total_models}</p>
-                <p>✓ Successes: ${data.summary.successes}</p>
-                <p>✗ Failures: ${data.summary.failures}</p>
-                <p>⏱️ Total Time: ${data.summary.total_execution_time.toFixed(3)}s</p>
-                ${failedModelsHtml}
-            `;
 
             // Refresh models to show updated status
             await loadModels();
@@ -7500,13 +7513,16 @@ async function runTransformations() {
 
     } catch (error) {
         console.error('Error executing transformations:', error);
-        statusDiv.className = 'execution-status error';
-        statusDiv.innerHTML = `
-            <strong>❌ Execution failed</strong><br>
-            <p>${error.message}</p>
-        `;
+        showToast(`❌ Pipeline failed: ${error.message}`, 'error');
+        if (statusDiv) {
+            statusDiv.className = 'execution-status error';
+            statusDiv.innerHTML = `
+                <strong>❌ Execution failed</strong><br>
+                <p>${error.message}</p>
+            `;
+        }
     } finally {
-        runBtn.disabled = false;
+        if (runBtn) runBtn.disabled = false;
     }
 }
 

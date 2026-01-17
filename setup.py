@@ -11,7 +11,7 @@ long_description = (this_directory / "README.md").read_text()
 
 setup(
     name="transformdash",
-    version="1.0.0",
+    version="1.0.2",
     author="Maria Dubyaga",
     author_email="kraftaa@gmail.com",
     description="A modern, dbt-inspired data transformation platform with ML integration",
@@ -92,6 +92,10 @@ setup(
             "mkdocs>=1.5.0",
             "mkdocs-material>=9.0.0",
             "mkdocstrings[python]>=0.22.0",
+        ],
+        "ai": [
+            "sentence-transformers>=2.2.0",
+            "faiss-cpu>=1.7.0",
         ],
     },
     entry_points={
