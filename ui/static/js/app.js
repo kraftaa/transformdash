@@ -264,8 +264,9 @@ function switchView(viewName) {
                     saveBtn.disabled = true;
                 }
             }
-            // Load available connections for chart builder
+            // Load available connections and dashboards for chart builder
             loadChartConnections();
+            loadChartDashboards();
             break;
         case 'ml-models':
             loadMLModels();
@@ -6857,8 +6858,10 @@ async function createChart() {
             });
         }
 
-        // Enable save button
-        document.getElementById('saveChartBtn').disabled = false;
+        // Enable and show save button
+        const saveBtn = document.getElementById('saveChartBtn');
+        saveBtn.disabled = false;
+        saveBtn.style.display = 'inline-block';
 
     } catch (error) {
         console.error('Error creating chart:', error);
