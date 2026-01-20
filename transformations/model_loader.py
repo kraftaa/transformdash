@@ -3,11 +3,42 @@ Model Loader
 Loads SQL models from files with Jinja templating support
 """
 import os
+import ast
 import yaml
 import re
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Set
 from jinja2 import Environment, FileSystemLoader, Template
+from psycopg2 import sql as psycopg2_sql
+
+
+# Security: Forbidden imports and calls for Python model validation
+FORBIDDEN_IMPORTS: Set[str] = {
+    'os', 'subprocess', 'sys', 'shutil', 'importlib',
+    '__builtin__', 'builtins', 'commands', 'pty', 'socket',
+    'ctypes', 'multiprocessing', 'threading', 'signal',
+    'pickle', 'shelve', 'marshal', 'code', 'codeop',
+    'compile', 'execfile', 'runpy', 'tempfile', 'glob',
+    'pathlib', 'io', 'codecs', 'fcntl', 'resource'
+}
+
+FORBIDDEN_CALLS: Set[str] = {
+    'eval', 'exec', 'compile', 'open', '__import__',
+    'getattr', 'setattr', 'delattr', 'globals', 'locals',
+    'vars', 'dir', 'input', 'raw_input', 'breakpoint',
+    'memoryview', 'bytearray'
+}
+
+
+def validate_sql_identifier(name: str) -> str:
+    """Validate that a string is a safe SQL identifier"""
+    if not name:
+        raise ValueError("SQL identifier cannot be empty")
+    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', name):
+        raise ValueError(f"Invalid SQL identifier '{name}': must contain only letters, numbers, and underscores")
+    return name
+
+
 try:
     from .model import TransformationModel, ModelType
 except ImportError:
@@ -259,6 +290,38 @@ class ModelLoader:
 
         return models
 
+    def _validate_python_code(self, content: str, file_path: Path) -> None:
+        """
+        Validate Python code doesn't contain dangerous operations.
+        Raises ValueError if forbidden imports or calls are found.
+        """
+        try:
+            tree = ast.parse(content)
+        except SyntaxError as e:
+            raise ValueError(f"Invalid Python syntax in {file_path}: {e}")
+
+        for node in ast.walk(tree):
+            # Check for forbidden imports
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    module_root = alias.name.split('.')[0]
+                    if module_root in FORBIDDEN_IMPORTS:
+                        raise ValueError(f"Forbidden import '{alias.name}' in {file_path}")
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    module_root = node.module.split('.')[0]
+                    if module_root in FORBIDDEN_IMPORTS:
+                        raise ValueError(f"Forbidden import from '{node.module}' in {file_path}")
+            # Check for forbidden function calls
+            elif isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name) and node.func.id in FORBIDDEN_CALLS:
+                    raise ValueError(f"Forbidden call '{node.func.id}' in {file_path}")
+                # Check for attribute calls like os.system()
+                elif isinstance(node.func, ast.Attribute):
+                    if isinstance(node.func.value, ast.Name):
+                        if node.func.value.id in FORBIDDEN_IMPORTS:
+                            raise ValueError(f"Forbidden module access '{node.func.value.id}.{node.func.attr}' in {file_path}")
+
     def _execute_python_model(self, file_path: Path, content: str, context: Dict[str, Any]) -> Any:
         """
         Execute a Python model file
@@ -266,6 +329,9 @@ class ModelLoader:
         """
         import pandas as pd
         from postgres import PostgresConnector
+
+        # Security: Validate Python code before execution
+        self._validate_python_code(content, file_path)
 
         # Create a dbt-like context object
         class DBTContext:
@@ -278,15 +344,20 @@ class ModelLoader:
                 """
                 Reference another model - returns DataFrame from that model's table
                 """
+                # Validate model_name to prevent SQL injection
+                validate_sql_identifier(model_name)
+
                 # Check if model result is in context (already executed in this run)
                 if model_name in self.context.get('models', {}):
                     result = self.context['models'][model_name]
                     if isinstance(result, pd.DataFrame):
                         return result
 
-                # Otherwise, read from database table
+                # Otherwise, read from database table using safe query construction
                 with self.pg as pg:
-                    query = f"SELECT * FROM public.{model_name}"
+                    query = psycopg2_sql.SQL("SELECT * FROM public.{model}").format(
+                        model=psycopg2_sql.Identifier(model_name)
+                    ).as_string(pg.conn)
                     df = pg.query_to_dataframe(query)
                 return df
 
@@ -294,21 +365,42 @@ class ModelLoader:
                 """
                 Reference a source table - returns DataFrame from raw source
                 """
+                # Validate identifiers to prevent SQL injection
+                validate_sql_identifier(table_name)
+                schema = self.loader.sources.get(source_name, {}).get('schema', 'public')
+                validate_sql_identifier(schema)
+
                 with self.pg as pg:
-                    schema = self.loader.sources.get(source_name, {}).get('schema', 'public')
-                    query = f"SELECT * FROM {schema}.{table_name}"
+                    query = psycopg2_sql.SQL("SELECT * FROM {schema}.{table}").format(
+                        schema=psycopg2_sql.Identifier(schema),
+                        table=psycopg2_sql.Identifier(table_name)
+                    ).as_string(pg.conn)
                     df = pg.query_to_dataframe(query)
                 return df
 
-        # Create execution namespace
+        # Create restricted execution namespace (no dangerous builtins)
+        safe_builtins = {
+            'True': True, 'False': False, 'None': None,
+            'abs': abs, 'all': all, 'any': any, 'bool': bool,
+            'dict': dict, 'enumerate': enumerate, 'filter': filter,
+            'float': float, 'frozenset': frozenset, 'int': int,
+            'isinstance': isinstance, 'issubclass': issubclass,
+            'len': len, 'list': list, 'map': map, 'max': max,
+            'min': min, 'pow': pow, 'print': print, 'range': range,
+            'repr': repr, 'reversed': reversed, 'round': round,
+            'set': set, 'slice': slice, 'sorted': sorted, 'str': str,
+            'sum': sum, 'tuple': tuple, 'type': type, 'zip': zip,
+        }
+
         namespace = {
+            '__builtins__': safe_builtins,
             'pd': pd,
             'dbt': DBTContext(self, context),
             '__name__': '__main__',
             '__file__': str(file_path)
         }
 
-        # Execute the Python file
+        # Execute the Python file with restricted namespace
         exec(content, namespace)
 
         # Call the model() function
