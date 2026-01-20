@@ -1653,11 +1653,13 @@
                 <div id="tableModeConfig" style="display: block;">
                     <div style="margin-bottom: 1rem;">
                         <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">Schema</label>
-                        <input type="text" id="datasetSchema" placeholder="public" value="public" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.875rem;">
+                        <input type="text" id="datasetSchema" list="datasetSchemaList" placeholder="public" value="public" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.875rem;" onchange="loadDatasetTables()">
+                        <datalist id="datasetSchemaList"></datalist>
                     </div>
                     <div style="margin-bottom: 1rem;">
                         <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">Table Name*</label>
-                        <input type="text" id="datasetTableName" placeholder="Enter table name" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.875rem;">
+                        <input type="text" id="datasetTableName" list="datasetTableList" placeholder="Enter table name" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.875rem;">
+                        <datalist id="datasetTableList"></datalist>
                     </div>
                 </div>
 
