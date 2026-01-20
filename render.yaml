@@ -1,0 +1,79 @@
+services:
+  - type: web
+    name: transformdash-demo
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: DEMO_MODE
+        value: "true"
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      # Legacy POSTGRES_* vars for seed scripts
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: transformdash-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: transformdash-db
+          property: port
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: transformdash-db
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: transformdash-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: transformdash-db
+          property: password
+      # TransformDash specific vars
+      - key: TRANSFORMDASH_HOST
+        fromDatabase:
+          name: transformdash-db
+          property: host
+      - key: TRANSFORMDASH_PORT
+        fromDatabase:
+          name: transformdash-db
+          property: port
+      - key: TRANSFORMDASH_DB
+        fromDatabase:
+          name: transformdash-db
+          property: database
+      - key: TRANSFORMDASH_USER
+        fromDatabase:
+          name: transformdash-db
+          property: user
+      - key: TRANSFORMDASH_PASSWORD
+        fromDatabase:
+          name: transformdash-db
+          property: password
+      - key: APP_HOST
+        fromDatabase:
+          name: transformdash-db
+          property: host
+      - key: APP_PORT
+        fromDatabase:
+          name: transformdash-db
+          property: port
+      - key: APP_DB
+        fromDatabase:
+          name: transformdash-db
+          property: database
+      - key: APP_USER
+        fromDatabase:
+          name: transformdash-db
+          property: user
+      - key: APP_PASSWORD
+        fromDatabase:
+          name: transformdash-db
+          property: password
+
+databases:
+  - name: transformdash-db
+    databaseName: transformdash
+    plan: free

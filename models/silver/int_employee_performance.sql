@@ -1,7 +1,8 @@
 {{ config(materialized='incremental') }}
 
--- Silver: Employee Performance
--- Combine employee data with department metrics
+-- Silver: Employee performance metrics
+-- Enriches employee data with tenure calculations and department information
+-- Includes salary, position, hire dates, and years of service for workforce analysis
 
 SELECT
     e.employee_id,

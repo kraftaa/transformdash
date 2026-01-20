@@ -11,16 +11,9 @@ done
 echo "PostgreSQL is ready"
 
 # Check if this is first startup by checking if visualization tables exist
+# Using psql instead of Python to avoid loading heavy dependencies (pandas ~100MB)
 echo "Checking if database is initialized..."
-if ! python -c "
-from postgres import PostgresConnector
-try:
-    with PostgresConnector() as pg:
-        pg.execute('SELECT 1 FROM data_connections LIMIT 1')
-    print('already_initialized')
-except:
-    print('needs_initialization')
-" | grep -q "already_initialized"; then
+if ! PGPASSWORD=$TRANSFORMDASH_PASSWORD psql -h $TRANSFORMDASH_HOST -p $TRANSFORMDASH_PORT -U $TRANSFORMDASH_USER -d $TRANSFORMDASH_DB -tAc "SELECT 1 FROM data_connections LIMIT 1" 2>/dev/null | grep -q "1"; then
     echo "First startup detected - initializing database..."
 
     # Run visualization setup (creates data_connections table)
@@ -34,13 +27,84 @@ except:
         PGPASSWORD=$TRANSFORMDASH_PASSWORD psql -h $TRANSFORMDASH_HOST -p $TRANSFORMDASH_PORT -U $TRANSFORMDASH_USER -d $TRANSFORMDASH_DB -f "$migration" 2>&1 | grep -v "already exists" || true
     done
 
-    # Run sample data seeding
-    echo "Seeding sample e-commerce data..."
-    python seed_fake_data_expanded.py
+    # Run sample data seeding (skip if SKIP_AUTO_SEED=true to avoid OOM on low-memory hosts)
+    if [ "$SKIP_AUTO_SEED" != "true" ]; then
+        echo "Seeding sample e-commerce data..."
+        python seed_fake_data_expanded.py
+    else
+        echo "Skipping auto-seed (SKIP_AUTO_SEED=true)"
+    fi
 
     echo "Database initialization complete"
 else
     echo "Database already initialized, skipping setup"
+fi
+
+# In demo mode, ensure sample data is loaded (unless SKIP_AUTO_SEED=true)
+if [ "$DEMO_MODE" = "true" ]; then
+    echo "Demo mode detected - checking if sample data exists..."
+    if [ "$SKIP_AUTO_SEED" = "true" ]; then
+        echo "Skipping auto-seed check (SKIP_AUTO_SEED=true, assuming data pre-seeded)"
+    elif ! PGPASSWORD=$TRANSFORMDASH_PASSWORD psql -h $TRANSFORMDASH_HOST -p $TRANSFORMDASH_PORT -U $TRANSFORMDASH_USER -d $TRANSFORMDASH_DB -tAc "SELECT COUNT(*) FROM raw.customers" 2>/dev/null | grep -qE "^[1-9]"; then
+        echo "No sample data found - seeding now..."
+        python seed_fake_data_expanded.py
+        echo "Sample data seeding complete!"
+    else
+        echo "Sample data already exists, skipping seeding"
+    fi
+
+    # Set up read-only permissions for demo safety
+    echo "Configuring read-only protections for raw schema..."
+    PGPASSWORD=$TRANSFORMDASH_PASSWORD psql -h $TRANSFORMDASH_HOST -p $TRANSFORMDASH_PORT -U $TRANSFORMDASH_USER -d $TRANSFORMDASH_DB << EOF
+    -- Create demo database user if not exists
+    DO \$\$
+    BEGIN
+        IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'demo') THEN
+            CREATE USER demo WITH PASSWORD 'demo';
+        END IF;
+    END
+    \$\$;
+
+    -- Grant basic connection
+    GRANT CONNECT ON DATABASE $TRANSFORMDASH_DB TO demo;
+
+    -- Grant schema usage
+    GRANT USAGE ON SCHEMA raw, public TO demo;
+
+    -- raw schema: READ-ONLY (protect source data)
+    GRANT SELECT ON ALL TABLES IN SCHEMA raw TO demo;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA raw GRANT SELECT ON TABLES TO demo;
+    REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON ALL TABLES IN SCHEMA raw FROM demo;
+
+    -- public schema: READ-WRITE (allow transformations, dashboards)
+    GRANT ALL ON SCHEMA public TO demo;
+    GRANT ALL ON ALL TABLES IN SCHEMA public TO demo;
+    GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO demo;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO demo;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO demo;
+
+    -- Create demo application user
+    INSERT INTO users (username, email, password_hash, full_name, is_active, is_superuser)
+    VALUES (
+        'demo',
+        'demo@transformdash.demo',
+        '$2b$12$gVK0OQ.3dfqKaTZFicqP.OwWHsgAaMoMFLZY4Vlluv4Shm3gWQWFm',
+        'Demo User',
+        TRUE,
+        FALSE
+    )
+    ON CONFLICT (username) DO UPDATE SET
+        password_hash = EXCLUDED.password_hash,
+        is_active = TRUE;
+
+    -- Assign Analyst role to demo user (can view and run, but not delete)
+    INSERT INTO user_roles (user_id, role_id)
+    SELECT u.id, r.id FROM users u, roles r
+    WHERE u.username = 'demo' AND r.name = 'Analyst'
+    ON CONFLICT DO NOTHING;
+EOF
+    echo "Read-only protections configured - raw schema is protected!"
+    echo "Demo user created: demo / demo"
 fi
 
 # Start the application

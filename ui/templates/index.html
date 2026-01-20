@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TransformDash - Data Transformation Platform</title>
 
-    <!-- Modern Favicon -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+    <!-- Favicon -->
+    <link rel="icon" href="/static/favicon.png" type="image/png">
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -26,7 +26,7 @@
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div class="logo">
-                <span class="logo-icon">📊</span>
+                <img src="/static/logo-white.png" alt="TransformDash" class="logo-icon" style="width: 48px; height: 48px;">
                 <span class="logo-text">TransformDash</span>
             </div>
             <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle Sidebar">
@@ -538,16 +538,32 @@
                 </div>
                 <div id="execution-status"></div>
                 <!-- Search Box -->
-                <div class="search-container" style="margin-bottom: 1rem; max-width: 400px;">
-                    <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-                    </svg>
-                    <input type="text" id="models-search" class="search-input" placeholder="Search models by name, description, layer..." oninput="handleModelsSearch(this.value)">
-                    <button onclick="clearModelsSearch()" style="position: absolute; right: 10px; background: none; border: none; color: #6b7280; cursor: pointer; display: none;" id="models-search-clear">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M18 6L6 18M6 6l12 12"/>
+                <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center; max-width: 600px;">
+                    <div class="search-container" style="flex: 1;">
+                        <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
                         </svg>
+                        <input type="text" id="models-search" class="search-input" placeholder="Search models by name, description, layer..." oninput="handleModelsSearch(this.value)">
+                        <button onclick="clearModelsSearch()" style="position: absolute; right: 10px; background: none; border: none; color: #6b7280; cursor: pointer; display: none;" id="models-search-clear">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 6L6 18M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <button
+                        id="ai-search-toggle"
+                        class="btn btn-secondary"
+                        onclick="toggleAISearch()"
+                        title="Toggle AI-powered semantic search"
+                        style="padding: 0.5rem 1rem; white-space: nowrap; display: none;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+                            <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
+                        </svg>
+                        <span id="ai-search-label">AI Search</span>
                     </button>
+                </div>
+                <div id="ai-search-results" style="display: none; margin-bottom: 1rem;">
+                    <!-- AI search results will appear here -->
                 </div>
                 <div id="models-list"></div>
             </div>
@@ -737,20 +753,6 @@
                                     <option value="">Select column...</option>
                                 </select>
                             </div>
-
-                            <!-- Filters Section -->
-                            <div style="margin-bottom: 1rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--color-border);">
-                                <label style="display: block; margin-bottom: 0.75rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">
-                                    🔍 Filters
-                                    <span style="font-weight: normal; color: var(--color-text-muted); font-size: 0.8rem;">(optional)</span>
-                                </label>
-                                <div id="filtersContainer" style="margin-bottom: 0.75rem;">
-                                    <p style="color: var(--color-text-muted); font-size: 0.8rem; margin: 0;">No filters added</p>
-                                </div>
-                                <button type="button" onclick="addFilter()" class="btn btn-secondary" style="width: 100%; font-size: 0.875rem;">
-                                    + Add Filter
-                                </button>
-                            </div>
                         </div>
 
                         <!-- Table Chart Fields (hidden by default) -->
@@ -766,7 +768,21 @@
                             </button>
                         </div>
 
-                        <button onclick="createChart()" class="btn btn-primary" style="width: 100%;">
+                        <!-- Filters Section (available for all chart types) -->
+                        <div style="margin-bottom: 1rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--color-border);">
+                            <label style="display: block; margin-bottom: 0.75rem; font-weight: 600; color: var(--color-text-primary); font-size: 0.875rem;">
+                                🔍 Filters
+                                <span style="font-weight: normal; color: var(--color-text-muted); font-size: 0.8rem;">(optional)</span>
+                            </label>
+                            <div id="filtersContainer" style="margin-bottom: 0.75rem;">
+                                <p style="color: var(--color-text-muted); font-size: 0.8rem; margin: 0;">No filters added</p>
+                            </div>
+                            <button type="button" onclick="addFilter()" class="btn btn-secondary" style="width: 100%; font-size: 0.875rem;">
+                                + Add Filter
+                            </button>
+                        </div>
+
+                        <button id="createChartBtn" onclick="createChart()" class="btn btn-primary" style="width: 100%;">
                             ✨ Create Chart
                         </button>
 
@@ -777,7 +793,7 @@
                     <div style="background: var(--color-bg-surface); border: 1px solid var(--color-border); padding: 1.5rem; border-radius: var(--radius-lg); display: flex; flex-direction: column; height: 100%;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                             <h3 style="color: var(--color-text-primary);">Preview</h3>
-                            <button onclick="saveChart()" id="saveChartBtn" disabled class="btn btn-secondary">
+                            <button onclick="saveChart()" id="saveChartBtn" disabled class="btn btn-secondary" style="display: none;">
                                 💾 Save Chart
                             </button>
                         </div>
@@ -1637,11 +1653,13 @@
                 <div id="tableModeConfig" style="display: block;">
                     <div style="margin-bottom: 1rem;">
                         <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">Schema</label>
-                        <input type="text" id="datasetSchema" placeholder="public" value="public" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.875rem;">
+                        <input type="text" id="datasetSchema" list="datasetSchemaList" placeholder="public" value="public" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.875rem;" onchange="loadDatasetTables()">
+                        <datalist id="datasetSchemaList"></datalist>
                     </div>
                     <div style="margin-bottom: 1rem;">
                         <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #374151;">Table Name*</label>
-                        <input type="text" id="datasetTableName" placeholder="Enter table name" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.875rem;">
+                        <input type="text" id="datasetTableName" list="datasetTableList" placeholder="Enter table name" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.875rem;">
+                        <datalist id="datasetTableList"></datalist>
                     </div>
                 </div>
 

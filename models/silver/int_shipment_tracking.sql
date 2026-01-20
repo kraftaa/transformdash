@@ -1,7 +1,8 @@
 {{ config(materialized='incremental') }}
 
--- Silver: Shipment Tracking
--- Combine shipment data with carrier and order information
+-- Silver: Shipment tracking and logistics
+-- Monitors shipment status with carrier information and delivery timelines
+-- Includes tracking numbers, estimated delivery dates, carrier details, and shipment costs
 
 SELECT
     sh.shipment_id,

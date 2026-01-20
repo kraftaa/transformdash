@@ -6,6 +6,54 @@ let currentDatasetSourceType = 'table'; // 'table' or 'sql'
 let allDatasetsData = [];
 let currentDatasetsSearchTerm = '';
 
+// Load schemas for dataset builder dropdown
+async function loadDatasetSchemas() {
+    try {
+        const connectionSelect = document.getElementById('datasetConnection');
+        const connectionId = connectionSelect ? connectionSelect.value : '';
+        const url = connectionId
+            ? `/api/schemas/list?connection_id=${encodeURIComponent(connectionId)}`
+            : '/api/schemas/list';
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        const datalist = document.getElementById('datasetSchemaList');
+        if (datalist && data.schemas) {
+            datalist.innerHTML = data.schemas.map(s => `<option value="${s}">`).join('');
+        }
+
+        // Also load tables for the current schema
+        loadDatasetTables();
+    } catch (error) {
+        console.error('Error loading schemas:', error);
+    }
+}
+
+// Load tables for dataset builder dropdown
+async function loadDatasetTables() {
+    try {
+        const connectionSelect = document.getElementById('datasetConnection');
+        const connectionId = connectionSelect ? connectionSelect.value : '';
+        const schema = document.getElementById('datasetSchema')?.value || 'public';
+
+        let url = `/api/tables/list?schema=${encodeURIComponent(schema)}`;
+        if (connectionId) {
+            url += `&connection_id=${encodeURIComponent(connectionId)}`;
+        }
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        const datalist = document.getElementById('datasetTableList');
+        if (datalist && data.tables) {
+            datalist.innerHTML = data.tables.map(t => `<option value="${t.name}">`).join('');
+        }
+    } catch (error) {
+        console.error('Error loading tables:', error);
+    }
+}
+
 // Debounce utility for datasets search
 let datasetsSearchDebounceTimer = null;
 function debounceDatasetSearch(callback, delay = 300) {
@@ -134,6 +182,9 @@ function openDatasetBuilder() {
 
     // Show modal
     document.getElementById('datasetBuilderModal').style.display = 'block';
+
+    // Load schemas and tables for dropdowns
+    loadDatasetSchemas();
 
     // Add file input change listener
     if (csvFileInput && !csvFileInput.dataset.listenerAttached) {
@@ -279,7 +330,7 @@ async function previewDataset() {
 
             // Headers
             columnNames.forEach(colName => {
-                tableHTML += `<th style="padding: 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; background: white; position: sticky; top: 0;">${colName}</th>`;
+                tableHTML += `<th style="padding: 8px; text-align: left; border-bottom: 2px solid #e5e7eb; font-weight: 600; background: white; color: #111827; position: sticky; top: 0;">${colName}</th>`;
             });
             tableHTML += '</tr></thead><tbody>';
 
@@ -288,7 +339,7 @@ async function previewDataset() {
                 tableHTML += '<tr style="border-bottom: 1px solid #f3f4f6;">';
                 columnNames.forEach(colName => {
                     const val = row[colName];
-                    tableHTML += `<td style="padding: 8px;">${val !== null && val !== undefined ? val : ''}</td>`;
+                    tableHTML += `<td style="padding: 8px; color: #374151;">${val !== null && val !== undefined ? val : ''}</td>`;
                 });
                 tableHTML += '</tr>';
             });
@@ -400,8 +451,8 @@ async function saveDataset() {
         // Show success message
         showToast('Dataset created successfully!', 'success');
 
-        // Reload datasets list if we're on the datasets view
-        if (currentView === 'datasets') {
+        // Reload datasets list
+        if (typeof loadDatasets === 'function') {
             await loadDatasets();
         }
 

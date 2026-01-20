@@ -4,8 +4,22 @@ Handles CRUD operations for datasets
 """
 import logging
 import json
+import re
 from fastapi import HTTPException, Request
 from connection_manager import connection_manager
+from psycopg2 import sql
+
+
+def validate_sql_identifier(name: str, field_name: str) -> str:
+    """Validate that a string is a safe SQL identifier (alphanumeric + underscore only)"""
+    if not name:
+        return name
+    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', name):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid {field_name}: must start with a letter or underscore and contain only letters, numbers, and underscores"
+        )
+    return name
 
 
 async def get_all_datasets():
@@ -333,28 +347,43 @@ async def preview_dataset(request: Request):
         filters = body.get("filters", [])
         limit = body.get("limit", 100)  # Default to 100 rows
 
+        # Validate limit is a positive integer within bounds
+        if not isinstance(limit, int) or limit < 1 or limit > 10000:
+            raise HTTPException(status_code=400, detail="limit must be an integer between 1 and 10000")
+
         # Build the query based on source type
         if source_type == "table":
             if not table_name:
                 raise HTTPException(status_code=400, detail="table_name is required")
 
-            # Build table reference with schema
-            table_ref = f"{schema_name}.{table_name}" if schema_name else table_name
-            query = f"SELECT * FROM {table_ref}"
+            # Validate identifiers to prevent SQL injection
+            validate_sql_identifier(schema_name, "schema_name")
+            validate_sql_identifier(table_name, "table_name")
+
+            # Build query safely using psycopg2.sql module
+            if schema_name:
+                query = sql.SQL("SELECT * FROM {schema}.{table} LIMIT {limit}").format(
+                    schema=sql.Identifier(schema_name),
+                    table=sql.Identifier(table_name),
+                    limit=sql.Literal(limit)
+                )
+            else:
+                query = sql.SQL("SELECT * FROM {table} LIMIT {limit}").format(
+                    table=sql.Identifier(table_name),
+                    limit=sql.Literal(limit)
+                )
 
             # Apply filters if any
             if filters:
-                # TODO: Implement filter logic
+                # TODO: Implement filter logic with parameterized queries
                 pass
 
-            query += f" LIMIT {limit}"
-
         elif source_type == "sql":
-            if not sql_query:
-                raise HTTPException(status_code=400, detail="sql_query is required")
-
-            # Wrap user query with LIMIT
-            query = f"SELECT * FROM ({sql_query}) as subquery LIMIT {limit}"
+            # Direct SQL execution is disabled for security
+            raise HTTPException(
+                status_code=403,
+                detail="Direct SQL execution is disabled for security. Use table-based datasets instead."
+            )
 
         else:
             raise HTTPException(status_code=400, detail=f"Invalid source_type: {source_type}")

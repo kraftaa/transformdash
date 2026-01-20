@@ -28,9 +28,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     Verify plain text password against bcrypt hash.
 
-    Passwords are truncated to 72 bytes (bcrypt limitation).
+    Rejects passwords exceeding bcrypt's 72-byte limit to prevent
+    silent truncation which could cause password collisions.
     """
-    plain_password_bytes = plain_password.encode('utf-8')[:72]
+    plain_password_bytes = plain_password.encode('utf-8')
+
+    # Reject passwords exceeding bcrypt's 72-byte limit
+    if len(plain_password_bytes) > 72:
+        return False
+
     hashed_password_bytes = hashed_password.encode('utf-8') if isinstance(hashed_password, str) else hashed_password
     return bcrypt.checkpw(plain_password_bytes, hashed_password_bytes)
 
@@ -40,9 +46,14 @@ def get_password_hash(password: str) -> str:
     Generate bcrypt hash from plain text password.
 
     Returns UTF-8 decoded hash for database storage.
-    Passwords are truncated to 72 bytes (bcrypt limitation).
+    Raises ValueError if password exceeds bcrypt's 72-byte limit.
     """
-    password_bytes = password.encode('utf-8')[:72]
+    password_bytes = password.encode('utf-8')
+
+    # Reject passwords exceeding bcrypt's 72-byte limit
+    if len(password_bytes) > 72:
+        raise ValueError("Password exceeds maximum length of 72 bytes when UTF-8 encoded")
+
     hashed = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
     return hashed.decode('utf-8')
 
