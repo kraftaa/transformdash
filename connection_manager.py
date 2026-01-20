@@ -52,7 +52,7 @@ class ConnectionManager:
         return re.sub(pattern, replace_var, value)
 
     def _load_connections(self):
-        """Load connections from YAML config file"""
+        """Load connections from YAML config file with validation"""
         if not self.config_path.exists():
             raise FileNotFoundError(f"Connections config not found: {self.config_path}")
 
@@ -62,8 +62,30 @@ class ConnectionManager:
         if not config or 'connections' not in config:
             raise ValueError("Invalid connections.yml format: missing 'connections' key")
 
-        for conn_config in config['connections']:
+        if not isinstance(config['connections'], list):
+            raise ValueError("Invalid connections.yml format: 'connections' must be a list")
+
+        required_fields = ['id', 'host', 'port', 'database', 'user', 'password']
+
+        for idx, conn_config in enumerate(config['connections']):
+            # Validate connection config is a dict
+            if not isinstance(conn_config, dict):
+                raise ValueError(f"Invalid connection at index {idx}: must be a dictionary")
+
+            # Check for required fields with helpful error messages
+            missing_fields = [f for f in required_fields if f not in conn_config]
+            if missing_fields:
+                conn_name = conn_config.get('id', f'index {idx}')
+                raise ValueError(
+                    f"Connection '{conn_name}' is missing required fields: {', '.join(missing_fields)}. "
+                    f"Required fields are: {', '.join(required_fields)}"
+                )
+
             conn_id = conn_config['id']
+
+            # Validate id is a non-empty string
+            if not isinstance(conn_id, str) or not conn_id.strip():
+                raise ValueError(f"Connection at index {idx}: 'id' must be a non-empty string")
 
             # Expand environment variables in all string fields
             expanded_config = {}

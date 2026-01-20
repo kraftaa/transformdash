@@ -2,19 +2,28 @@
 Rate Limiting Middleware for TransformDash
 Prevents brute-force attacks and DoS by limiting request rates per IP address
 """
+import os
 import time
+import threading
 from collections import defaultdict
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Set
 from fastapi import Request, HTTPException, status
 from starlette.middleware.base import BaseHTTPMiddleware
 import logging
 
 logger = logging.getLogger(__name__)
 
+# Trusted proxy IPs - only accept X-Forwarded-For from these sources
+# Configure via TRUSTED_PROXIES env var (comma-separated IPs)
+# Examples: 127.0.0.1, internal load balancer IPs, Cloudflare IPs
+TRUSTED_PROXIES: Set[str] = set(
+    filter(None, os.getenv('TRUSTED_PROXIES', '127.0.0.1,::1').split(','))
+)
+
 
 class RateLimiter:
     """
-    In-memory rate limiter using sliding window algorithm.
+    Thread-safe in-memory rate limiter using sliding window algorithm.
 
     WARNING: Not suitable for distributed deployments. Request counts
     are stored in-process and not shared across multiple instances.
@@ -27,10 +36,12 @@ class RateLimiter:
         self.requests: Dict[str, Dict[str, Tuple[int, float]]] = defaultdict(lambda: defaultdict(lambda: (0, time.time())))
         self.cleanup_interval = 3600  # Clean up old entries every hour
         self.last_cleanup = time.time()
+        # Thread lock for thread-safe access
+        self._lock = threading.Lock()
 
     def is_rate_limited(self, client_ip: str, endpoint: str, max_requests: int, window_seconds: int) -> bool:
         """
-        Check if a request should be rate limited
+        Check if a request should be rate limited (thread-safe)
 
         Args:
             client_ip: Client IP address
@@ -43,26 +54,27 @@ class RateLimiter:
         """
         current_time = time.time()
 
-        # Periodic cleanup
-        if current_time - self.last_cleanup > self.cleanup_interval:
-            self._cleanup_old_entries(current_time)
+        with self._lock:
+            # Periodic cleanup
+            if current_time - self.last_cleanup > self.cleanup_interval:
+                self._cleanup_old_entries(current_time)
 
-        # Get current request count and window start time
-        count, window_start = self.requests[client_ip][endpoint]
+            # Get current request count and window start time
+            count, window_start = self.requests[client_ip][endpoint]
 
-        # Reset window if expired
-        if current_time - window_start > window_seconds:
-            self.requests[client_ip][endpoint] = (1, current_time)
+            # Reset window if expired
+            if current_time - window_start > window_seconds:
+                self.requests[client_ip][endpoint] = (1, current_time)
+                return False
+
+            # Check if limit exceeded
+            if count >= max_requests:
+                logger.warning(f"Rate limit exceeded for {client_ip} on {endpoint}: {count} requests in {current_time - window_start:.2f}s")
+                return True
+
+            # Increment counter
+            self.requests[client_ip][endpoint] = (count + 1, window_start)
             return False
-
-        # Check if limit exceeded
-        if count >= max_requests:
-            logger.warning(f"Rate limit exceeded for {client_ip} on {endpoint}: {count} requests in {current_time - window_start:.2f}s")
-            return True
-
-        # Increment counter
-        self.requests[client_ip][endpoint] = (count + 1, window_start)
-        return False
 
     def _cleanup_old_entries(self, current_time: float):
         """Remove entries older than 1 hour to prevent memory leak"""
@@ -105,17 +117,23 @@ RATE_LIMITS = {
 
 def get_client_ip(request: Request) -> str:
     """
-    Extract client IP address from request
-    Handles X-Forwarded-For header for proxied requests
-    """
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        # X-Forwarded-For can contain multiple IPs (client, proxy1, proxy2, ...)
-        # Take the first one (original client)
-        return forwarded.split(",")[0].strip()
+    Extract client IP address from request securely.
 
-    # Fallback to direct connection IP
-    return request.client.host if request.client else "unknown"
+    Only trusts X-Forwarded-For header when the direct connection
+    comes from a known/trusted proxy to prevent IP spoofing.
+    """
+    direct_ip = request.client.host if request.client else "unknown"
+
+    # Only trust X-Forwarded-For if request comes from a trusted proxy
+    if direct_ip in TRUSTED_PROXIES:
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            # X-Forwarded-For can contain multiple IPs (client, proxy1, proxy2, ...)
+            # Take the first one (original client)
+            return forwarded.split(",")[0].strip()
+
+    # Use direct connection IP (don't trust X-Forwarded-For from untrusted sources)
+    return direct_ip
 
 
 def check_rate_limit(request: Request, max_requests: int = 10, window_seconds: int = 60):
