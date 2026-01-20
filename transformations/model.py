@@ -1,9 +1,20 @@
 """
 Transformation Model - Defines a single data transformation step
 """
+import re
 from enum import Enum
 from typing import List, Dict, Any, Callable, Optional
 import pandas as pd
+from psycopg2 import sql as psycopg2_sql
+
+
+def validate_sql_identifier(name: str) -> str:
+    """Validate that a string is a safe SQL identifier"""
+    if not name:
+        raise ValueError("SQL identifier cannot be empty")
+    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', name):
+        raise ValueError(f"Invalid SQL identifier '{name}': must contain only letters, numbers, and underscores")
+    return name
 
 class ModelType(Enum):
     SQL = "sql"
@@ -101,12 +112,19 @@ class TransformationModel:
 
         # Define helper functions for Jinja2
         def ref(model_name):
+            # Validate model_name to prevent SQL injection
+            validate_sql_identifier(model_name)
             # For views/tables created by previous models, reference schema.name
             if hasattr(self, '_schema'):
-                return f"{self._schema}.{model_name}"
+                schema = self._schema
+                validate_sql_identifier(schema)
+                return f"{schema}.{model_name}"
             return f"public.{model_name}"
 
         def source(schema_name, table_name):
+            # Validate identifiers to prevent SQL injection
+            validate_sql_identifier(schema_name)
+            validate_sql_identifier(table_name)
             # Reference raw source tables
             return f"{schema_name}.{table_name}"
 
@@ -153,12 +171,18 @@ class TransformationModel:
                         import pandas as pd
                         df = pd.read_csv(file_path) if asset_type == 'csv' else pd.read_excel(file_path)
 
-                        # Create temp table name
-                        temp_table = f"_asset_{asset_info['id']}_{asset_name.replace('.', '_').replace('-', '_')}"
+                        # Create temp table name - sanitize to ensure valid SQL identifier
+                        safe_asset_name = re.sub(r'[^a-zA-Z0-9_]', '_', asset_name)
+                        temp_table = f"_asset_{asset_info['id']}_{safe_asset_name}"
+                        # Validate the constructed identifier
+                        validate_sql_identifier(temp_table)
 
-                        # Drop if exists and create temp table
+                        # Drop if exists and create temp table using safe SQL construction
                         with PostgresConnector() as pg_conn:
-                            pg_conn.execute(f"DROP TABLE IF EXISTS {temp_table}")
+                            drop_query = psycopg2_sql.SQL("DROP TABLE IF EXISTS {}").format(
+                                psycopg2_sql.Identifier(temp_table)
+                            )
+                            pg_conn.execute(drop_query)
 
                             # Write dataframe to temp table
                             from sqlalchemy import create_engine
@@ -220,18 +244,30 @@ class TransformationModel:
         # Step 4: Execute based on materialization strategy
         mat_type = getattr(self, 'config', {}).get('materialized', parsed_config.get('materialized', 'view'))
 
+        # Validate model name before using in DDL statements
+        validate_sql_identifier(self.name)
+
         with PostgresConnector() as pg:
             if mat_type == 'view':
-                # Create or replace view
-                create_sql = f"CREATE OR REPLACE VIEW public.{self.name} AS\n{rendered_sql}"
+                # Create or replace view using safe SQL construction
+                create_sql = psycopg2_sql.SQL("CREATE OR REPLACE VIEW public.{} AS\n").format(
+                    psycopg2_sql.Identifier(self.name)
+                ).as_string(pg.conn) + rendered_sql
                 pg.execute(create_sql)
                 # Return a sample of the data
-                result_df = pg.query_to_dataframe(f"SELECT * FROM public.{self.name} LIMIT 5")
+                select_query = psycopg2_sql.SQL("SELECT * FROM public.{} LIMIT 5").format(
+                    psycopg2_sql.Identifier(self.name)
+                ).as_string(pg.conn)
+                result_df = pg.query_to_dataframe(select_query)
 
             elif mat_type == 'table':
-                # Create or replace table
-                drop_sql = f"DROP TABLE IF EXISTS public.{self.name}"
-                create_sql = f"CREATE TABLE public.{self.name} AS\n{rendered_sql}"
+                # Create or replace table using safe SQL construction
+                drop_sql = psycopg2_sql.SQL("DROP TABLE IF EXISTS public.{}").format(
+                    psycopg2_sql.Identifier(self.name)
+                )
+                create_sql = psycopg2_sql.SQL("CREATE TABLE public.{} AS\n").format(
+                    psycopg2_sql.Identifier(self.name)
+                ).as_string(pg.conn) + rendered_sql
                 pg.execute(drop_sql)
                 pg.execute(create_sql)
 
@@ -239,16 +275,26 @@ class TransformationModel:
                 if 'indexes' in parsed_config:
                     self._create_indexes(pg, parsed_config['indexes'])
 
-                result_df = pg.query_to_dataframe(f"SELECT * FROM public.{self.name} LIMIT 5")
+                select_query = psycopg2_sql.SQL("SELECT * FROM public.{} LIMIT 5").format(
+                    psycopg2_sql.Identifier(self.name)
+                ).as_string(pg.conn)
+                result_df = pg.query_to_dataframe(select_query)
 
             elif mat_type == 'incremental':
                 # For now, treat as table (full refresh)
                 # TODO: Implement true incremental logic
-                drop_sql = f"DROP TABLE IF EXISTS public.{self.name}"
-                create_sql = f"CREATE TABLE public.{self.name} AS\n{rendered_sql}"
+                drop_sql = psycopg2_sql.SQL("DROP TABLE IF EXISTS public.{}").format(
+                    psycopg2_sql.Identifier(self.name)
+                )
+                create_sql = psycopg2_sql.SQL("CREATE TABLE public.{} AS\n").format(
+                    psycopg2_sql.Identifier(self.name)
+                ).as_string(pg.conn) + rendered_sql
                 pg.execute(drop_sql)
                 pg.execute(create_sql)
-                result_df = pg.query_to_dataframe(f"SELECT * FROM public.{self.name} LIMIT 5")
+                select_query = psycopg2_sql.SQL("SELECT * FROM public.{} LIMIT 5").format(
+                    psycopg2_sql.Identifier(self.name)
+                ).as_string(pg.conn)
+                result_df = pg.query_to_dataframe(select_query)
 
             else:
                 # Default: just execute and return results
@@ -266,31 +312,41 @@ class TransformationModel:
             if not columns:
                 continue
 
+            # Validate all column names
+            for col in columns:
+                validate_sql_identifier(col)
+
             is_unique = index_config.get('unique', False)
-            unique_str = 'UNIQUE ' if is_unique else ''
 
             # Generate index name: tablename_col1_col2_idx
             columns_str = '_'.join(columns)
             index_name = f"{self.name}_{columns_str}_idx"
+            validate_sql_identifier(index_name)
 
-            # Build column list for index
-            columns_list = ', '.join(columns)
-
-            # Create index SQL
-            create_index_sql = f"CREATE {unique_str}INDEX IF NOT EXISTS {index_name} ON public.{self.name} ({columns_list})"
+            # Build CREATE INDEX SQL using safe construction
+            unique_prefix = psycopg2_sql.SQL("UNIQUE ") if is_unique else psycopg2_sql.SQL("")
+            column_identifiers = psycopg2_sql.SQL(', ').join(
+                [psycopg2_sql.Identifier(col) for col in columns]
+            )
+            create_index_sql = psycopg2_sql.SQL("CREATE {}INDEX IF NOT EXISTS {} ON public.{} ({})").format(
+                unique_prefix,
+                psycopg2_sql.Identifier(index_name),
+                psycopg2_sql.Identifier(self.name),
+                column_identifiers
+            )
 
             try:
                 import logging
-                logging.info(f"Attempting to create index with SQL: {create_index_sql}")
+                logging.info(f"Attempting to create index: {index_name}")
                 pg.execute(create_index_sql, fetch=False)
                 # Explicitly commit to ensure index is persisted
                 pg.conn.commit()
                 logging.info(f"Successfully created and committed index {index_name}")
-                print(f"Created index {index_name} on {self.name}({columns_list})")
+                print(f"Created index {index_name} on {self.name}({', '.join(columns)})")
 
-                # Verify index was created
-                check_sql = f"SELECT indexname FROM pg_indexes WHERE tablename = '{self.name}' AND indexname = '{index_name}'"
-                result = pg.execute(check_sql, fetch=True)
+                # Verify index was created using parameterized query
+                check_sql = "SELECT indexname FROM pg_indexes WHERE tablename = %s AND indexname = %s"
+                result = pg.execute(check_sql, (self.name, index_name), fetch=True)
                 if result:
                     logging.info(f"Verified index exists: {result}")
                 else:
@@ -312,6 +368,9 @@ class TransformationModel:
 
         from postgres import PostgresConnector
 
+        # Validate model name before using in DDL statements
+        validate_sql_identifier(self.name)
+
         mat_type = getattr(self, 'config', {}).get('materialized', 'table')
 
         with PostgresConnector() as pg:
@@ -323,8 +382,10 @@ class TransformationModel:
                 mat_type = 'table'
 
             if mat_type == 'table' or mat_type == 'incremental':
-                # Drop existing table
-                drop_sql = f"DROP TABLE IF EXISTS public.{self.name}"
+                # Drop existing table using safe SQL construction
+                drop_sql = psycopg2_sql.SQL("DROP TABLE IF EXISTS public.{}").format(
+                    psycopg2_sql.Identifier(self.name)
+                )
                 pg.execute(drop_sql)
 
                 # Write DataFrame to database using pandas to_sql
