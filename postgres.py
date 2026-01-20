@@ -4,6 +4,7 @@ import pandas as pd
 from typing import Optional, List, Dict, Any
 from config import config
 from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
 
 class PostgresConnector:
     """
@@ -109,8 +110,15 @@ class PostgresConnector:
             table_name: Target table name (can include schema, e.g., 'raw.customers')
             if_exists: 'fail', 'replace', or 'append' (default)
         """
-        # Create SQLAlchemy engine URL
-        url = f"postgresql+psycopg2://{self.conn_params['user']}:{self.conn_params['password']}@{self.conn_params['host']}:{self.conn_params['port']}/{self.conn_params['dbname']}"
+        # Create SQLAlchemy engine URL securely (password not exposed in string representation)
+        url = URL.create(
+            drivername="postgresql+psycopg2",
+            username=self.conn_params['user'],
+            password=self.conn_params['password'],
+            host=self.conn_params['host'],
+            port=self.conn_params['port'],
+            database=self.conn_params['dbname']
+        )
         engine = create_engine(url)
 
         # Parse table name and schema
