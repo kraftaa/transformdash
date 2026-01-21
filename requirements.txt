@@ -58,3 +58,4 @@ tabulate>=0.9.0                 # Pretty-print tabular data
 # celery>=5.3.1                # Task queue for scheduling
 # prefect>=2.7.9               # Workflow orchestration
 # pyspark>=3.5.1               # Spark for big data transformations
+pytz>=2023.3
