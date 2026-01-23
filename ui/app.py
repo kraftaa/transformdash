@@ -3949,6 +3949,7 @@ async def login(request: Request):
         response = JSONResponse(content={
             "access_token": access_token,
             "token_type": "bearer",
+            "must_change_password": user.get('must_change_password', False),
             "user": {
                 "id": user['id'],
                 "username": user['username'],
@@ -4143,11 +4144,14 @@ async def update_user(
                 update_fields.append("is_superuser = %s")
                 params.append(is_superuser)
             if password:
-                # Truncate to 72 bytes for bcrypt limit
-                password = password[:72]
+                # Validate password length (bcrypt limit is 72 bytes)
+                if len(password.encode('utf-8')) > 72:
+                    raise HTTPException(status_code=400, detail="Password exceeds maximum length of 72 bytes")
                 password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
                 update_fields.append("password_hash = %s")
                 params.append(password_hash)
+                # Clear must_change_password flag when password is updated
+                update_fields.append("must_change_password = FALSE")
 
             if update_fields:
                 update_fields.append("updated_at = CURRENT_TIMESTAMP")
