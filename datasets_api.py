@@ -8,6 +8,7 @@ import re
 from fastapi import HTTPException, Request
 from connection_manager import connection_manager
 from psycopg2 import sql
+from error_utils import log_and_raise_error
 
 
 def validate_sql_identifier(name: str, field_name: str) -> str:
@@ -77,9 +78,7 @@ async def get_all_datasets():
             return {"datasets": all_datasets}
 
     except Exception as e:
-        import traceback
-        logging.error(f"Error fetching datasets: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log_and_raise_error("fetching datasets", e)
 
 
 async def get_dataset_by_id(dataset_id: str):
@@ -138,9 +137,7 @@ async def get_dataset_by_id(dataset_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        logging.error(f"Error fetching dataset {dataset_id}: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log_and_raise_error(f"fetching dataset {dataset_id}", e)
 
 
 async def create_dataset(request: Request):
@@ -205,9 +202,7 @@ async def create_dataset(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        logging.error(f"Error creating dataset: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log_and_raise_error("creating dataset", e)
 
 
 async def update_dataset(dataset_id: str, request: Request):
@@ -278,9 +273,7 @@ async def update_dataset(dataset_id: str, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        logging.error(f"Error updating dataset {dataset_id}: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log_and_raise_error(f"updating dataset {dataset_id}", e)
 
 
 async def delete_dataset(dataset_id: str):
@@ -328,9 +321,7 @@ async def delete_dataset(dataset_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        logging.error(f"Error deleting dataset {dataset_id}: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log_and_raise_error(f"deleting dataset {dataset_id}", e)
 
 
 async def preview_dataset(request: Request):
@@ -415,6 +406,4 @@ async def preview_dataset(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        logging.error(f"Error previewing dataset: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log_and_raise_error("previewing dataset", e)
