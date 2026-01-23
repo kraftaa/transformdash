@@ -12,6 +12,7 @@ import asyncio
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent))
+from error_utils import log_and_raise_error
 
 from transformations.model_loader import ModelLoader
 from orchestration.engine import TransformationEngine
@@ -62,9 +63,7 @@ async def get_all_models():
         }
 
     except Exception as e:
-        import traceback
-        logging.error(f"Error loading models: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log_and_raise_error("loading models", e)
 
 
 async def get_model_by_name(model_name: str):
@@ -107,9 +106,7 @@ async def get_model_by_name(model_name: str):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        logging.error(f"Error loading model {model_name}: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log_and_raise_error(f"loading model {model_name}", e)
 
 
 async def run_models(request: Request):
@@ -166,9 +163,7 @@ async def run_models(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        logging.error(f"Error running models: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log_and_raise_error("running models", e)
 
 
 async def run_single_model(model_name: str):
@@ -242,6 +237,4 @@ async def run_single_model(model_name: str):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        logging.error(f"Error running model {model_name}: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        log_and_raise_error(f"running model {model_name}", e)

@@ -350,13 +350,16 @@ class TransformationModel:
                 if result:
                     logging.info(f"Verified index exists: {result}")
                 else:
-                    logging.error(f"Index verification failed - index {index_name} not found in pg_indexes")
+                    error_msg = f"Index verification failed - index {index_name} not found in pg_indexes"
+                    logging.error(error_msg)
+                    raise RuntimeError(error_msg)
+            except RuntimeError:
+                # Re-raise verification errors
+                raise
             except Exception as e:
-                print(f"Warning: Failed to create index {index_name}: {str(e)}")
-                import traceback
-                import logging
-                logging.error(f"Index creation error: {str(e)}")
-                traceback.print_exc()
+                error_msg = f"Failed to create index {index_name}: {str(e)}"
+                logging.error(f"Index creation error: {error_msg}")
+                raise RuntimeError(error_msg)
 
     def _write_python_result_to_db(self) -> None:
         """

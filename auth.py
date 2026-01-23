@@ -118,21 +118,37 @@ async def get_current_user(request: Request):
             detail="Could not validate credentials"
         )
 
-    # Get user from database
+    # Get user with roles and permissions in a single query (optimized from 3 queries)
     with connection_manager.get_connection() as pg:
-        users = pg.execute("""
-            SELECT id, username, email, full_name, is_active, is_superuser
-            FROM users
-            WHERE username = %s
+        result = pg.execute("""
+            SELECT
+                u.id, u.username, u.email, u.full_name, u.is_active, u.is_superuser,
+                COALESCE(
+                    (SELECT json_agg(DISTINCT jsonb_build_object('id', r.id, 'name', r.name))
+                     FROM roles r
+                     INNER JOIN user_roles ur ON r.id = ur.role_id
+                     WHERE ur.user_id = u.id),
+                    '[]'::json
+                ) as roles,
+                COALESCE(
+                    (SELECT json_agg(DISTINCT jsonb_build_object('name', p.name, 'resource', p.resource, 'action', p.action))
+                     FROM permissions p
+                     INNER JOIN role_permissions rp ON p.id = rp.permission_id
+                     INNER JOIN user_roles ur ON rp.role_id = ur.role_id
+                     WHERE ur.user_id = u.id),
+                    '[]'::json
+                ) as permissions
+            FROM users u
+            WHERE u.username = %s
         """, (username,), fetch=True)
 
-        if not users:
+        if not result:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found"
             )
 
-        user = dict(users[0])
+        user = dict(result[0])
 
         # Check if user is active
         if not user['is_active']:
@@ -140,27 +156,6 @@ async def get_current_user(request: Request):
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User account is inactive"
             )
-
-        # Get user roles
-        roles = pg.execute("""
-            SELECT r.id, r.name
-            FROM roles r
-            INNER JOIN user_roles ur ON r.id = ur.role_id
-            WHERE ur.user_id = %s
-        """, (user['id'],), fetch=True)
-
-        user['roles'] = [dict(r) for r in roles] if roles else []
-
-        # Get user permissions (from roles)
-        permissions = pg.execute("""
-            SELECT DISTINCT p.name, p.resource, p.action
-            FROM permissions p
-            INNER JOIN role_permissions rp ON p.id = rp.permission_id
-            INNER JOIN user_roles ur ON rp.role_id = ur.role_id
-            WHERE ur.user_id = %s
-        """, (user['id'],), fetch=True)
-
-        user['permissions'] = [dict(p) for p in permissions] if permissions else []
 
         return user
 
@@ -269,7 +264,8 @@ async def authenticate_user(username: str, password: str):
 
     with connection_manager.get_connection() as pg:
         users = pg.execute("""
-            SELECT id, username, email, password_hash, full_name, is_active, is_superuser
+            SELECT id, username, email, password_hash, full_name, is_active, is_superuser,
+                   COALESCE(must_change_password, FALSE) as must_change_password
             FROM users
             WHERE username = %s
         """, (username,), fetch=True)
