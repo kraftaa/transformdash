@@ -4015,7 +4015,8 @@ async def get_current_user_info(request: Request):
                 "full_name": user.get('full_name'),
                 "is_superuser": user['is_superuser'],
                 "roles": user.get('roles', []),
-                "permissions": user.get('permissions', [])
+                "permissions": user.get('permissions', []),
+                "must_change_password": user.get('must_change_password', False)
             }
         }
     except HTTPException:

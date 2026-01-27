@@ -123,6 +123,7 @@ async def get_current_user(request: Request):
         result = pg.execute("""
             SELECT
                 u.id, u.username, u.email, u.full_name, u.is_active, u.is_superuser,
+                COALESCE(u.must_change_password, FALSE) as must_change_password,
                 COALESCE(
                     (SELECT json_agg(DISTINCT jsonb_build_object('id', r.id, 'name', r.name))
                      FROM roles r
@@ -156,6 +157,21 @@ async def get_current_user(request: Request):
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User account is inactive"
             )
+
+        # TODO: Enforce password change requirement (server-side enforcement)
+        # Commented out until frontend password change UI is implemented
+        # if user.get('must_change_password'):
+        #     allowed_paths = [
+        #         '/api/auth/change-password',
+        #         '/api/auth/logout',
+        #         '/api/auth/me',  # Allow checking current user status
+        #     ]
+        #     request_path = str(request.url.path)
+        #     if not any(request_path.endswith(path) for path in allowed_paths):
+        #         raise HTTPException(
+        #             status_code=status.HTTP_403_FORBIDDEN,
+        #             detail="Password change required. Please change your password before accessing the application."
+        #         )
 
         return user
 
