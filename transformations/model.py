@@ -186,13 +186,22 @@ class TransformationModel:
 
                             # Write dataframe to temp table
                             from sqlalchemy import create_engine
+                            from sqlalchemy.engine import URL
                             import os
                             db_host = os.getenv("POSTGRES_HOST", "localhost")
                             db_port = os.getenv("POSTGRES_PORT", "5432")
                             db_name = os.getenv("POSTGRES_DB", "transformdash")
                             db_user = os.getenv("POSTGRES_USER", "postgres")
                             db_pass = os.getenv("POSTGRES_PASSWORD", "postgres")
-                            engine = create_engine(f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}")
+                            db_url = URL.create(
+                                drivername="postgresql",
+                                username=db_user,
+                                password=db_pass,
+                                host=db_host,
+                                port=int(db_port),
+                                database=db_name
+                            )
+                            engine = create_engine(db_url)
 
                             df.to_sql(temp_table, engine, if_exists='replace', index=False)
                             engine.dispose()
@@ -394,6 +403,7 @@ class TransformationModel:
                 # Write DataFrame to database using pandas to_sql
                 # This requires sqlalchemy engine
                 from sqlalchemy import create_engine
+                from sqlalchemy.engine import URL
                 import os
 
                 db_host = os.getenv("POSTGRES_HOST", "localhost")
@@ -402,7 +412,15 @@ class TransformationModel:
                 db_user = os.getenv("POSTGRES_USER", "postgres")
                 db_pass = os.getenv("POSTGRES_PASSWORD", "postgres")
 
-                engine = create_engine(f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}")
+                db_url = URL.create(
+                    drivername="postgresql",
+                    username=db_user,
+                    password=db_pass,
+                    host=db_host,
+                    port=int(db_port),
+                    database=db_name
+                )
+                engine = create_engine(db_url)
 
                 # Write DataFrame to table
                 self.result.to_sql(

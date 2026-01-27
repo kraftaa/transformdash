@@ -107,7 +107,7 @@ rate_limiter = RateLimiter()
 RATE_LIMITS = {
     "/api/auth/login": (5, 300),      # 5 requests per 5 minutes (brute-force protection)
     "/api/auth/logout": (10, 60),     # 10 requests per minute
-    "/api/auth/me": (30, 60),         # 30 requests per minute
+    "/api/auth/me": (120, 60),        # 120 requests per minute (increased for SPA polling)
     "/api/query": (20, 60),           # 20 queries per minute
     "/api/query/execute": (20, 60),   # 20 queries per minute
     "/api/dashboard/*/export": (10, 60),  # 10 exports per minute
